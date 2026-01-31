@@ -7,6 +7,12 @@
 			}
 		},
 		{
+			"path": "pages/page_saved/save_accouting",
+			"style": {
+				"navigationBarTitleText": "新增账单"
+			}
+		},
+		{
 			"path": "pages/page_data/accounting_chart",
 			"style": {
 				"navigationBarTitleText": "账单图表"

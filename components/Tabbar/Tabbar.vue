@@ -2,13 +2,13 @@
   <view class="tabbar-container">
     <van-tabbar v-model="active" active-color="#DC5431" inactive-color="#94a3b8" @change="onChange" class="custom-tabbar" :border="false">
       <van-tabbar-item v-for="(item, index) in tabList" :key="index" :name="index" :class="{ 'fab-item': item.isFab }">
-        <template #icon>
+        <template #icon="props">
           <template v-if="item.isFab">
             <view class="fab-main">
               <van-icon name="plus" class="fab-icon" />
             </view>
           </template>
-          <van-icon v-else :name="item.icon" />
+          <van-icon v-else :name="props.active ? item.selectedIcon : item.icon" />
         </template>
         <text :class="['nav-name', { 'fab-label': item.isFab }]">{{ item.text }}</text>
       </van-tabbar-item>
@@ -37,8 +37,32 @@ const getActiveIndex = () => {
 const active = ref(getActiveIndex()); 
 
 const onChange = (index) => {
-  active.value = index; // 立即改变本地状态，增强反馈感
   const target = tabList.value[index];
+  
+  // 特殊处理 Fab 按钮（记账）
+  if (target.isFab) {
+    // 1. 阻止选中状态变化：立即重置 active 为当前页面索引
+    // 使用 nextTick 确保覆盖 Vant 的默认更新行为
+    setTimeout(() => {
+      active.value = getActiveIndex();
+    }, 0);
+
+    // 2. 执行跳转（通常是新页面，非 Tab 页）
+    if (target.path) {
+      uni.navigateTo({
+        url: target.path,
+        fail: (err) => {
+          // 如果 navigateTo 失败（例如路径错误），尝试其他方式
+          console.error('Navigation failed:', err);
+          uni.switchTab({ url: target.path });
+        }
+      });
+    }
+    return;
+  }
+
+  // 普通 Tab 切换逻辑
+  active.value = index; 
   if (target && target.path) {
     uni.switchTab({
       url: target.path,
@@ -98,6 +122,11 @@ onMounted(() => {
   margin-top: -45px;
   box-shadow: 0 4px 10px rgba(255, 213, 65, 0.4);
   border: 4px solid #fefbf2;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性过渡效果 */
+}
+
+.fab-main:active {
+  transform: scale(1.15); /* 点击时轻微放大 */
 }
 
 .fab-icon {
@@ -110,7 +139,5 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-:deep(.van-tabbar-item--active) .fab-label {
-  color: #DC5431;
-}
+
 </style>
