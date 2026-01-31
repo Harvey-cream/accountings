@@ -8,7 +8,7 @@
 import { onMounted } from 'vue';
 
 onMounted(() => {
-  uni.redirectTo({
+  uni.reLaunch({
     url: '/pages/page_details/accounting_detail'
   });
 });

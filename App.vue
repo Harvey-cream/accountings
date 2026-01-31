@@ -2,6 +2,21 @@
 	export default {
 		onLaunch: function() {
 			console.log('App Launch')
+			uni.hideTabBar();
+			
+			// 定义初始 TabBar 列表
+			const initialTabList = [
+				{ text: '明细', icon: 'list-switch', selectedIcon: 'list-switch', path: '/pages/page_details/accounting_detail' },
+				{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/page_data/accounting_chart' },
+				{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_details/accounting_detail', isFab: true },
+				{ text: '发现', icon: 'search', selectedIcon: 'search', path: '/pages/page_discover/discover' },
+				{ text: '我的', icon: 'user-o', selectedIcon: 'user-o', path: '/pages/page_my/my' }
+			];
+			
+			// 将配置存入本地缓存
+			uni.setStorageSync('tabList', initialTabList);
+			// 发出全局事件通知 Tabbar 组件更新
+			uni.$emit('updateTabbar');
 		},
 		onShow: function() {
 			console.log('App Show')

@@ -3,15 +3,38 @@
 		{
 			"path": "pages/page_details/accounting_detail",
 			"style": {
-				"navigationStyle": "custom"
+				"navigationBarTitleText": "账单明细"
 			}
+		},
+		{
+			"path": "pages/page_data/accounting_chart",
+			"style": {
+				"navigationBarTitleText": "账单图表"
+			}
+		},
+		{
+			"path": "pages/page_discover/discover",
+			"style": {
+				"navigationBarTitleText": "社交发现"
+			}
+		},
+		{
+			"path": "pages/page_my/my",
+			"style": {
+				"navigationBarTitleText": "个人中心"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {}
 		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "uni-app",
+		"navigationBarTitleText": "",
 		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
+		"backgroundColor": "#F8F8F8",
+		"navigationStyle": "custom"
 	},
 	"uniIdRouter": {}
 }

@@ -1,141 +1,131 @@
 <template>
   <view class="page-container">
-    <!-- Header Area -->
-    <view class="header">
-      <view class="status-bar">
-        <view class="status-icons">
-          <van-icon name="signal-full" size="16" />
-          <van-icon name="wifi" size="16" />
-          <van-icon name="battery-full" size="16" class="rotate-90" />
-        </view>
-      </view>
-      
-      <view class="header-content">
-        <text class="title">每月账单明细</text>
-        <view class="header-actions">
-          <view class="icon-btn">
-            <van-icon name="search" size="20" />
-          </view>
-          <view class="icon-btn">
-            <van-icon name="bell" size="20" />
+    <!-- Main Content Area: Detail View -->
+    <view class="tab-content">
+      <!-- Header Area -->
+      <view class="header">
+        <view class="status-bar">
+          <view class="status-icons">
+            <van-icon name="signal-full" size="16" />
+            <van-icon name="wifi" size="16" />
+            <van-icon name="battery-full" size="16" class="rotate-90" />
           </view>
         </view>
-      </view>
-    </view>
-
-    <!-- Summary Card -->
-    <view class="summary-card">
-      <view class="summary-header">
-        <view class="month-selector" @click="showMonthPicker = true">
-          <text class="month-text">{{ summary.month }}</text>
-          <van-icon name="arrow-down" color="#94a3b8" />
-        </view>
-        <van-tag round type="primary" color="#f1f5f9" text-color="#64748b" class="badge">账单概览</van-tag>
-      </view>
-      <view class="summary-stats">
-        <view class="stat-item">
-          <text class="stat-label">本月支出</text>
-          <text class="stat-value">{{ summary.expense }}</text>
-        </view>
-        <view class="stat-item border-left">
-          <text class="stat-label">本月收入</text>
-          <text class="stat-value">{{ summary.income }}</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- Quick Actions Grid -->
-    <view class="quick-actions">
-      <van-grid :column-num="5" :border="false" :gutter="10">
-        <van-grid-item v-for="action in quickActions" :key="action.id">
-          <template #icon>
-            <view :class="['action-icon-wrap', action.bgColor]">
-              <van-icon :name="action.icon" :color="action.iconColor" size="24" />
+        
+        <view class="header-content">
+          <text class="title">每月账单明细</text>
+          <view class="header-actions">
+            <view class="icon-btn">
+              <van-icon name="search" size="20" />
             </view>
-          </template>
-          <template #text>
-            <text class="action-name">{{ action.name }}</text>
-          </template>
-        </van-grid-item>
-      </van-grid>
-    </view>
-
-    <!-- Transactions Section -->
-    <view class="transactions-section">
-      <van-list
-        v-model:loading="loading"
-        :finished="finished"
-        finished-text="没有更多了"
-        @load="onLoad"
-      >
-        <view v-for="group in dailyTransactions" :key="group.id" class="day-group">
-          <view class="day-header">
-            <text class="day-date">{{ group.date }}</text>
-            <text class="day-total">支出: {{ group.totalExpense }}</text>
-          </view>
-          
-          <van-cell-group inset class="transaction-list">
-            <van-cell v-for="item in group.items" :key="item.id" center class="transaction-card">
-              <template #icon>
-                <view :class="['item-icon-wrap', item.iconBg]">
-                  <van-icon :name="item.icon" :color="item.iconColor" size="24" />
-                </view>
-              </template>
-              <template #title>
-                <view class="item-main">
-                  <text class="item-title">{{ item.title }}</text>
-                  <text class="item-amount">{{ item.amount }}</text>
-                </view>
-              </template>
-              <template #label>
-                <text class="item-details">{{ item.time }} · {{ item.location }}</text>
-              </template>
-            </van-cell>
-          </van-cell-group>
-        </view>
-      </van-list>
-    </view>
-
-    <!-- Map FAB -->
-    <view class="fab-map">
-      <van-icon name="location-o" size="24" />
-    </view>
-
-    <!-- Bottom Navigation -->
-    <van-tabbar v-model="activeNav" active-color="#f59e0b" inactive-color="#94a3b8" class="bottom-nav">
-      <van-tabbar-item v-for="nav in navItems" :key="nav.id" :name="nav.id - 1" :class="{ 'fab-item': nav.isFab }">
-        <template #icon>
-          <template v-if="nav.isFab">
-            <view class="fab-main">
-              <van-icon name="plus" class="fab-icon" />
+            <view class="icon-btn">
+              <van-icon name="bell" size="20" />
             </view>
-          </template>
-          <van-icon v-else :name="nav.icon" />
-        </template>
-        <text :class="['nav-name', { 'fab-label': nav.isFab }]">{{ nav.name }}</text>
-      </van-tabbar-item>
-    </van-tabbar>
+          </view>
+        </view>
+      </view>
 
-    <!-- Month Picker Popup -->
-    <van-popup v-model:show="showMonthPicker" position="bottom">
-      <van-datetime-picker
-        v-model="currentDate"
-        type="year-month"
-        title="选择月份"
-        :min-date="minDate"
-        :max-date="maxDate"
-        @confirm="onMonthConfirm"
-        @cancel="showMonthPicker = false"
-      />
-    </van-popup>
+      <!-- Summary Card -->
+      <view class="summary-card">
+        <view class="summary-header">
+          <view class="month-selector" @click="showMonthPicker = true">
+            <text class="month-text">{{ summary.month }}</text>
+            <van-icon name="arrow-down" color="#94a3b8" />
+          </view>
+          <van-tag round type="primary" color="#f1f5f9" text-color="#64748b" class="badge">账单概览</van-tag>
+        </view>
+        <view class="summary-stats">
+          <view class="stat-item">
+            <text class="stat-label">本月支出</text>
+            <text class="stat-value">{{ summary.expense }}</text>
+          </view>
+          <view class="stat-item border-left">
+            <text class="stat-label">本月收入</text>
+            <text class="stat-value">{{ summary.income }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- Quick Actions Grid -->
+      <view class="quick-actions">
+        <van-grid :column-num="5" :border="false" :gutter="10">
+          <van-grid-item v-for="action in quickActions" :key="action.id">
+            <template #icon>
+              <view :class="['action-icon-wrap', action.bgColor]">
+                <van-icon :name="action.icon" :color="action.iconColor" size="24" />
+              </view>
+            </template>
+            <template #text>
+              <text class="action-name">{{ action.name }}</text>
+            </template>
+          </van-grid-item>
+        </van-grid>
+      </view>
+
+      <!-- Transactions Section -->
+      <view class="transactions-section">
+        <van-list
+          v-model:loading="loading"
+          :finished="finished"
+          finished-text="没有更多了"
+          @load="onLoad"
+        >
+          <view v-for="group in dailyTransactions" :key="group.id" class="day-group">
+            <view class="day-header">
+              <text class="day-date">{{ group.date }}</text>
+              <text class="day-total">支出: {{ group.totalExpense }}</text>
+            </view>
+            
+            <van-cell-group inset class="transaction-list">
+              <van-cell v-for="item in group.items" :key="item.id" center class="transaction-card">
+                <template #icon>
+                  <view :class="['item-icon-wrap', item.iconBg]">
+                    <van-icon :name="item.icon" :color="item.iconColor" size="24" />
+                  </view>
+                </template>
+                <template #title>
+                  <view class="item-main">
+                    <text class="item-title">{{ item.title }}</text>
+                    <text class="item-amount">{{ item.amount }}</text>
+                  </view>
+                </template>
+                <template #label>
+                  <text class="item-details">{{ item.time }} · {{ item.location }}</text>
+                </template>
+              </van-cell>
+            </van-cell-group>
+          </view>
+        </van-list>
+      </view>
+
+      <!-- Map FAB -->
+      <view class="fab-map">
+        <van-icon name="location-o" size="24" />
+      </view>
+
+      <!-- Month Picker Popup -->
+      <van-popup v-model:show="showMonthPicker" position="bottom">
+        <van-date-picker
+          v-model="currentDateArray"
+          title="选择月份"
+          :min-date="minDate"
+          :max-date="maxDate"
+          :columns-type="['year', 'month']"
+          @confirm="onMonthConfirm"
+          @cancel="showMonthPicker = false"
+        />
+      </van-popup>
+    </view>
+    <custom-tabbar />
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue';
+import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 
 const showMonthPicker = ref(false);
-const currentDate = ref(new Date());
+const currentDateArray = ref(['2025', '12']);
 const minDate = new Date(2020, 0, 1);
 const maxDate = new Date(2025, 11, 31);
 const activeNav = ref(0);
@@ -203,9 +193,8 @@ const navItems = ref([
   { id: 5, name: '我的', icon: 'user-o', active: false }
 ]);
 
-const onMonthConfirm = (value) => {
-  const date = new Date(value);
-  summary.value.month = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+const onMonthConfirm = ({ selectedValues }) => {
+  summary.value.month = `${selectedValues[0]}年${selectedValues[1]}月`;
   showMonthPicker.value = false;
 };
 </script>
@@ -215,7 +204,7 @@ const onMonthConfirm = (value) => {
   font-family: 'Inter', -apple-system, sans-serif;
   background-color: #F7F8FA;
   min-height: 100vh;
-  padding-bottom: 100px; 
+  padding-bottom: 70px;
 }
 
 /* Header Styles */
@@ -456,7 +445,7 @@ const onMonthConfirm = (value) => {
 /* FAB Map */
 .fab-map {
   position: fixed;
-  bottom: 100px;
+  bottom: calc(var(--window-bottom) + 20px);
   right: 20px;
   width: 48px;
   height: 48px;
@@ -469,50 +458,5 @@ const onMonthConfirm = (value) => {
   color: #f59e0b;
 }
 
-/* Bottom Nav */
-.bottom-nav {
-  height: 45px;
-  padding-bottom: 20px;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-}
 
-/* 去除 Vant Tabbar 默认顶部的细线 */
-.bottom-nav::after,
-:deep(.van-hairline--top-bottom:after) {
-  border: none !important;
-  display: none !important;
-}
-.nav-name {
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.fab-main {
-  width: 50px;
-  height: 50px;
-  background-color: #FFD541;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0f172a;
-  box-shadow: 0 8px 20px -4px rgba(255, 213, 65, 0.6);
-  border: 4px solid #ffffff;
-  margin-bottom: 45px;
-  position: relative;
-}
-
-.fab-icon {
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.fab-label {
-  font-weight: 700;
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  right: 0;
-  text-align: center;
-}
 </style>
