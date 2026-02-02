@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>TencentLBSAPIKey</key>
+    <string>WZCBZ-OLPCU-TJJVJ-4LZTE-SSG5O-6JFEM</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>允许使用定位权限吗</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>允许一直使用定位权限</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>允许仅在app运行期间使用定位权限</string>
+    <key>NSLocationTemporaryUsageDescriptionDictionary</key>
+    <dict>
+      <key>key1111</key>
+      <string>获取准确的位置信息</string>
+    </dict>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>location</string>
+    </array>
+  </dict>
+</plist>

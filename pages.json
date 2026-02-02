@@ -19,7 +19,7 @@
 			}
 		},
 		{
-			"path": "pages/page_discover/discover",
+			"path": "pages/page_discover/community",
 			"style": {
 				"navigationBarTitleText": "社交发现"
 			}

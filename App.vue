@@ -9,7 +9,7 @@
 				{ text: '明细', icon: 'balance-list-o', selectedIcon: 'balance-list', path: '/pages/page_details/accounting_detail' },
 				{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/page_data/accounting_chart' },
 				{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_saved/save_accouting', isFab: true },
-				{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/page_discover/discover' },
+				{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/page_discover/community' },
 				{ text: '我的', icon: 'user-o', selectedIcon: 'user', path: '/pages/page_my/my' }
 			];
 			
