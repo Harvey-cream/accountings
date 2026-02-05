@@ -6,7 +6,7 @@
         <view class ="segment-control">
               <text v-for="(item,index) in period" :key="index" :class="['segment-item', { active: currentPeriod === index }]" @click="currentPeriod = index">{{ item }}</text>
         </view>
-        <van-icon name="plus" size="20" color="#0f172a" />
+        <van-icon name="plus" size="20" color="#0f172a" @click="goToPublish" />
       </view>
     </view>
 
@@ -163,6 +163,13 @@ const submitReply = (postId) => {
   }
   
   hideReplyInput();
+};
+
+// 跳转到发布动态页面
+const goToPublish = () => {
+  uni.navigateTo({
+    url: '/pages/page_discover/page_publish/publish'
+  });
 };
 
 const period = ['热门推荐', '最新发布'];

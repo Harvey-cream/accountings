@@ -1,6 +1,5 @@
 {
-	"pages": [
-		{
+	"pages": [{
 			"path": "pages/page_details/accounting_detail",
 			"style": {
 				"navigationBarTitleText": "账单明细"
@@ -25,7 +24,7 @@
 			}
 		},
 		{
-			"path": "pages/page_my/my",
+			"path": "pages/page_setting/accounting",
 			"style": {
 				"navigationBarTitleText": "个人中心"
 			}
@@ -34,6 +33,12 @@
 			"path": "pages/page_discover/page_chatroom/chatroom",
 			"style": {
 				"navigationBarTitleText": "消息"
+			}
+		},
+		{
+			"path": "pages/page_discover/page_publish/publish",
+			"style": {
+				"navigationBarTitleText": "发表"
 			}
 		},
 		{
