@@ -6,7 +6,7 @@
         <view class ="segment-control">
               <text v-for="(item,index) in period" :key="index" :class="['segment-item', { active: currentPeriod === index }]" @click="currentPeriod = index">{{ item }}</text>
         </view>
-        <van-icon name="calendar-o" size="20" color="#0f172a" />
+        <van-icon name="plus" size="20" color="#0f172a" />
       </view>
     </view>
 
@@ -91,7 +91,14 @@
       </view>
     </view>
 
-    <custom-tabbar />  
+    <custom-tabbar />
+    
+    <!-- 聊天室悬浮入口 -->
+    <view class="floating-chat-entry" @click="goToChatroom">
+      <van-icon name="chat-o" size="20" color="#333" />
+      <view class="unread-dot">9</view>
+    </view>
+
     <!-- 浮动回复输入框 -->
     <view v-if="replyPost !== null" class="floating-reply-container">
       <input 
@@ -136,6 +143,12 @@ const hideReplyInput = () => {
   replyPost.value = null;
   replyComment.value = null;
   replyContent.value = '';
+};
+
+const goToChatroom = () => {
+  uni.navigateTo({
+    url: '/pages/page_discover/page_chatroom/chatroom'
+  });
 };
 
 const submitReply = (postId) => {
@@ -527,5 +540,45 @@ const filteredPosts = computed(() => {
   left: 10px;
   font-size: 12px;
   color: #64748b;
+}
+
+/* 聊天室悬浮入口样式 */
+.floating-chat-entry {
+  position: fixed;
+  bottom: 90px;
+  right: 16px;
+  width: 42px;
+  height: 42px;
+  background-color: #ffd541;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(255, 213, 65, 0.5);
+  z-index: 98;
+  transition: transform 0.2s;
+}
+
+.floating-chat-entry:active {
+  transform: scale(0.95);
+}
+
+.unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  padding: 0 4px;
+  box-sizing: border-box;
 }
 </style>

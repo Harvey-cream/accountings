@@ -31,6 +31,12 @@
 			}
 		},
 		{
+			"path": "pages/page_discover/page_chatroom/chatroom",
+			"style": {
+				"navigationBarTitleText": "消息"
+			}
+		},
+		{
 			"path": "pages/index/index",
 			"style": {}
 		}
