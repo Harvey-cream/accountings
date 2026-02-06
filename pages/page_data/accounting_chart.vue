@@ -1,26 +1,34 @@
 <template>
 	<view class="chart-container">
-		<!-- 顶部黄色区域 -->
-		<view class="header-section">
+		<!-- 顶部固定导航区域 -->
+		<view class="fixed-nav-container">
 			<view class="nav-header">
-				<van-icon name="arrow-left" size="20" color="#0f172a" />
+				<!-- 支出/收入下拉选择器 -->
+				<view class="type-selector" @click="showTypeSheet = true">
+					<text class="type-text">{{ currentType }}</text>
+					<van-icon name="arrow-down" size="12" color="#0f172a" />
+				</view>
 				<view class="segment-control">
 					<text v-for="(item, index) in periods" :key="index" :class="['segment-item', { active: currentPeriod === index }]" @click="currentPeriod = index">{{ item }}</text>
-				</view>
-				<van-icon name="calendar-o" size="20" color="#0f172a" />
-			</view>
-
-			<view class="total-display">
-				<text class="total-label">总支出 (12月)</text>
-				<text class="total-amount">¥ 265,211.00</text>
-				<view class="avg-badge">
-					<text class="avg-text">日均支出: ¥ 8,555</text>
 				</view>
 			</view>
 		</view>
 
-		<!-- 内容区域 -->
-		<view class="content-body">
+		<!-- 可滚动的区域 -->
+		<scroll-view scroll-y class="scroll-view-content">
+			<!-- 顶部展示区域 -->
+			<view class="header-section">
+				<view class="total-display">
+					<text class="total-label">总支出 (12月)</text>
+					<text class="total-amount">¥ 265,211.00</text>
+					<view class="avg-badge">
+						<text class="avg-text">日均支出: ¥ 8,555</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- 内容区域 -->
+			<view class="content-body">
 			<!-- 支出分类卡片 -->
 			<view class="card category-card">
 				<view class="card-header">
@@ -109,8 +117,17 @@
 						</template>
 					</van-cell>
 				</view>
-			</view>
-		</view>
+			</view></view>
+		</scroll-view>
+
+		<!-- 选择类型弹窗 (放在外层不影响布局) -->
+		<van-action-sheet
+			:show="showTypeSheet"
+			:actions="typeActions"
+			@close="showTypeSheet = false"
+			@select="onTypeSelect"
+		/>
+
 		<custom-tabbar />
 	</view>
 </template>
@@ -122,6 +139,20 @@ import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 const periods = ['日', '周', '月'];
 const currentPeriod = ref(2);
 const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+// 类型选择逻辑
+const currentType = ref('支出');
+const showTypeSheet = ref(false);
+const typeActions = [
+	{ name: '支出' },
+	{ name: '收入' }
+];
+
+const onTypeSelect = (event) => {
+	currentType.value = event.name;
+	showTypeSheet.value = false;
+	// 这里可以根据类型切换数据
+};
 
 const categories = ref([
 	{ name: '住房', percent: 40, colorClass: 'bg-blue' },
@@ -138,24 +169,54 @@ const expenseList = ref([
 
 <style scoped>
 .chart-container {
-	min-height: 100vh;
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
 	background-color: #f7f8fa;
-	padding-bottom: 70px;
+	overflow: hidden;
 }
 
-/* 顶部 Header */
-.header-section {
+/* 顶部固定导航 */
+.fixed-nav-container {
 	background-color: #ffd541;
-	padding: 10px 20px 70px; /* 顶部留出状态栏空间 */
-	border-bottom-left-radius: 30px;
-	border-bottom-right-radius: 30px;
+	padding: 10px 20px 0;
+	box-sizing: border-box;
+	flex-shrink: 0;
 }
 
 .nav-header {
 	display: flex;
-	justify-content: space-between;
+	flex-direction: column;
+	gap: 16px;
+	margin-bottom: 10px;
+}
+
+/* 滚动区域调整 */
+.scroll-view-content {
+	flex: 1;
+	overflow-y: auto;
+}
+
+/* 顶部展示区域 (随页面滑动的部分) */
+.header-section {
+	background-color: #ffd541;
+	padding: 0 20px 70px;
+	border-bottom-left-radius: 30px;
+	border-bottom-right-radius: 30px;
+}
+
+.type-selector {
+	display: flex;
 	align-items: center;
-	margin-bottom: 15px;
+	justify-content: center;
+	gap: 4px;
+	padding: 8px 10px;
+}
+
+.type-text {
+	font-size: 14px;
+	font-weight: 700;
+	color: #0f172a;
 }
 
 .segment-control {
@@ -163,10 +224,14 @@ const expenseList = ref([
 	border-radius: 20px;
 	padding: 4px;
 	display: flex;
+	box-sizing: border-box;
+	width: 100%; 
 }
 
 .segment-item {
-	padding: 6px 24px;
+	flex: 1; 
+	text-align: center; 
+	padding: 6px 0; 
 	border-radius: 16px;
 	font-size: 14px;
 	color: #0f172a;
