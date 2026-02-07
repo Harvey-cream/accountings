@@ -29,62 +29,64 @@
 
       <view class="feed">
         <view v-for="post in filteredPosts" :key="post.id" class="post-card">
-          <view class="post-head">
-            <view class="post-info">
-              <view class="avatar"></view>
+          <view class="post-left">
+            <view class="avatar"></view>
+          </view>
+          
+          <view class="post-right">
+            <view class="post-head">
               <view class="post-meta">
                 <text class="post-name">{{ post.name }}</text>
                 <text class="post-time">{{ post.time }}</text>
               </view>
-            </view>
-           <view class="head-actions">
-            <view class="action post-comment" @click="showReplyInput(post.id)">
-                <van-icon name="chat-o" size="18" color="#64748b" />
+              <view class="head-actions">
+                <view class="action post-comment" @click="showReplyInput(post.id)">
+                  <van-icon name="chat-o" size="18" color="#64748b" />
+                </view>
+
+                <view class="action post-like">
+                  <van-icon name="good-job-o" size="18" color="#64748b" />
+                  <text class="action-text">{{ post.likes }}</text>
+                </view>
               </view>
+            </view>
 
-              <view class="action post-like">
-                <van-icon name="good-job-o" size="18" color="#64748b" />
-                <text class="action-text">{{ post.likes }}</text>
+            <text class="post-text">{{ post.text }}</text>
+
+            <view v-if="post.hasImages" class="post-images">
+              <view v-for="(image, index) in post.images" :key="index" class="img-outer" @click="previewImage(post.images, index)">
+                <image :src="image" class="img-inner"></image>
               </view>
-
             </view>
-          </view>
 
-          <text class="post-text">{{ post.text }}</text>
-
-          <view v-if="post.hasImages" class="post-images">
-            <view v-for="(image, index) in post.images" :key="index" class="img-outer" @click="previewImage(post.images, index)">
-              <image :src="image" class="img-inner"></image>
-            </view>
-          </view>
-
-          <!-- 评论区 -->
-          <view class="post-comments">
-            <!-- 评论列表 -->
-            <view class="comment-list">
-              <!-- 显示评论（最多3条，或全部） -->
-              <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.id, comment)">
-                <view class="comment-header">
-                  <view class="comment-avatar"></view>
-                  <view class="comment-main">
-                    <view class="comment-meta">
-                      <text class="comment-author">{{ comment.author }}</text>
-                      <text class="comment-time">{{ comment.time }}</text>
-                    </view>
-                    <text class="comment-content">{{ comment.content }}</text>
+            <!-- 评论区 -->
+            <view class="post-comments">
+              <!-- 评论列表 -->
+              <view class="comment-list">
+                <!-- 显示评论（最多3条，或全部） -->
+                <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.id, comment)">
+                  <view class="comment-header">
+                    <view class="comment-avatar"></view>
+                    <view class="comment-main">
+                      <view class="comment-meta">
+                        <text class="comment-author">{{ comment.author }}</text>
+                        <text class="comment-time">{{ comment.time }}</text>
+                      </view>
+                      <text class="comment-content">{{ comment.content }}</text>
                     </view>
                   </view>
                 </view>
               </view>
-             <view v-if="post.realComments.length > 2" class="toggle-comments" @click="post.showAllComments = !post.showAllComments">
-              <text>{{ post.showAllComments ? '收起' : `查看全部 ${post.realComments.length} 条评论` }}</text>
+              <view v-if="post.realComments.length > 2" class="toggle-comments" @click="post.showAllComments = !post.showAllComments">
+                <text>{{ post.showAllComments ? '收起' : `查看全部 ${post.realComments.length} 条评论` }}</text>
+              </view>
             </view>
-          </view>
-          
-          <!-- 分享按钮 -->
-          <view class="post-actions">
-            <view class="action">
-              <van-icon name="share-o" size="18" color="#64748b" />
+            
+            <!-- 分享按钮 -->
+            <view class="post-actions">
+              <view class="action">
+                <van-icon name="share-o" size="18" color="#64748b" />
+              </view>
             </view>
           </view>
         </view>
@@ -329,11 +331,19 @@ const filteredPosts = computed(() => {
 }
 
 .post-card {
-  background-color: #fff;
-  border-radius: 18px;
-  padding: 14px;
-  margin-bottom: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 10px 0px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 4px;
+}
+
+.post-left {
+  flex-shrink: 0;
+}
+
+.post-right {
+  flex: 1;
+  min-width: 0;
 }
 
 .post-head {
@@ -372,7 +382,6 @@ const filteredPosts = computed(() => {
 }
 
 .post-meta {
-  margin-left: 10px;
   display: flex;
   flex-direction: column;
 }

@@ -13,78 +13,66 @@
 				</view>
 			</view>
 		</view>
-
-		<!-- 可滚动的区域 -->
 		<scroll-view scroll-y class="scroll-view-content">
-			<!-- 顶部展示区域 -->
 			<view class="header-section">
 				<view class="total-display">
-					<text class="total-label">总支出 (12月)</text>
-					<text class="total-amount">¥ 265,211.00</text>
-					<view class="avg-badge">
-						<text class="avg-text">日均支出: ¥ 8,555</text>
+					<view class="display-row">
+						<view class="display-group">
+							<text class="display-label">总支出:</text>
+							<text class="display-value">{{ currentChartData.total }}</text>
+						</view>
+						<view class="display-group">
+							<text class="display-label">均值:</text>
+							<text class="display-value">{{ currentChartData.average }}</text>
+						</view>
 					</view>
 				</view>
 			</view>
 
-			<!-- 内容区域 -->
 			<view class="content-body">
-			<!-- 支出分类卡片 -->
-			<view class="card category-card">
-				<view class="card-header">
-					<text class="card-title">支出分类</text>
-					<text class="card-subtitle">前五名</text>
-				</view>
-
-				<view class="chart-row">
-					<!-- 模拟环形图 -->
-					<view class="donut-chart">
-						<view class="donut-center">
-							<text class="donut-label">总支出</text>
-							<text class="donut-value">100%</text>
-						</view>
-					</view>
-
-					<!-- 图例列表 -->
-					<view class="legend-list">
-						<view v-for="(item, index) in categories" :key="index" class="legend-item">
-							<view class="legend-info">
-								<view :class="['dot', item.colorClass]"></view>
-								<text class="legend-name">{{ item.name }}</text>
-							</view>
-							<text class="legend-percent">{{ item.percent }}%</text>
-						</view>
-					</view>
-				</view>
-			</view>
-
-			<!-- 趋势卡片 -->
-			<view class="card trend-card">
-				<view class="card-header">
-					<view>
-						<text class="card-title">周趋势</text>
-						<view class="trend-subtitle">
-							<text class="trend-text">较上周增长 12%</text>
-						</view>
-					</view>
-					<view class="trend-dots">
-						<view class="dot-indicator active"></view>
-						<view class="dot-indicator"></view>
-					</view>
-				</view>
-
+			<view class="trend-section">
 				<!-- 简易 SVG 曲线图 -->
-				<view class="line-chart-container">
-					<svg viewBox="0 0 300 100" class="line-chart-svg">
-						<path d="M0,80 Q50,60 100,80 T200,50 T300,80" fill="none" stroke="#FFD541" stroke-width="3" />
-						<circle cx="200" cy="50" r="4" fill="#0f172a" />
-						<!-- 浮动标签 -->
-						<foreignObject x="160" y="10" width="80" height="30">
-							<div class="float-tag" xmlns="http://www.w3.org/1999/xhtml">¥ 12,400</div>
+				<view class="line-chart-container" @touchstart="onTouchStart" @touchmove.stop.prevent="onTouchMove">
+					<svg viewBox="0 0 300 150" class="line-chart-svg">
+						<!-- 顶部封顶线 (动态贴合最高点) -->
+						<line x1="10" :y1="maxPointY" x2="290" :y2="maxPointY" stroke="#e2e8f0" stroke-width="0.5" />
+						<text :x="290" :y="maxPointY - 5" text-anchor="end" font-size="8" fill="#94a3b8">{{ maxValue.toFixed(2) }}</text>
+						
+						<!-- 底部基准线 -->
+						<line x1="10" y1="130" x2="290" y2="130" stroke="#e2e8f0" stroke-width="0.5" />
+						
+						<!-- 中间均分线 (极细虚线) -->
+						<line x1="10" :y1="midLineY" x2="290" :y2="midLineY" stroke="#e2e8f0" stroke-width="0.5" stroke-dasharray="2,2" />
+						
+						<!-- 起伏线（垂线） -->
+						<g v-for="(point, index) in chartPoints" :key="'line-' + index">
+							<line :x1="point.x" :y1="point.y" :x2="point.x" :y2="130" stroke="#f1f5f9" stroke-width="0.5" />
+						</g>
+						
+						<path :d="chartPath" fill="none" stroke="#0f172a" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" />
+						
+						<!-- 所有数据点的触摸区域和高亮 -->
+						<g v-for="(point, index) in chartPoints" :key="index" @click="selectPoint(index)">
+							<!-- 触摸热区 (透明大圆) -->
+							<circle :cx="point.x" :cy="point.y" r="12" fill="transparent" />
+							<!-- 选中点的高亮效果 (实心) -->
+							<circle v-if="selectedIndex === index" :cx="point.x" :cy="point.y" r="2.5" fill="#0f172a" />
+							<!-- 未选中点的小圆点 (空心) -->
+							<circle v-else :cx="point.x" :cy="point.y" r="2" fill="#fff" stroke="#0f172a" stroke-width="0.5" />
+						</g>
+
+						<!-- 浮动标签 (增加边界检测) -->
+						<foreignObject v-if="selectedPoint" :x="tagX" :y="selectedPoint.y - 35" width="80" height="30">
+							<div class="float-tag" xmlns="http://www.w3.org/1999/xhtml">¥ {{ selectedPoint.value }}</div>
 						</foreignObject>
 					</svg>
 					<view class="x-axis">
-						<text v-for="day in weekDays" :key="day">{{ day }}</text>
+						<text 
+							v-for="(label, index) in currentLabels" 
+							:key="index" 
+							:class="{ active: selectedIndex === index }"
+							:style="{ left: chartPoints[index] ? (chartPoints[index].x / 300 * 100 + '%') : '0', visibility: shouldShowLabel(index) ? 'visible' : 'hidden' }"
+						>{{ label }}</text>
 					</view>
 				</view>
 			</view>
@@ -97,7 +85,7 @@
 				</view>
 
 				<view class="list-container">
-					<van-cell v-for="item in expenseList" :key="item.id" center class="custom-cell">
+					<van-cell v-for="item in expenseList" :key="item.id" center class="custom-cell flat-cell">
 						<template #icon>
 							<view :class="['list-icon-wrap', item.bgClass]">
 								<van-icon :name="item.icon" :color="item.iconColor" size="20" />
@@ -133,12 +121,217 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, getCurrentInstance } from 'vue';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 
-const periods = ['日', '周', '月'];
-const currentPeriod = ref(2);
-const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const periods = ['周', '月', '年'];
+const currentPeriod = ref(0);
+
+// 模拟图表数据
+const chartDataMap = {
+	0: { // 周视图
+		labels: ['02-01', '02-02', '02-03', '02-04', '02-05', '02-06', '02-07'],
+		values: [4200, 3800, 5600, 4500, 8000, 9200, 6400],
+		total: '¥ 41,700',
+		average: '¥ 5,957',
+		growth: '12%'
+	},
+	1: { // 月视图 (30天)
+		labels: Array.from({length: 30}, (_, i) => `${String(i + 1).padStart(2, '0')}`),
+		values: [120, 450, 200, 890, 1000, 300, 340, 560, 230, 400, 890, 150, 700, 440, 670, 890, 500, 120, 340, 560, 700, 230, 450, 780, 600, 120, 340, 560, 890, 230],
+		total: '¥ 120,000',
+		average: '¥ 4,000',
+		growth: '5%'
+	},
+	2: { // 年视图 (12月)
+		labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+		values: [120000, 0,0, 200000, 220000, 190000,0, 230000, 250000, 0, 260000, 8000],
+		total: '¥ 2,570,000',
+		average: '¥ 214,166',
+		growth: '8%'
+	}
+};
+
+const currentChartData = computed(() => chartDataMap[currentPeriod.value]);
+const currentLabels = computed(() => currentChartData.value.labels);
+const currentValues = computed(() => currentChartData.value.values);
+
+// 图表常量与工具函数
+const CHART = { width: 300, height: 150, paddingTop: 40, paddingBottom: 20, paddingX: 10 };
+const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+const makeYScale = (values) => {
+	const min = 0;
+	const max = Math.max(...values) * 1.05;
+	const range = max - min || 1;
+	return { min, max, range };
+};
+
+// 计算当前视图的最大值
+const maxValue = computed(() => {
+	const values = currentValues.value;
+	if (!values || values.length === 0) return 0;
+	return Math.max(...values);
+});
+
+// 计算中间均分线的高度
+const midLineY = computed(() => {
+	const availableHeight = CHART.height - CHART.paddingTop - CHART.paddingBottom;
+	return CHART.height - CHART.paddingBottom - availableHeight / 2;
+});
+
+const selectedIndex = ref(-1); // 当前选中的索引，-1 表示未选中
+let hideTimer = null; // 隐藏标签的定时器
+
+// 自动隐藏逻辑
+const startHideTimer = () => {
+	if (hideTimer) clearTimeout(hideTimer);
+	hideTimer = setTimeout(() => {
+		selectedIndex.value = -1;
+		hideTimer = null;
+	}, 3000);
+};
+
+// 监听周期变化，重置选中状态
+import { watch } from 'vue';
+watch(currentPeriod, () => {
+	// 默认不选中任何点
+	selectedIndex.value = -1;
+});
+
+// 计算所有点的坐标
+const chartPoints = computed(() => {
+	const values = currentValues.value;
+	if (!values || values.length === 0) return [];
+	
+	const width = 300;
+	const height = 150; 
+	const paddingX = 13; 
+	const paddingTop = 40; // 为顶部标签留足空间
+	const paddingBottom = 20; // 调整为 20，使得 150 - 20 = 130，与基准线完美重合
+	const availableWidth = width - paddingX * 2;
+	const availableHeight = height - paddingTop - paddingBottom;
+	
+	const min = 0; 
+	const max = Math.max(...values) * 1.05;
+	const range = max - min || 1; 
+	
+	return values.map((val, index) => {
+		const x = paddingX + (index / (values.length - 1)) * availableWidth;
+		const y = height - paddingBottom - ((val - min) / range) * availableHeight;
+		return { x, y, value: val };
+	});
+});
+
+// 当前选中的点
+const selectedPoint = computed(() => {
+	if (selectedIndex.value === -1 || !chartPoints.value[selectedIndex.value]) return null;
+	return chartPoints.value[selectedIndex.value];
+});
+
+// 计算浮动标签的 X 坐标，防止超出屏幕
+const tagX = computed(() => {
+	if (!selectedPoint.value) return 0;
+	let x = selectedPoint.value.x - 40; // 默认居中 (标签宽80)
+	const minX = 5; // 左边距
+	const maxX = 300 - 80 - 5; // 右边距 (容器宽300 - 标签宽80 - 边距5)
+	
+	if (x < minX) x = minX;
+	if (x > maxX) x = maxX;
+	return x;
+});
+
+// 计算最高点的 Y 坐标，用于顶部封顶线
+const maxPointY = computed(() => {
+	if (!chartPoints.value.length) return 15;
+	return Math.min(...chartPoints.value.map(p => p.y));
+});
+
+// 点击选择点
+const selectPoint = (index) => {
+	selectedIndex.value = index;
+	startHideTimer();
+};
+
+// 触摸交互逻辑
+const instance = getCurrentInstance();
+const chartRect = ref(null);
+
+const updateChartRect = () => {
+	const query = uni.createSelectorQuery().in(instance);
+	query.select('.line-chart-container').boundingClientRect(data => {
+		if (data) {
+			chartRect.value = data;
+		}
+	}).exec();
+};
+
+const onTouchStart = (e) => {
+	updateChartRect();
+	handleTouch(e);
+};
+
+const onTouchMove = (e) => {
+	handleTouch(e);
+};
+
+const handleTouch = (e) => {
+	// 如果没有获取到容器尺寸或没有数据点，直接返回
+	if (!chartRect.value || !chartPoints.value.length) return;
+	
+	const touch = e.touches[0];
+	const clientX = touch.clientX;
+	
+	// 计算相对于容器的 X 坐标
+	let relativeX = clientX - chartRect.value.left;
+	
+	// 限制范围
+	if (relativeX < 0) relativeX = 0;
+	if (relativeX > chartRect.value.width) relativeX = chartRect.value.width;
+	
+	// 计算比例
+	const percent = relativeX / chartRect.value.width;
+	
+	// 计算最近的索引
+	const count = chartPoints.value.length;
+	let index = Math.round(percent * (count - 1));
+	
+	if (index < 0) index = 0;
+	if (index >= count) index = count - 1;
+	
+	selectedIndex.value = index;
+	startHideTimer();
+};
+
+// 生成折线路径（直线连接）
+const chartPath = computed(() => {
+	const points = chartPoints.value;
+	if (points.length < 2) return '';
+	
+	let d = `M ${points[0].x},${points[0].y}`;
+	for (let i = 1; i < points.length; i++) {
+		d += ` L ${points[i].x},${points[i].y}`;
+	}
+	return d;
+});
+
+// 控制标签显示的逻辑
+const LABELS_MAP = { 2: [0, 3, 6, 9, 11], 1: [0, 9, 19, 29], 0: [0, 3, 6] };
+const shouldShowLabel = (index) => {
+	const total = currentValues.value.length;
+	// 年视图 (12个点): 显示 1, 4, 7, 10, 12月 (对应索引 0, 3, 6, 9, 11)
+	if (currentPeriod.value === 2) {
+		return [0, 3, 6, 9, 11].includes(index);
+	}
+	// 月视图 (30个点): 显示 1, 10, 20, 30号 (对应索引 0, 9, 19, 29)
+	if (currentPeriod.value === 1) {
+		return [0, 9, 19, 29].includes(index);
+	}
+	// 周视图 (7个点): 显示首尾和中间 (0, 3, 6)
+	if (currentPeriod.value === 0) {
+		return [0, 3, 6].includes(index);
+	}
+	return false;
+};
 
 // 类型选择逻辑
 const currentType = ref('支出');
@@ -154,16 +347,14 @@ const onTypeSelect = (event) => {
 	// 这里可以根据类型切换数据
 };
 
-const categories = ref([
-	{ name: '住房', percent: 40, colorClass: 'bg-blue' },
-	{ name: '餐饮', percent: 30, colorClass: 'bg-orange' },
-	{ name: '购物', percent: 20, colorClass: 'bg-yellow' },
-	{ name: '其他', percent: 10, colorClass: 'bg-gray' }
-]);
-
 const expenseList = ref([
 	{ id: 1, name: '餐饮美食', time: '今天, 12:45 PM', amount: '-¥ 42,255.00', percent: 30, icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light' },
-	{ id: 2, name: '房屋租金', time: '12月1日, 09:00 AM', amount: '-¥ 64,662.00', percent: 40, icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light' }
+	{ id: 2, name: '房屋租金', time: '12月1日, 09:00 AM', amount: '-¥ 64,662.00', percent: 40, icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light' },
+	{ id: 3, name: '交通出行', time: '昨天, 08:30 AM', amount: '-¥ 1,200.00', percent: 5, icon: 'location-o', iconColor: '#10b981', bgClass: 'bg-green-light' },
+	{ id: 4, name: '生活用品', time: '前天, 03:15 PM', amount: '-¥ 800.00', percent: 3, icon: 'goods-collect-o', iconColor: '#ef4444', bgClass: 'bg-red-light' },
+	{ id: 5, name: '娱乐休闲', time: '上周, 07:00 PM', amount: '-¥ 3,500.00', percent: 10, icon: 'play-circle-o', iconColor: '#6366f1', bgClass: 'bg-indigo-light' },
+	{ id: 6, name: '教育学习', time: '本月, 10:00 AM', amount: '-¥ 2,000.00', percent: 7, icon: 'bookmark-o', iconColor: '#f59e0b', bgClass: 'bg-yellow-light' },
+	{ id: 7, name: '医疗健康', time: '上月, 02:00 PM', amount: '-¥ 1,500.00', percent: 5, icon: 'plus', iconColor: '#06b6d4', bgClass: 'bg-cyan-light' }
 ]);
 </script>
 
@@ -187,22 +378,21 @@ const expenseList = ref([
 .nav-header {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
-	margin-bottom: 10px;
+	gap: 10px; 
+	margin-bottom: 8px;
 }
 
 /* 滚动区域调整 */
 .scroll-view-content {
 	flex: 1;
 	overflow-y: auto;
+	padding-bottom: 50px;
 }
 
 /* 顶部展示区域 (随页面滑动的部分) */
 .header-section {
-	background-color: #ffd541;
-	padding: 0 20px 70px;
-	border-bottom-left-radius: 30px;
-	border-bottom-right-radius: 30px;
+	/* background-color: #ffd541; */
+	padding: 0 0 70px;
 }
 
 .type-selector {
@@ -210,7 +400,7 @@ const expenseList = ref([
 	align-items: center;
 	justify-content: center;
 	gap: 4px;
-	padding: 8px 10px;
+	padding: 1px;
 }
 
 .type-text {
@@ -222,7 +412,7 @@ const expenseList = ref([
 .segment-control {
 	background-color: rgba(255, 255, 255, 0.3);
 	border-radius: 20px;
-	padding: 4px;
+	padding: 2px; 
 	display: flex;
 	box-sizing: border-box;
 	width: 100%; 
@@ -231,9 +421,9 @@ const expenseList = ref([
 .segment-item {
 	flex: 1; 
 	text-align: center; 
-	padding: 6px 0; 
+	padding: 4px 0; /* 减小选项高度 */
 	border-radius: 16px;
-	font-size: 14px;
+	font-size: 13px;
 	color: #0f172a;
 	font-weight: 500;
 }
@@ -244,57 +434,53 @@ const expenseList = ref([
 }
 
 .total-display {
-	text-align: center;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 20px;
 }
 
-.total-label {
-	font-size: 12px;
+.display-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.display-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.display-label,
+.display-value {
+	font-size: 15px;
+	font-weight: 300;
 	color: rgba(0, 0, 0, 0.6);
-	margin-bottom: 8px;
-	display: block;
 }
 
-.total-amount {
-	font-size: 32px;
-	font-weight: 800;
-	color: #0f172a;
-	margin-bottom: 12px;
-	display: block;
-}
-
-.avg-badge {
-	display: inline-block;
-	background-color: rgba(255, 255, 255, 0.3);
-	padding: 4px 12px;
-	border-radius: 12px;
-}
-
-.avg-text {
-	font-size: 12px;
-	color: #0f172a;
-	font-weight: 600;
+.display-value {
+	font-weight: 300;
 }
 
 /* 内容区域 */
 .content-body {
-	padding: 0 20px;
-	margin-top: -60px; /* 卡片上浮 */
+	padding: 0;
+	margin-top: -130px; /* 调整上浮距离 */
 }
+
+/* 移除卡片阴影和背景，改为平铺 */
+/* .trend-section {
+	margin-bottom: 30px;
+} */
 
 .card {
-	background-color: #ffffff;
-	border-radius: 24px;
-	padding: 20px;
+	background-color: transparent;
+	border-radius: 0;
 	margin-bottom: 20px;
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+	box-shadow: none;
 }
 
-.card-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	margin-bottom: 20px;
-}
 
 .card-title {
 	font-size: 16px;
@@ -308,88 +494,6 @@ const expenseList = ref([
 	color: #94a3b8;
 }
 
-/* 环形图样式 */
-.chart-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-around;
-}
-
-.donut-chart {
-	width: 120px;
-	height: 120px;
-	border-radius: 50%;
-	/* 使用 conic-gradient 模拟环形图: 蓝色40%, 橙色30%, 黄色20%, 灰色10% */
-	background: conic-gradient(#3b82f6 0% 40%, #f97316 40% 70%, #facc15 70% 90%, #e2e8f0 90% 100%);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-}
-
-.donut-chart::before {
-	content: '';
-	position: absolute;
-	width: 90px;
-	height: 90px;
-	background-color: #ffffff;
-	border-radius: 50%;
-}
-
-.donut-center {
-	position: relative;
-	text-align: center;
-	z-index: 1;
-}
-
-.donut-label {
-	font-size: 10px;
-	color: #94a3b8;
-	display: block;
-}
-
-.donut-value {
-	font-size: 16px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
-.legend-list {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
-
-.legend-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	width: 120px;
-}
-
-.legend-info {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-}
-
-.legend-name {
-	font-size: 12px;
-	color: #64748b;
-}
-
-.legend-percent {
-	font-size: 12px;
-	font-weight: 600;
-	color: #0f172a;
-}
-
 /* 趋势图样式 */
 .trend-subtitle {
 	margin-top: 4px;
@@ -401,7 +505,7 @@ const expenseList = ref([
 }
 
 .line-chart-container {
-	height: 140px;
+	height: 220px;
 	position: relative;
 }
 
@@ -421,15 +525,26 @@ const expenseList = ref([
 }
 
 .x-axis {
-	display: flex;
-	justify-content: space-between;
-	padding: 0 10px;
-	margin-top: -20px;
+	position: absolute;
+	bottom: 10px;
+	left: 0;
+	width: 100%;
+	height: 20px;
 }
 
 .x-axis text {
+	position: absolute;
 	font-size: 10px;
 	color: #cbd5e1;
+	transform: translateX(-50%);
+	white-space: nowrap;
+	transition: color 0.3s;
+}
+
+.x-axis text.active {
+	color: #0f172a;
+	font-weight: 700;
+	visibility: visible !important; /* 选中时强制显示 */
 }
 
 /* 列表样式 */
@@ -438,6 +553,7 @@ const expenseList = ref([
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 16px;
+	padding: 0 20px;
 }
 
 .section-title {
@@ -447,10 +563,19 @@ const expenseList = ref([
 }
 
 .custom-cell {
-	background-color: #ffffff;
-	border-radius: 16px;
-	margin-bottom: 12px;
-	padding: 16px !important;
+	background-color: transparent;
+	border-radius: 0;
+	margin-bottom: 0;
+	padding: 16px 20px !important;
+	border-bottom: 1px solid #f1f5f9;
+}
+
+.custom-cell:last-child {
+	border-bottom: none;
+}
+
+.flat-cell {
+	background-color: transparent !important;
 }
 
 .list-icon-wrap {
@@ -505,19 +630,6 @@ const expenseList = ref([
 }
 
 /* 颜色类 */
-.bg-blue {
-	background-color: #3b82f6;
-}
-.bg-orange {
-	background-color: #f97316;
-}
-.bg-yellow {
-	background-color: #facc15;
-}
-.bg-gray {
-	background-color: #e2e8f0;
-}
-
 .bg-orange-light {
 	background-color: #fff7ed;
 }
