@@ -32,7 +32,7 @@
           <view class="post-left">
             <view class="avatar"></view>
           </view>
-          
+
           <view class="post-right">
             <view class="post-head">
               <view class="post-meta">
@@ -81,7 +81,7 @@
                 <text>{{ post.showAllComments ? '收起' : `查看全部 ${post.realComments.length} 条评论` }}</text>
               </view>
             </view>
-            
+
             <!-- 分享按钮 -->
             <view class="post-actions">
               <view class="action">
@@ -94,7 +94,7 @@
     </view>
 
     <custom-tabbar />
-    
+
     <!-- 聊天室悬浮入口 -->
     <view class="floating-chat-entry" @click="goToChatroom">
       <van-icon name="chat-o" size="20" color="#333" />
@@ -103,10 +103,10 @@
 
     <!-- 浮动回复输入框 -->
     <view v-if="replyPost !== null" class="floating-reply-container">
-      <input 
-        v-model="replyContent" 
-        class="floating-reply-input" 
-        :placeholder="replyComment ? `回复 @${replyComment.author}...` : '写下你的回复...'" 
+      <input
+        v-model="replyContent"
+        class="floating-reply-input"
+        :placeholder="replyComment ? `回复 @${replyComment.author}...` : '写下你的回复...'"
         @confirm="submitReply(replyPost)"
         auto-focus
       />
@@ -149,13 +149,13 @@ const hideReplyInput = () => {
 
 const goToChatroom = () => {
   uni.navigateTo({
-    url: '/pages/page_discover/page_chatroom/chatroom'
+    url: '/pages/discover/page_chatroom/chatroom'
   });
 };
 
 const submitReply = (postId) => {
   if (!replyContent.value.trim()) return;
-  
+
   if (replyComment.value) {
     // 回复特定评论
     console.log('回复评论:', replyComment.value.author, '内容:', replyContent.value);
@@ -163,14 +163,14 @@ const submitReply = (postId) => {
     // 回复帖子
     console.log('回复帖子:', replyContent.value);
   }
-  
+
   hideReplyInput();
 };
 
 // 跳转到发布动态页面
 const goToPublish = () => {
   uni.navigateTo({
-    url: '/pages/page_discover/page_publish/publish'
+    url: '/pages/discover/page_publish/publish'
   });
 };
 

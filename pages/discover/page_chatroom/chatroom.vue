@@ -47,15 +47,15 @@
       <!-- 消息记录 -->
       <scroll-view scroll-y class="message-area" :scroll-into-view="scrollTarget" scroll-with-animation>
         <view class="time-divider">下午 2:30</view>
-        
-        <view 
-          v-for="(msg, index) in currentMessages" 
-          :key="index" 
+
+        <view
+          v-for="(msg, index) in currentMessages"
+          :key="index"
           :class="['message-row', msg.isMe ? 'message-me' : 'message-other']"
           :id="'msg-' + index"
         >
           <image v-if="!msg.isMe" :src="activeChat.avatar" class="msg-avatar" mode="aspectFill"></image>
-          
+
           <view class="msg-bubble-container">
             <!-- 文本消息 -->
             <view v-if="msg.type === 'text'" class="msg-bubble">
@@ -83,10 +83,10 @@
       <!-- 底部输入框 -->
       <view class="chat-input-area">
         <van-icon name="volume-o" size="24" color="#333" class="input-icon" />
-        <input 
-          class="chat-input" 
-          v-model="inputText" 
-          placeholder="发消息..." 
+        <input
+          class="chat-input"
+          v-model="inputText"
+          placeholder="发消息..."
           confirm-type="send"
           @confirm="sendMessage"
         />
@@ -238,17 +238,17 @@ const backToList = () => {
 // 发送消息
 const sendMessage = () => {
   if (!inputText.value.trim() || !activeChat.value) return;
-  
+
   if (!messages.value[activeChat.value.id]) {
     messages.value[activeChat.value.id] = [];
   }
-  
+
   messages.value[activeChat.value.id].push({
     type: 'text',
     content: inputText.value,
     isMe: true
   });
-  
+
   // 模拟对方回复
   setTimeout(() => {
     messages.value[activeChat.value.id].push({
@@ -258,7 +258,7 @@ const sendMessage = () => {
     });
     scrollToBottom();
   }, 1000);
-  
+
   inputText.value = '';
   scrollToBottom();
 };

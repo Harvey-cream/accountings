@@ -1,6 +1,6 @@
 {
 	"pages": [{
-			"path": "pages/page_details/accounting_detail",
+			"path": "pages/home/accounting_detail",
 			"style": {
 				"navigationBarTitleText": "账单明细"
 			}
@@ -12,31 +12,31 @@
 			}
 		},
 		{
-			"path": "pages/page_data/accounting_chart",
+			"path": "pages/chart/accounting_chart",
 			"style": {
 				"navigationBarTitleText": "账单图表"
 			}
 		},
 		{
-			"path": "pages/page_discover/community",
+			"path": "pages/discover/community",
 			"style": {
 				"navigationBarTitleText": "社交发现"
 			}
 		},
 		{
-			"path": "pages/page_setting/accounting",
+			"path": "pages/setting/center",
 			"style": {
 				"navigationBarTitleText": "个人中心"
 			}
 		},
 		{
-			"path": "pages/page_discover/page_chatroom/chatroom",
+			"path": "pages/discover/page_chatroom/chatroom",
 			"style": {
 				"navigationBarTitleText": "消息"
 			}
 		},
 		{
-			"path": "pages/page_discover/page_publish/publish",
+			"path": "pages/discover/page_publish/publish",
 			"style": {
 				"navigationBarTitleText": "发表"
 			}

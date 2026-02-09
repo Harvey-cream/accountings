@@ -11,19 +11,19 @@
 
     <!-- 内容输入区域 -->
     <view class="content-body">
-      <textarea 
-        v-model="content" 
-        class="post-input" 
-        placeholder="分享你的省钱妙招或今日心情..." 
+      <textarea
+        v-model="content"
+        class="post-input"
+        placeholder="分享你的省钱妙招或今日心情..."
         placeholder-style="color: #94a3b8; font-size: 15px;"
       ></textarea>
 
       <!-- 图片上传区域 -->
       <view class="image-uploader">
         <!-- 已选图片预览 -->
-        <view 
-          v-for="(img, index) in fileList" 
-          :key="index" 
+        <view
+          v-for="(img, index) in fileList"
+          :key="index"
           class="preview-item"
         >
           <image :src="img" mode="aspectFill" class="preview-image" />
@@ -50,9 +50,9 @@
           <view class="right-content">
              <!-- 简单的分类展示，这里模拟选中状态 -->
             <view class="category-tags">
-               <text 
-                v-for="(cat, idx) in categories" 
-                :key="idx" 
+               <text
+                v-for="(cat, idx) in categories"
+                :key="idx"
                 :class="['cat-tag', { active: currentCategory === cat }]"
                 @click.stop="currentCategory = cat"
                >
@@ -116,7 +116,7 @@ const fileList = ref([]);
 // 分类数据
 const categories = ['省钱攻略', '心情分享'];
 const currentCategory = ref('心情分享');
-const showCategorySheet = ref(false); 
+const showCategorySheet = ref(false);
 
 // 位置开关
 const showLocation = ref(true);
@@ -158,9 +158,9 @@ const onPublish = () => {
     });
     return;
   }
-  
+
   uni.showLoading({ title: '发布中...' });
-  
+
   // 模拟发布请求
   setTimeout(() => {
     uni.hideLoading();
