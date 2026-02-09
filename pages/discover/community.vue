@@ -81,13 +81,6 @@
                 <text>{{ post.showAllComments ? '收起' : `查看全部 ${post.realComments.length} 条评论` }}</text>
               </view>
             </view>
-
-            <!-- 分享按钮 -->
-            <view class="post-actions">
-              <view class="action">
-                <van-icon name="share-o" size="18" color="#64748b" />
-              </view>
-            </view>
           </view>
         </view>
       </view>
@@ -227,7 +220,7 @@ const filteredPosts = computed(() => {
 
 <style scoped>
 .community-container {
-  background-color: #f5f5f5;
+  background-color: #ffffff;  
   min-height: 100vh;
   padding-bottom: 70px;
 }
@@ -416,23 +409,21 @@ const filteredPosts = computed(() => {
     width: calc((100% - 16px) / 3);
     aspect-ratio: 1 / 1;
     border-radius: 10px;
-    padding: 6px;
+    padding: 2px;
     box-sizing: border-box;
   }
 
   .img-inner {
     width: 100%;
     height: 100%;
-    border-radius: 10px;
-    border: 2px solid #e2e8f0;
-    background: linear-gradient(135deg, #e5e7eb, #cbd5e1);
+    border-radius: 8px; 
+    border: 1px solid #f1f5f9; 
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9); 
     object-fit: cover;
   }
 
 .post-comments {
-  margin-top: 12px;
-  border-top: 1px solid #f1f5f9;
-  padding-top: 12px;
+  padding-top: 10px;
 }
 
 .comment-list {

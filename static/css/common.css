@@ -1,0 +1,82 @@
+/* 全局变量定义 */
+:root {
+  /* 背景颜色 */
+  --page-bg-color: #ffffff;
+  --secondary-bg-color: #f8fafc;
+  
+  /* 文字颜色 */
+  --primary-text-color: #0f172a;
+  --secondary-text-color: #64748b;
+  --light-text-color: #94a3b8;
+  
+  /* 品牌色/功能色 */
+  --income-color: #10b981;
+  --expense-color: #ef4444;
+  --accent-color: #f59e0b;
+  
+  /* 数字专用字号 */
+  --font-size-number: 14px; /* 直接定义具体的像素值，确保生效 */
+  /* 小字号：用于标签、辅助文本 */
+  --font-size-xs: 12px;
+  --font-size-sm: 12px;
+  /* 中文字体使用 */
+  --font-size-base: 14px;
+  /* 其他 */
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-xxl: 24px;
+  
+  /* 字体定义 */
+  /* 基础字体：优先使用系统默认，不涉及字体文件分发，无商用风险 */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  
+  /* 数字专用字体：
+     - DIN Alternate 是 iOS/macOS 自带
+     - Bahnschrift 是 Windows 10+ 自带的类 DIN 字体
+     - 均为系统调用，只要不私自打包字体文件，仅在 CSS 中引用是安全的
+  */
+  --font-family-number: "DIN Alternate", "DINCondensed-Bold", "Bahnschrift", "Segoe UI UI", "Segoe UI", "Helvetica Neue", "Courier New", monospace;
+}
+
+/* 基础页面样式 */
+page {
+  background-color: var(--page-bg-color);
+  font-family: var(--font-family-base);
+  color: var(--primary-text-color);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 全局工具类 */
+
+/* 快速工具类 (Utility Classes) - 采用行业标准命名规范 */
+
+/* 字体尺寸 (Font Size) */
+.text-xs { font-size: var(--font-size-xs) !important; }
+.text-sm { font-size: var(--font-size-sm) !important; }
+.text-base { font-size: var(--font-size-base) !important; }
+.text-lg { font-size: var(--font-size-lg) !important; }
+.text-xl { font-size: var(--font-size-xl) !important; }
+.text-xxl { font-size: var(--font-size-xxl) !important; }
+.text-num { font-size: var(--font-size-number) !important; }
+
+/* 文本颜色 (Text Color) */
+.text-primary { color: var(--primary-text-color) !important; }
+.text-secondary { color: var(--secondary-text-color) !important; }
+.text-light { color: var(--light-text-color) !important; }
+.text-success { color: var(--income-color) !important; }
+.text-danger { color: var(--expense-color) !important; }
+
+/* 其他工具类 */
+.font-bold { font-weight: bold !important; }
+.font-number { font-family: var(--font-family-number) !important; }
+
+/* 背景样式 */
+.bg-white {
+  background-color: #ffffff;
+}
+
+.bg-secondary {
+  background-color: var(--secondary-bg-color);
+}
+

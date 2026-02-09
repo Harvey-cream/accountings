@@ -1,94 +1,78 @@
 <template>
 	<view class="page-container">
-		<!-- Main Content Area: Detail View -->
 		<view class="tab-content">
-			<!-- Header Area -->
 			<view class="header">
 				<view class="status-bar">
-					<view class="status-icons">
-						<van-icon name="signal-full" size="16" />
-						<van-icon name="wifi" size="16" />
-						<van-icon name="battery-full" size="16" class="rotate-90" />
-					</view>
 				</view>
-
-				<view class="header-content">
-					<text class="title">每月账单明细</text>
-					<view class="header-actions">
-						<view class="icon-btn">
-							<van-icon name="bell" size="20" />
-						</view>
-					</view>
-				</view>
-			</view>
-
-			<!-- Summary Card -->
-			<view class="summary-card">
-				<view class="summary-header">
+				<view class="summary-row">
 					<view class="month-selector" @click="showMonthPicker = true">
-						<text class="month-text">{{ summary.month }}</text>
-						<van-icon name="arrow-down" color="#94a3b8" />
+						<text class="year-text">{{ summary.year }}年</text>
+						<view class="month-display">
+							<text class="month-text font-number">{{ summary.month }}</text>
+						<text class="month-unit">月</text>
+						<van-icon name="arrow-down" size="12" color="#0f172a" class="arrow-icon" />
 					</view>
-					<van-tag round type="primary" color="#f1f5f9" text-color="#64748b" class="badge">账单概览</van-tag>
 				</view>
-				<view class="summary-stats">
+				
+				<view class="divider"></view>
+
+				<view class="stat-group">
 					<view class="stat-item">
-						<text class="stat-label">本月支出</text>
-						<text class="stat-value">{{ summary.expense }}</text>
+						<text class="stat-label">收入</text>
+						<text class="stat-value font-number">{{ summary.income }}</text>
 					</view>
-					<view class="stat-item border-left">
-						<text class="stat-label">本月收入</text>
-						<text class="stat-value">{{ summary.income }}</text>
+					<view class="stat-item">
+						<text class="stat-label">支出</text>
+						<text class="stat-value font-number">{{ summary.expense }}</text>
 					</view>
 				</view>
 			</view>
-
-			<!-- Quick Actions Grid -->
-			<view class="quick-actions">
-				<van-grid :column-num="5" :border="false" :gutter="10">
-					<van-grid-item v-for="action in quickActions" :key="action.id">
-						<template #icon>
-							<view :class="['action-icon-wrap', action.bgColor]">
-								<van-icon :name="action.icon" :color="action.iconColor" size="24" />
-							</view>
-						</template>
-						<template #text>
-							<text class="action-name">{{ action.name }}</text>
-						</template>
-					</van-grid-item>
-				</van-grid>
-			</view>
-
-			<!-- Transactions Section -->
-			<view class="transactions-section">
-				<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
-					<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
-						<view class="day-header">
-							<text class="day-date">{{ group.date }}</text>
-							<text class="day-total">支出: {{ group.totalExpense }}</text>
+		</view>
+		<view class="quick-actions">
+			<van-grid :column-num="5" :border="false" :gutter="10">
+				<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
+					<template #icon>
+						<view :class="['action-icon-wrap', action.bgColor]">
+							<van-icon :name="action.icon" :color="action.iconColor" size="24" />
 						</view>
-
-						<van-cell-group inset class="transaction-list">
-							<van-cell v-for="item in group.items" :key="item.id" center class="transaction-card">
-								<template #icon>
-									<view :class="['item-icon-wrap', item.iconBg]">
-										<van-icon :name="item.icon" :color="item.iconColor" size="24" />
-									</view>
-								</template>
-								<template #title>
-									<view class="item-main">
-										<text class="item-title">{{ item.title }}</text>
-										<text class="item-amount">{{ item.amount }}</text>
-									</view>
-								</template>
-								<template #label>
-									<text class="item-details">{{ item.time }} · {{ item.location }}</text>
-								</template>
-							</van-cell>
-						</van-cell-group>
+					</template>
+					<template #text>
+						<text class="action-name">{{ action.name }}</text>
+					</template>
+				</van-grid-item>
+			</van-grid>
+		</view>
+		<view class="transactions-section">
+			<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
+				<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
+					<view class="day-header">
+						<text class="day-date">{{ group.date }}</text>
+						<text class="day-total font-number text-xs">支出: {{ group.totalExpense }}</text>
 					</view>
-				</van-list>
-			</view>
+
+					<view class="list-container">
+						<van-cell v-for="item in group.items" :key="item.id" center class="custom-cell flat-cell">
+							<template #icon>
+								<view :class="['list-icon-wrap', item.iconBg]">
+									<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+								</view>
+							</template>
+							<template #title>
+								<view class="cell-content">
+									<view class="cell-main">
+										<text class="cell-title">{{ item.title }}</text>
+										<text class="cell-time">{{ item.time }} · {{ item.location }}</text>
+									</view>
+									<view class="cell-right">
+										<text class="cell-amount font-number">{{ item.amount }}</text>
+									</view>
+								</view>
+							</template>
+						</van-cell>
+					</view>
+				</view>
+			</van-list>
+		</view>
 
 			<!-- Map FAB -->
 			<view class="fab-map">
@@ -126,9 +110,10 @@ const loading = ref(false);
 const finished = ref(false);
 
 const summary = ref({
-	month: '2025年12月',
-	expense: '26,521.00',
-	income: '4,250.00'
+	year: '2025',
+	month: '12',
+	expense: '26,510.00',
+	income: '4,200.00'
 });
 
 const quickActions = ref([
@@ -139,10 +124,17 @@ const quickActions = ref([
 	{ id: 5, name: '更多', icon: 'apps-o', bgColor: 'bg-slate', iconColor: '#64748b' }
 ]);
 
+const onActionClick = (action) => {
+	if (action.name === '账单') {
+		uni.navigateTo({
+			url: '/pages/page_home/page_invoice/invoice'
+		});
+	}
+};
+
 const dailyTransactions = ref([]);
 
 const onLoad = () => {
-	// 模拟异步加载
 	setTimeout(() => {
 		// 模拟生成更多历史数据
 		const lastId = dailyTransactions.value.length ? dailyTransactions.value[dailyTransactions.value.length - 1].id : 0;
@@ -210,7 +202,7 @@ const onLoad = () => {
 		if (dailyTransactions.value.length >= 10) {
 			finished.value = true;
 		}
-	}, 1000);
+	});
 };
 
 const navItems = ref([
@@ -222,15 +214,14 @@ const navItems = ref([
 ]);
 
 const onMonthConfirm = ({ selectedValues }) => {
-	summary.value.month = `${selectedValues[0]}年${selectedValues[1]}月`;
+	summary.value.year = selectedValues[0];
+	summary.value.month = selectedValues[1];
 	showMonthPicker.value = false;
 };
 </script>
 
 <style scoped>
 .page-container {
-	font-family: 'Inter', -apple-system, sans-serif;
-	background-color: #f7f8fa;
 	min-height: 100vh;
 	padding-bottom: 70px;
 }
@@ -238,120 +229,101 @@ const onMonthConfirm = ({ selectedValues }) => {
 /* Header Styles */
 .header {
 	background-color: #ffd541;
-	padding: 10px 20px 60px;
+	padding: 20px 20px 0px;
 	position: relative;
 }
 
 .status-bar {
-	height: 20px;
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
 }
 
-.time {
-	font-size: 14px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
 .status-icons {
 	display: flex;
 	gap: 6px;
-	color: #0f172a;
 }
 
 .rotate-90 {
 	transform: rotate(90deg);
 }
 
-.header-content {
-	margin-top: 5px;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-}
-
-.title {
-	font-size: 20px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
-.header-actions {
-	display: flex;
-	gap: 12px;
-}
-
-.icon-btn {
-	background-color: rgba(255, 255, 255, 0.3);
-	padding: 8px;
-	border-radius: 50%;
-	color: #0f172a;
+.summary-row {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-}
-
-/* Summary Card */
-.summary-card {
-	margin: -40px 20px 0;
-	background-color: #ffffff;
-	border-radius: 24px;
-	padding: 24px;
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 	position: relative;
 	z-index: 10;
-}
-
-.summary-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin-bottom: 24px;
+	height: 60px;
+	bottom: 10px;
+	flex: 1;
 }
 
 .month-selector {
 	display: flex;
-	align-items: center;
-	gap: 4px;
+	flex-direction: column;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.year-text {
+	font-size: 12px;
+	color: var(--secondary-text-color);
+	margin-bottom: 2px;
+	line-height: 1;
+}
+
+.month-display {
+	display: flex;
+	align-items: baseline;
+	gap: 2px;
+	line-height: 1;
 }
 
 .month-text {
-	font-size: 24px;
-	font-weight: 700;
-	color: #0f172a;
+	font-size: 28px;
+	font-weight: 500;
 }
 
-.summary-stats {
+.month-unit {
+	font-size: 14px;
+	margin-right: 4px;
+}
+
+.arrow-icon {
+	margin-bottom: 2px;
+}
+
+.divider {
+	width: 1px;
+	background-color: rgba(0, 0, 0, 0.1);
+	margin: 0 20px;
+}
+
+.stat-group {
+	flex: 1;
 	display: flex;
+	justify-content: flex-start;
+	gap: 60px;
+	min-width: 0;
 }
 
 .stat-item {
-	flex: 1;
-}
-
-.border-left {
-	border-left: 1px solid #f1f5f9;
-	padding-left: 32px;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
 }
 
 .stat-label {
 	font-size: 12px;
-	color: #94a3b8;
-	display: block;
-	margin-bottom: 4px;
+	color: var(--secondary-text-color);
 }
 
 .stat-value {
-	font-size: 24px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
-/* Quick Actions */
-.quick-actions {
-	margin: 24px 10px 0;
+	font-size: 20px;
+	font-weight: 300;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 :deep(.van-grid-item__content) {
@@ -378,30 +350,17 @@ const onMonthConfirm = ({ selectedValues }) => {
 .action-name {
 	font-size: 11px;
 	font-weight: 500;
-	color: #475569;
+	color: var(--secondary-text-color);
 }
 
 /* Action Colors */
-.bg-amber {
-	background-color: #fffbeb;
-}
-.bg-blue {
-	background-color: #eff6ff;
-}
-.bg-emerald {
-	background-color: #ecfdf5;
-}
-.bg-rose {
-	background-color: #fff1f2;
-}
-.bg-slate {
-	background-color: #f1f5f9;
+.bg-amber, .bg-blue, .bg-emerald, .bg-rose, .bg-slate {
+	background-color: var(--secondary-bg-color);
 }
 
 /* Transactions */
 .transactions-section {
 	margin-top: 22px;
-	padding: 0 0px;
 }
 
 .day-group {
@@ -419,73 +378,77 @@ const onMonthConfirm = ({ selectedValues }) => {
 .day-date {
 	font-size: 14px;
 	font-weight: 700;
-	color: #0f172a;
 }
 
 .day-total {
+	
 	font-size: 12px;
 	font-weight: 500;
-	color: #94a3b8;
+	color: var(--light-text-color);
 }
 
-.transaction-list {
-	margin: 0 !important;
+.custom-cell {
+	background-color: transparent;
+	border-radius: 0;
+	margin-bottom: 0;
+	padding: 16px 20px !important;
+	border-bottom: 1px solid #f1f5f9;
 }
 
-.transaction-card {
-	padding: 16px !important;
-	border-radius: 20px !important;
-	margin-bottom: 12px;
-	box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+.custom-cell:last-child {
+	border-bottom: none;
 }
 
-.item-icon-wrap {
-	width: 44px;
-	height: 44px;
+.flat-cell {
+	background-color: transparent !important;
+}
+
+.list-icon-wrap {
+	width: 40px;
+	height: 40px;
 	border-radius: 12px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-right: 16px;
+	margin-right: 12px;
 }
 
-.item-main {
+.cell-content {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	width: 100%;
 }
 
-.item-title {
-	font-weight: 700;
-	color: #0f172a;
-	font-size: 16px;
+.cell-main {
+	display: flex;
+	flex-direction: column;
 }
 
-.item-amount {
+.cell-title {
+	font-size: 14px;
 	font-weight: 700;
-	color: #0f172a;
-	font-size: 16px;
 }
 
-.item-details {
-	font-size: 12px;
-	color: #94a3b8;
+.cell-time {
+	font-size: 11px;
+	color: var(--light-text-color);
 	margin-top: 2px;
 }
 
+.cell-right {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+}
+
+.cell-amount {
+	font-size: var(--font-size-number);
+}
+
 /* Item Colors */
-.bg-amber-light {
-	background-color: #fef3c7;
-}
-.bg-blue-light {
-	background-color: #dbeafe;
-}
-.bg-purple-light {
-	background-color: #f3e8ff;
-}
-.bg-emerald-light {
-	background-color: #d1fae5;
+.bg-amber-light, .bg-blue-light, .bg-purple-light, .bg-emerald-light {
+	background-color: var(--secondary-bg-color);
 }
 
 /* FAB Map */
@@ -501,6 +464,6 @@ const onMonthConfirm = ({ selectedValues }) => {
 	align-items: center;
 	justify-content: center;
 	border: 1px solid #f1f5f9;
-	color: #f59e0b;
+	color: var(--accent-color);
 }
 </style>

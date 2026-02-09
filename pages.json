@@ -6,6 +6,13 @@
 			}
 		},
 		{
+			"path": "pages/page_home/page_invoice/invoice",
+			"style": {
+				"navigationBarTitleText": "账单",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/page_saved/save_accouting",
 			"style": {
 				"navigationBarTitleText": "新增账单"

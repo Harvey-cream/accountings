@@ -19,27 +19,27 @@
 					<view class="display-row">
 						<view class="display-group">
 							<text class="display-label">总支出:</text>
-							<text class="display-value">{{ currentChartData.total }}</text>
+							<text class="display-value font-number fs-num">{{ currentChartData.total }}</text>
 						</view>
 						<view class="display-group">
 							<text class="display-label">均值:</text>
-							<text class="display-value">{{ currentChartData.average }}</text>
+							<text class="display-value font-number fs-num">{{ currentChartData.average }}</text>
 						</view>
 					</view>
 				</view>
 			</view>
 
 			<view class="content-body">
-			<view class="trend-section">
-				<!-- 简易 SVG 曲线图 -->
+				<view class="trend-section">
+					<!-- 简易 SVG 曲线图 -->
 				<view class="line-chart-container" @touchstart="onTouchStart" @touchmove.stop.prevent="onTouchMove">
 					<svg viewBox="0 0 300 150" class="line-chart-svg">
 						<!-- 顶部封顶线 (动态贴合最高点) -->
 						<line x1="10" :y1="maxPointY" x2="290" :y2="maxPointY" stroke="#e2e8f0" stroke-width="0.5" />
-						<text :x="290" :y="maxPointY - 5" text-anchor="end" font-size="8" fill="#94a3b8">{{ maxValue.toFixed(2) }}</text>
+						<text :x="290" :y="maxPointY - 5" text-anchor="end" font-size="8" fill="#94a3b8" class="font-number">{{ maxValue.toFixed(2) }}</text>
 						
 						<!-- 底部基准线 -->
-						<line x1="10" y1="130" x2="290" y2="130" stroke="#e2e8f0" stroke-width="0.5" />
+						<line x1="10" y1="130" x2="290" :y2="130" stroke="#e2e8f0" stroke-width="0.5" />
 						
 						<!-- 中间均分线 (极细虚线) -->
 						<line x1="10" :y1="midLineY" x2="290" :y2="midLineY" stroke="#e2e8f0" stroke-width="0.5" stroke-dasharray="2,2" />
@@ -63,14 +63,14 @@
 
 						<!-- 浮动标签 (增加边界检测) -->
 						<foreignObject v-if="selectedPoint" :x="tagX" :y="selectedPoint.y - 35" width="80" height="30">
-							<div class="float-tag" xmlns="http://www.w3.org/1999/xhtml">¥ {{ selectedPoint.value }}</div>
+							<div class="float-tag font-number" xmlns="http://www.w3.org/1999/xhtml">¥ {{ selectedPoint.value }}</div>
 						</foreignObject>
 					</svg>
 					<view class="x-axis">
 						<text 
 							v-for="(label, index) in currentLabels" 
 							:key="index" 
-							:class="{ active: selectedIndex === index }"
+							:class="['font-number', { active: selectedIndex === index }]"
 							:style="{ left: chartPoints[index] ? (chartPoints[index].x / 300 * 100 + '%') : '0', visibility: shouldShowLabel(index) ? 'visible' : 'hidden' }"
 						>{{ label }}</text>
 					</view>
@@ -95,17 +95,18 @@
 							<view class="cell-content">
 								<view class="cell-main">
 									<text class="cell-title">{{ item.name }}</text>
-									<text class="cell-time">{{ item.time }}</text>
+									<text class="cell-time ">{{ item.time }}</text>
 								</view>
 								<view class="cell-right">
-									<text class="cell-amount">{{ item.amount }}</text>
-									<text class="cell-percent">{{ item.percent }}%</text>
+									<text class="cell-amount font-number ">{{ item.amount }}</text>
+									<text class="cell-percent font-number ">{{ item.percent }}%</text>
 								</view>
 							</view>
 						</template>
 					</van-cell>
 				</view>
-			</view></view>
+				</view>
+			</view>
 		</scroll-view>
 
 		<!-- 选择类型弹窗 (放在外层不影响布局) -->
@@ -363,7 +364,6 @@ const expenseList = ref([
 	height: 100vh;
 	display: flex;
 	flex-direction: column;
-	background-color: #f7f8fa;
 	overflow: hidden;
 }
 
@@ -391,7 +391,6 @@ const expenseList = ref([
 
 /* 顶部展示区域 (随页面滑动的部分) */
 .header-section {
-	/* background-color: #ffd541; */
 	padding: 0 0 70px;
 }
 
@@ -404,9 +403,8 @@ const expenseList = ref([
 }
 
 .type-text {
-	font-size: 14px;
+	font-size: var(--font-size-number);
 	font-weight: 700;
-	color: #0f172a;
 }
 
 .segment-control {
@@ -421,10 +419,9 @@ const expenseList = ref([
 .segment-item {
 	flex: 1; 
 	text-align: center; 
-	padding: 4px 0; /* 减小选项高度 */
+	padding: 4px 0;
 	border-radius: 16px;
-	font-size: 13px;
-	color: #0f172a;
+	font-size: var(--font-size-sm);
 	font-weight: 500;
 }
 
@@ -454,44 +451,26 @@ const expenseList = ref([
 
 .display-label,
 .display-value {
-	font-size: 15px;
+	font-size: var(--font-size-number);
 	font-weight: 300;
 	color: rgba(0, 0, 0, 0.6);
-}
-
-.display-value {
-	font-weight: 300;
 }
 
 /* 内容区域 */
 .content-body {
 	padding: 0;
-	margin-top: -130px; /* 调整上浮距离 */
+	margin-top: -130px;
 }
-
-/* 移除卡片阴影和背景，改为平铺 */
-/* .trend-section {
-	margin-bottom: 30px;
-} */
-
-.card {
-	background-color: transparent;
-	border-radius: 0;
-	margin-bottom: 20px;
-	box-shadow: none;
-}
-
 
 .card-title {
 	font-size: 16px;
 	font-weight: 700;
-	color: #0f172a;
 }
 
 .card-subtitle,
 .view-all {
 	font-size: 12px;
-	color: #94a3b8;
+	color: var(--light-text-color);
 }
 
 /* 趋势图样式 */
@@ -501,7 +480,7 @@ const expenseList = ref([
 
 .trend-text {
 	font-size: 12px;
-	color: #94a3b8;
+	color: var(--light-text-color);
 }
 
 .line-chart-container {
@@ -515,10 +494,10 @@ const expenseList = ref([
 }
 
 .float-tag {
-	background-color: #0f172a;
+	background-color: var(--primary-text-color);
 	color: #fff;
 	border-radius: 12px;
-	font-size: 10px;
+	font-size: var(--font-size-xs);
 	text-align: center;
 	line-height: 24px;
 	padding: 0 8px;
@@ -534,7 +513,7 @@ const expenseList = ref([
 
 .x-axis text {
 	position: absolute;
-	font-size: 10px;
+	font-size: var(--font-size-xs);
 	color: #cbd5e1;
 	transform: translateX(-50%);
 	white-space: nowrap;
@@ -542,9 +521,9 @@ const expenseList = ref([
 }
 
 .x-axis text.active {
-	color: #0f172a;
+	color: var(--primary-text-color);
 	font-weight: 700;
-	visibility: visible !important; /* 选中时强制显示 */
+	visibility: visible !important;
 }
 
 /* 列表样式 */
@@ -557,9 +536,9 @@ const expenseList = ref([
 }
 
 .section-title {
-	font-size: 14px;
+	font-size: var(--font-size-number);
 	font-weight: 600;
-	color: #64748b;
+	color: var(--secondary-text-color);
 }
 
 .custom-cell {
@@ -601,14 +580,13 @@ const expenseList = ref([
 }
 
 .cell-title {
-	font-size: 14px;
+	font-size: var(--font-size-base);
 	font-weight: 700;
-	color: #0f172a;
 }
 
 .cell-time {
-	font-size: 11px;
-	color: #94a3b8;
+	font-size: var(--font-size-xs);
+	color: var(--light-text-color);
 	margin-top: 2px;
 }
 
@@ -619,21 +597,17 @@ const expenseList = ref([
 }
 
 .cell-amount {
-	font-size: 14px;
+	font-size: var(--font-size-number);
 	font-weight: 700;
-	color: #0f172a;
 }
 
 .cell-percent {
-	font-size: 11px;
-	color: #94a3b8;
+	font-size: var(--font-size-xs);
+	color: var(--light-text-color);
 }
 
 /* 颜色类 */
-.bg-orange-light {
-	background-color: #fff7ed;
-}
-.bg-blue-light {
-	background-color: #eff6ff;
+.bg-orange-light, .bg-blue-light, .bg-green-light, .bg-red-light, .bg-indigo-light, .bg-yellow-light, .bg-cyan-light {
+	background-color: var(--secondary-bg-color);
 }
 </style>
