@@ -19,11 +19,11 @@
 					<view class="display-row">
 						<view class="display-group">
 							<text class="display-label">总支出:</text>
-							<text class="display-value font-number fs-num">{{ currentChartData.total }}</text>
+							<text class="display-value font-number">{{ currentChartData.total }}</text>
 						</view>
 						<view class="display-group">
 							<text class="display-label">均值:</text>
-							<text class="display-value font-number fs-num">{{ currentChartData.average }}</text>
+							<text class="display-value font-number">{{ currentChartData.average }}</text>
 						</view>
 					</view>
 				</view>
@@ -537,7 +537,6 @@ const expenseList = ref([
 
 .section-title {
 	font-size: var(--font-size-number);
-	font-weight: 600;
 	color: var(--secondary-text-color);
 }
 
@@ -598,7 +597,6 @@ const expenseList = ref([
 
 .cell-amount {
 	font-size: var(--font-size-number);
-	font-weight: 700;
 }
 
 .cell-percent {
