@@ -133,6 +133,10 @@ const onActionClick = (action) => {
 		uni.navigateTo({
 			url: '/pages/page_home/page_budget/budget'
 		});
+	} else if (action.name === '资产') {
+		uni.navigateTo({
+			url: '/pages/page_home/page_asset/asset'
+		});
 	}
 };
 

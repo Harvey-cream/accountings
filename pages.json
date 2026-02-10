@@ -49,6 +49,19 @@
 			}
 		},
 		{
+			"path": "pages/page_home/page_asset/asset",
+			"style": {
+				"navigationBarTitleText": "我的资产",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_home/page_asset/asset_add",
+			"style": {
+				"navigationBarTitleText": "添加账户"
+			}
+		},
+		{
 			"path": "pages/page_home/page_budget/budget",
 			"style": {
 				"navigationBarTitleText": "预算",
