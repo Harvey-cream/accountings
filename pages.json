@@ -49,6 +49,13 @@
 			}
 		},
 		{
+			"path": "pages/page_home/page_budget/budget",
+			"style": {
+				"navigationBarTitleText": "预算",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/index/index",
 			"style": {}
 		}

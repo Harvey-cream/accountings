@@ -1,48 +1,58 @@
 <template>
 	<view class="page-container">
-		<!-- Top Area: Header & Amount -->
 		<view class="top-section">
-			<!-- Header -->
 			<view class="header-bar">
-				<van-icon name="cross" size="24" color="#0f172a" @click="goBack" />
-				<text class="page-title">新增账单</text>
-				<van-icon name="question-o" size="24" color="#0f172a" />
-			</view>
-
-			<!-- Amount Display -->
-			<view class="amount-section">
-				<text class="amount-label">支出金额</text>
-				<view class="amount-row">
-					<text class="currency-symbol">¥</text>
-					<input type="digit" v-model="amount" class="amount-input" :placeholder="inputPlaceholder" placeholder-class="amount-placeholder"
-						@focus="onAmountFocus" @blur="onAmountBlur"/>
+				<van-icon name="arrow-left" size="24" color="#0f172a" @click="goBack" />
+				<view class="tab-box">
+					<view class="tab-item" :class="{ active: activeTab === 'expense' }" @click="activeTab = 'expense'">支出</view>
+					<view class="tab-item" :class="{ active: activeTab === 'income' }" @click="activeTab = 'income'">收入</view>
 				</view>
+				<view style="width: 24px;"></view>
 			</view>
 		</view>
 
-		<!-- Main Content: White Card -->
 		<view class="content-card">
-			<!-- Categories -->
-			<view class="section-header">
-				<text class="section-title">选择分类</text>
-				<text class="section-action">管理分类</text>
-			</view>
-
 			<view class="category-grid">
-				<view v-for="cat in categories" :key="cat.id" class="category-item" @click="selectCategory(cat.id)">
-					<view :class="['icon-circle', { active: selectedCategoryId === cat.id }]" :style="{ backgroundColor: cat.colorBg }">
+				<view v-for="cat in currentCategories" :key="cat.id" class="category-item" @click="onSelectCategory(cat)">
+					<view class="icon-circle" :class="{ active: selectedCategoryId === cat.id }" :style="{ backgroundColor: cat.colorBg }">
 						<van-icon :name="cat.icon" :color="cat.colorIcon" size="24" />
 					</view>
 					<text class="category-name">{{ cat.name }}</text>
 				</view>
 			</view>
 
-			<!-- Bill Details -->
-			<view class="section-header mt-6">
-				<text class="section-title">账单详情</text>
-			</view>
+			<van-popup
+				v-model:show="showMoreIcons"
+				position="bottom"
+				round
+				class="more-icons-popup"
+			>
+				<view class="popup-header">
+					<text class="popup-title">更多分类</text>
+					<van-icon name="cross" class="close-icon" @click="showMoreIcons = false" />
+				</view>
+				<view class="category-grid">
+					<view v-for="icon in currentMoreIcons" :key="icon.name" class="category-item" @click="onSelectMoreIcon(icon)">
+						<view class="icon-circle" :style="{ backgroundColor: icon.colorBg }">
+							<van-icon :name="icon.icon" :color="icon.colorIcon" size="24" />
+						</view>
+						<text class="category-name">{{ icon.name }}</text>
+					</view>
+				</view>
+			</van-popup>
 
 			<view class="form-group">
+				<view class="form-row">
+					<view class="form-icon-wrap">
+						<van-icon name="gold-coin-o" size="20" color="#64748b" />
+					</view>
+					<view class="form-content">
+						<text class="form-label">金额</text>
+						<input type="digit" v-model="amount" class="form-input" :placeholder="inputPlaceholder" placeholder-class="input-placeholder"
+							@focus="onAmountFocus" @blur="onAmountBlur"/>
+					</view>
+				</view>
+
 				<!-- Date Picker -->
 				<view class="form-row" @click="showCalendar = true">
 					<view class="form-icon-wrap">
@@ -52,7 +62,6 @@
 						<text class="form-label">日期</text>
 						<text class="form-value">{{ currentDate }}</text>
 					</view>
-					<van-icon name="calendar-o" size="16" color="#0f172a" />
 				</view>
 
 				<!-- Location -->
@@ -76,9 +85,6 @@
 						<text class="form-label">备注</text>
 						<input type="text" v-model="remark" class="form-input" placeholder="点击输入备注" placeholder-class="input-placeholder" />
 					</view>
-					<view class="remark-icon-btn">
-						<van-icon name="edit" size="16" color="#0f172a" />
-					</view>
 				</view>
 			</view>
 
@@ -87,16 +93,6 @@
 				<van-icon name="success" color="#0f172a" size="18" style="margin-right: 6px" />
 				<text class="save-text">保存账单</text>
 			</button>
-
-			<view class="split-bill-banner">
-				<view class="split-icon">
-					<van-icon name="friends" color="#F59E0B" size="20" />
-				</view>
-				<view class="split-content">
-					<text class="split-title">多人分账?</text>
-					<text class="split-desc">你可以邀请好友一起分担这笔费用。</text>
-				</view>
-			</view>
 		</view>
 
 		<van-calendar v-model:show="showCalendar" color="#FFD541" :min-date="minDate" :max-date="maxDate" @confirm="onConfirmDate" />
@@ -104,9 +100,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 const amount = ref('');
 const selectedCategoryId = ref(1);
+const activeTab = ref('expense'); 
 
 const now = new Date();
 const currentDate = ref(`${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`);
@@ -115,13 +112,14 @@ const maxDate = new Date();
 const location = ref('');
 const remark = ref('');
 const showCalendar = ref(false);
+const showMoreIcons = ref(false);
 const inputPlaceholder = ref('0.00'); 
 
 // --- Data ---
 const categories = ref([
-	{ id: 1, name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' }, // using logistics as fork-knife placeholder
+	{ id: 1, name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' },
 	{ id: 2, name: '购物', icon: 'bag-o', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ id: 3, name: '交通', icon: 'logistics', colorBg: '#ecfdf5', colorIcon: '#10b981' }, // car placeholder
+	{ id: 3, name: '交通', icon: 'logistics', colorBg: '#ecfdf5', colorIcon: '#10b981' },
 	{ id: 4, name: '娱乐', icon: 'video-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
 	{ id: 5, name: '医疗', icon: 'friends-o', colorBg: '#fee2e2', colorIcon: '#ef4444' },
 	{ id: 6, name: '学习', icon: 'bookmark-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
@@ -129,13 +127,81 @@ const categories = ref([
 	{ id: 8, name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
 ]);
 
+const incomeCategories = ref([
+	{ id: 101, name: '工资', icon: 'gold-coin-o', colorBg: '#f0fdf4', colorIcon: '#16a34a' },
+	{ id: 102, name: '兼职', icon: 'records', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
+	{ id: 103, name: '理财', icon: 'balance-o', colorBg: '#fffbeb', colorIcon: '#d97706' },
+	{ id: 104, name: '奖金', icon: 'diamond-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
+	{ id: 106, name: '报销', icon: 'notes-o', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
+	{ id: 107, name: '租金', icon: 'wap-home-o', colorBg: '#ecfeff', colorIcon: '#06b6d4' },
+	{ id: 108, name: '分红', icon: 'chart-trending-o', colorBg: '#f0fdf4', colorIcon: '#16a34a' },
+	{ id: 105, name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
+]);
+
+const currentCategories = computed(() => {
+	return activeTab.value === 'expense' ? categories.value : incomeCategories.value;
+});
+
+const moreIcons = ref([
+	{ name: '电影', icon: 'video-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
+	{ name: '运动', icon: 'fire-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
+	{ name: '礼物', icon: 'gift-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
+	{ name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' },
+	{ name: '办公', icon: 'description', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
+	{ name: '维修', icon: 'setting-o', colorBg: '#ecfdf5', colorIcon: '#10b981' },
+	{ name: '话费', icon: 'phone-o', colorBg: '#fee2e2', colorIcon: '#ef4444' },
+	{ name: '社交', icon: 'friends-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
+	{ name: '美发', icon: 'brush-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
+	{ name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
+]);
+
+const moreIncomeIcons = ref([
+	{ name: '礼金', icon: 'gift-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
+	{ name: '退款', icon: 'refund-o', colorBg: '#fffbeb', colorIcon: '#d97706' },
+	{ name: '利息', icon: 'balance-list-o', colorBg: '#f1f5f9', colorIcon: '#64748b' },
+	{ name: '二手', icon: 'shop-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
+	{ name: '红包', icon: 'paimai', colorBg: '#fee2e2', colorIcon: '#ef4444' },
+	{ name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
+]);
+
+const currentMoreIcons = computed(() => {
+	return activeTab.value === 'expense' ? moreIcons.value : moreIncomeIcons.value;
+});
+
 // --- Methods ---
 const goBack = () => {
-	uni.navigateBack();
+	const pages = getCurrentPages();
+	if (pages.length > 1) {
+		uni.navigateBack();
+	} else {
+		uni.switchTab({
+			url: '/pages/home/accounting_detail'
+		});
+	}
 };
 
-const selectCategory = (id) => {
-	selectedCategoryId.value = id;
+const onSelectCategory = (cat) => {
+	if ((activeTab.value === 'expense' && cat.id === 8) || (activeTab.value === 'income' && cat.id === 105)) {
+		showMoreIcons.value = true;
+	} else {
+		selectedCategoryId.value = cat.id;
+	}
+};
+
+const onSelectMoreIcon = (icon) => {
+	// 这里可以根据需要处理选择更多图标后的逻辑
+	// 比如更新“其他”分类的图标或者直接选中
+	const targetId = activeTab.value === 'expense' ? 8 : 105;
+	const categoriesToSearch = activeTab.value === 'expense' ? categories.value : incomeCategories.value;
+	const otherCat = categoriesToSearch.find(c => c.id === targetId);
+	if (otherCat) {
+		otherCat.icon = icon.icon;
+		otherCat.colorBg = icon.colorBg;
+		otherCat.colorIcon = icon.colorIcon;
+		otherCat.name = icon.name;
+		selectedCategoryId.value = otherCat.id;
+	}
+	showMoreIcons.value = false;
 };
 
 const chooseLocation = () => {
@@ -194,8 +260,7 @@ const saveBill = () => {
 /* --- Top Section --- */
 .top-section {
 	background-color: #ffd541;
-	padding: 20px 20px 40px; /* Top padding for status bar */
-	padding-bottom: 50px; /* Extra padding for overlap */
+	padding: 10px 20px 30px;
 	display: flex;
 	flex-direction: column;
 }
@@ -204,74 +269,50 @@ const saveBill = () => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 20px;
+	margin-bottom: 10px;
+
 }
 
-.page-title {
-	font-size: 16px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
-.amount-section {
+.tab-box {
 	display: flex;
-	flex-direction: column;
-	align-items: center;
+	gap: 40px;
+	background-color: transparent;
 }
 
-.amount-label {
-	font-size: 12px;
-	color: rgba(15, 23, 42, 0.6);
-	margin-bottom: 6px;
-}
-
-.amount-row {
-	display: flex;
-	align-items: center;
+.tab-item {
 	position: relative;
-}
-
-.currency-symbol {
-	font-size: 24px;
-	font-weight: 700;
-	color: #0f172a;
-	margin-right: 4px;
-	margin-top: 6px;
-}
-
-.amount-input {
-	font-size: 40px;
-	font-weight: 700;
-	color: #0f172a;
-	width: 200px;
+	height: 30px;
+	line-height: 30px;
 	text-align: center;
-	height: 50px;
-	line-height: 50px;
-	background: transparent;
-	border: none;
+	font-size: 18px;
+	font-weight: 500;
+	color: #0f172a;
+	transition: all 0.2s;
 }
 
-.amount-placeholder {
-	color: rgba(15, 23, 42, 0.4);
+.tab-item.active {
+	font-weight: bold;
+	color: #000;
 }
 
-.type-switch {
-	display: flex;
-	flex-direction: column;
-	margin-left: 8px;
-	background-color: #fff;
-	border-radius: 4px;
-	padding: 2px;
+.tab-item.active::after {
+	content: '';
+	position: absolute;
+	bottom: -2px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 28px;
+	height: 3px;
+	background-color: #000;
+	border-radius: 2px;
 }
 
 /* --- Main Content --- */
 .content-card {
 	flex: 1;
 	background-color: #fff;
-	margin-top: -30px;
-	border-top-left-radius: 24px;
-	border-top-right-radius: 24px;
-	padding: 24px 20px;
+	margin-top: -20px;
+	padding: 10px 10px 24px;
 	display: flex;
 	flex-direction: column;
 }
@@ -280,7 +321,6 @@ const saveBill = () => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 16px;
 }
 
 .section-title {
@@ -295,53 +335,79 @@ const saveBill = () => {
 	font-weight: 500;
 }
 
-.mt-6 {
-	margin-top: 24px;
-}
 
 /* Category Grid */
 .category-grid {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 16px 0;
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 20px;
+	padding: 15px;
 }
 
 .category-item {
-	width: 25%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	gap: 8px;
 }
 
 .icon-circle {
-	width: 44px;
-	height: 44px;
-	border-radius: 16px;
+	width: 45px;
+	height: 45px;
+	border-radius: 25px;
 	display: flex;
-	align-items: center;
 	justify-content: center;
-	margin-bottom: 6px;
-	transition: all 0.2s;
+	align-items: center;
+	transition: transform 0.2s;
 	border: 2px solid transparent;
 }
 
 .icon-circle.active {
 	border-color: #ffd541;
-	transform: scale(1.05);
-	box-shadow: 0 4px 10px rgba(255, 213, 65, 0.3);
+	transform: scale(1.1);
+	box-shadow: 0 4px 12px rgba(255, 213, 65, 0.3);
+}
+
+.category-item:active .icon-circle {
+	transform: scale(0.9);
 }
 
 .category-name {
-	font-size: 11px;
-	font-weight: 500;
-	color: #0f172a;
+	font-size: 12px;
+	color: #64748b;
+}
+
+/* More Icons Popup */
+.more-icons-popup {
+	max-height: 70vh;
+	padding-bottom: 20px;
+}
+
+.popup-header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px 16px 10px;
+	position: relative;
+}
+
+.popup-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: #1e293b;
+}
+
+.close-icon {
+	position: absolute;
+	right: 16px;
+	font-size: 18px;
+	padding: 4px;
 }
 
 /* Form Group */
 .form-group {
 	background-color: #fff;
-	border-radius: 12px;
+	padding: 10px 25px;
 }
 
 .form-row {
@@ -356,14 +422,13 @@ const saveBill = () => {
 }
 
 .form-icon-wrap {
-	width: 32px;
-	height: 32px;
-	background-color: #f8fafc;
+	width: 42px;
+	height: 42px;
 	border-radius: 8px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-right: 12px;
+	margin-right: 15px;
 }
 
 .form-content {
@@ -419,7 +484,6 @@ const saveBill = () => {
 
 /* Save Button */
 .save-btn {
-	margin-top: 24px;
 	background-color: #ffd541;
 	border-radius: 12px;
 	height: 48px;
@@ -427,7 +491,6 @@ const saveBill = () => {
 	align-items: center;
 	justify-content: center;
 	border: none;
-	box-shadow: 0 4px 12px rgba(255, 213, 65, 0.4);
 }
 
 .save-text {

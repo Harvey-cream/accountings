@@ -19,11 +19,11 @@
 				<view class="stat-group">
 					<view class="stat-item">
 						<text class="stat-label">收入</text>
-						<text class="stat-value font-number">{{ summary.income }}</text>
+						<text class="stat-value ">{{ summary.income }}</text>
 					</view>
 					<view class="stat-item">
 						<text class="stat-label">支出</text>
-						<text class="stat-value font-number">{{ summary.expense }}</text>
+						<text class="stat-value ">{{ summary.expense }}</text>
 					</view>
 				</view>
 			</view>
@@ -47,7 +47,7 @@
 				<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
 					<view class="day-header">
 						<text class="day-date">{{ group.date }}</text>
-						<text class="day-total font-number text-xs">支出: {{ group.totalExpense }}</text>
+						<text class="text-style-desc">支出: {{ group.totalExpense }}</text>
 					</view>
 
 					<view class="list-container">
@@ -60,11 +60,11 @@
 							<template #title>
 								<view class="cell-content">
 									<view class="cell-main">
-										<text class="cell-title">{{ item.title }}</text>
-										<text class="cell-time">{{ item.time }} · {{ item.location }}</text>
+										<text class="cell-title text-style-title">{{ item.title }}</text>
+										<text class="cell-time text-style-desc">{{ item.time }} · {{ item.location }}</text>
 									</view>
 									<view class="cell-right">
-										<text class="cell-amount font-number">{{ item.amount }}</text>
+										<text class="cell-amount text-style-number">{{ item.amount }}</text>
 									</view>
 								</view>
 							</template>
@@ -128,6 +128,10 @@ const onActionClick = (action) => {
 	if (action.name === '账单') {
 		uni.navigateTo({
 			url: '/pages/page_home/page_invoice/invoice'
+		});
+	} else if (action.name === '预算') {
+		uni.navigateTo({
+			url: '/pages/page_home/page_budget/budget'
 		});
 	}
 };
@@ -379,14 +383,6 @@ const onMonthConfirm = ({ selectedValues }) => {
 	font-size: 14px;
 	font-weight: 700;
 }
-
-.day-total {
-	
-	font-size: 12px;
-	font-weight: 500;
-	color: var(--light-text-color);
-}
-
 .custom-cell {
 	background-color: transparent;
 	border-radius: 0;
@@ -426,13 +422,10 @@ const onMonthConfirm = ({ selectedValues }) => {
 }
 
 .cell-title {
-	font-size: 14px;
-	font-weight: 700;
+	/* 已使用全局 .text-style-title */
 }
 
 .cell-time {
-	font-size: 11px;
-	color: var(--light-text-color);
 	margin-top: 2px;
 }
 
@@ -443,7 +436,6 @@ const onMonthConfirm = ({ selectedValues }) => {
 }
 
 .cell-amount {
-	font-size: var(--font-size-number);
 }
 
 /* Item Colors */

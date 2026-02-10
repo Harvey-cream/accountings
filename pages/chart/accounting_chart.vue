@@ -19,11 +19,11 @@
 					<view class="display-row">
 						<view class="display-group">
 							<text class="display-label">总支出:</text>
-							<text class="display-value font-number">{{ currentChartData.total }}</text>
+							<text class="display-value ">{{ currentChartData.total }}</text>
 						</view>
 						<view class="display-group">
 							<text class="display-label">均值:</text>
-							<text class="display-value font-number">{{ currentChartData.average }}</text>
+							<text class="display-value ">{{ currentChartData.average }}</text>
 						</view>
 					</view>
 				</view>
@@ -94,12 +94,12 @@
 						<template #title>
 							<view class="cell-content">
 								<view class="cell-main">
-									<text class="cell-title">{{ item.name }}</text>
-									<text class="cell-time ">{{ item.time }}</text>
+									<text class="text-style-title">{{ item.name }}</text>
+									<text class="cell-time text-style-desc">{{ item.time }}</text>
 								</view>
 								<view class="cell-right">
-									<text class="cell-amount font-number ">{{ item.amount }}</text>
-									<text class="cell-percent font-number ">{{ item.percent }}%</text>
+									<text class="text-style-number">{{ item.amount }}</text>
+									<text class="text-style-desc">{{ item.percent }}%</text>
 								</view>
 							</view>
 						</template>
@@ -579,13 +579,9 @@ const expenseList = ref([
 }
 
 .cell-title {
-	font-size: var(--font-size-base);
-	font-weight: 700;
 }
 
 .cell-time {
-	font-size: var(--font-size-xs);
-	color: var(--light-text-color);
 	margin-top: 2px;
 }
 
@@ -596,12 +592,9 @@ const expenseList = ref([
 }
 
 .cell-amount {
-	font-size: var(--font-size-number);
 }
 
 .cell-percent {
-	font-size: var(--font-size-xs);
-	color: var(--light-text-color);
 }
 
 /* 颜色类 */

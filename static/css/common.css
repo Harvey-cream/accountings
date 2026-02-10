@@ -9,7 +9,6 @@
   --secondary-text-color: #64748b;
   --light-text-color: #94a3b8;
   
-  /* 品牌色/功能色 */
   --income-color: #10b981;
   --expense-color: #ef4444;
   --accent-color: #f59e0b;
@@ -36,6 +35,26 @@
      - 均为系统调用，只要不私自打包字体文件，仅在 CSS 中引用是安全的
   */
   --font-family-number: "DIN Alternate", "DINCondensed-Bold", "Bahnschrift", "Segoe UI UI", "Segoe UI", "Helvetica Neue", "Courier New", monospace;
+}
+
+/* 复合文本样式 (Composite Text Styles) */
+/* 1. 页面数字样式：包含字体族、字号、粗体 */
+.text-style-number {
+  font-family: var(--font-family-number) !important;
+  font-size: var(--font-size-number) !important;
+}
+
+/* 2. 中文标题样式：包含字号、粗体 */
+.text-style-title {
+  font-size: var(--font-size-base) !important;
+  font-weight: bold !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* 3. 小号描述样式：包含字号、颜色 */
+.text-style-desc {
+  font-size: var(--font-size-xs) !important;
+  color: var(--light-text-color) !important;
 }
 
 /* 基础页面样式 */

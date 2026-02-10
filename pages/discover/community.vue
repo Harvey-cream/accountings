@@ -115,7 +115,12 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+
+onShow(() => {
+	uni.$emit('updateTabbar');
+});
 
 const previewImage = (images, index) => {
   uni.previewImage({

@@ -35,8 +35,8 @@
         <!-- Income Bar -->
         <view class="chartRow">
           <view class="chartLabelGroup">
-            <text class="chartLabel fs-sm">{{ activeTab === 0 ? '年收入' : '总收入' }}</text>
-            <text class="chartValue text-income font-number fs-sm">¥ {{ activeTab === 0 ? yearSummary.income : totalSummary.income }}</text>
+            <text class="text-style-desc">{{ activeTab === 0 ? '年收入' : '总收入' }}</text>
+            <text class="text-success text-style-number">¥ {{ activeTab === 0 ? yearSummary.income : totalSummary.income }}</text>
           </view>
           <view class="progressBarTrack">
             <view 
@@ -49,8 +49,8 @@
         <!-- Expense Bar -->
         <view class="chartRow" style="margin-top: 15px;">
           <view class="chartLabelGroup">
-            <text class="chartLabel fs-sm">{{ activeTab === 0 ? '年支出' : '总支出' }}</text>
-            <text class="chartValue text-expense font-number fs-sm">¥ {{ activeTab === 0 ? yearSummary.expense : totalSummary.expense }}</text>
+            <text class="text-style-desc">{{ activeTab === 0 ? '年支出' : '总支出' }}</text>
+            <text class="text-danger text-style-number">¥ {{ activeTab === 0 ? yearSummary.expense : totalSummary.expense }}</text>
           </view>
           <view class="progressBarTrack">
             <view 
@@ -63,32 +63,32 @@
     </view>
 
     <view class="listHeader container-padding">
-      <text class="listHeaderItem headerCol1 ">{{ activeTab === 0 ? '月份' : '年份' }}</text>
-      <text class="listHeaderItem headerCol2 ">{{ activeTab === 0 ? '月收入' : '年收入' }}</text>
-      <text class="listHeaderItem headerCol3 ">{{ activeTab === 0 ? '月支出' : '年支出' }}</text>
-      <text class="listHeaderItem headerCol4 ">{{ activeTab === 0 ? '月结余' : '年结余' }}</text>
-      <view class="headerCol5"></view> 
+      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月份' : '年份' }}</text>
+      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月收入' : '年收入' }}</text>
+      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月支出' : '年支出' }}</text>
+      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月结余' : '年结余' }}</text>
+      <view class="header-col-arrow"></view> 
     </view>
 
     <view class="billList">
       <template v-if="activeTab === 0">
         <view v-for="item in monthBills" :key="item.month" class="billItem container-padding">
-          <text class="billCell col1 ">{{ item.month }}月</text>
-          <text class="billCell col2 ">{{ item.income }}</text>
-          <text class="billCell col3 ">{{ item.expense }}</text>
-          <text class="billCell col4 ">{{ item.balance }}</text>
-          <view class="col5">
+          <text class="list-col text-style-title">{{ item.month }}月</text>
+          <text class="list-col text-style-number">{{ item.income }}</text>
+          <text class="list-col text-style-number">{{ item.expense }}</text>
+          <text class="list-col text-style-number">{{ item.balance }}</text>
+          <view class="col-arrow">
             <van-icon name="arrow" color="#ccc" size="14" />
           </view>
         </view>
       </template>
       <template v-else>
         <view v-for="item in yearBills" :key="item.year" class="billItem container-padding">
-          <text class="billCell col1 ">{{ item.year }}年</text>
-          <text class="billCell col2 ">{{ item.income }}</text>
-          <text class="billCell col3 ">{{ item.expense }}</text>
-          <text class="billCell col4 ">{{ item.balance }}</text>
-          <view class="col5">
+          <text class="list-col text-style-title">{{ item.year }}年</text>
+          <text class="list-col text-style-number">{{ item.income }}</text>
+          <text class="list-col text-style-number">{{ item.expense }}</text>
+          <text class="list-col text-style-number">{{ item.balance }}</text>
+          <view class="col-arrow">
             <van-icon name="arrow" color="#ccc" size="14" />
           </view>
         </view>
@@ -291,13 +291,7 @@ const onYearConfirm = ({ selectedOptions }) => {
   margin-bottom: 6px;
 }
 
-.chartLabel {
-  color: #64748b;
-}
-
-.chartValue {
-  font-weight: bold;
-}
+/* .chartLabel and .chartValue removed to use global styles */
 
 .progressBarTrack {
   height: 8px;
@@ -324,8 +318,8 @@ const onYearConfirm = ({ selectedOptions }) => {
 }
 
 .listHeaderItem {
-  color: var(--light-text-color);
-  text-align: right;
+  /* color: var(--light-text-color); handled by text-style-desc */
+  /* text-align: right; handled by col classes */
 }
 
 .billItem {
@@ -336,20 +330,17 @@ const onYearConfirm = ({ selectedOptions }) => {
   align-items: center;
 }
 
-.billCell {
-  text-align: right;
-}
+/* Column Layout */
+.list-col { flex: 1; text-align: right; }
+.list-col:first-child { text-align: left; }
 
-/* Column Widths */
-.headerCol1, .col1 { flex: 1; text-align: left; }
-.headerCol2, .col2 { flex: 1; }
-.headerCol3, .col3 { flex: 1; }
-.headerCol4, .col4 { flex: 1; }
-.headerCol5, .col5 { flex: 0.3; text-align: right; }
-
-.col5 {
+.col-arrow { 
+  flex: 0.3; 
   display: flex;
   justify-content: flex-end;
-  align-items: center;
+  align-items: center; 
+}
+.header-col-arrow {
+  flex: 0.3;
 }
 </style>

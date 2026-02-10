@@ -9,7 +9,7 @@ import { onMounted } from 'vue';
 
 onMounted(() => {
   uni.reLaunch({
-    url: '/pages/page_details/accounting_detail'
+    url: '/pages/home/accounting_detail'
   });
 });
 </script>

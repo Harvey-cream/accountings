@@ -18,6 +18,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 
 const tabList = ref(uni.getStorageSync('tabList') || []);
 
@@ -33,26 +34,31 @@ const getActiveIndex = () => {
   return 0;
 };
 
-// 直接初始化为正确索引，不再需要 -1 过渡
 const active = ref(getActiveIndex()); 
+
+// 每次页面显示时刷新激活状态
+onShow(() => {
+  console.log('Tabbar onShow, refreshing active state');
+  active.value = getActiveIndex();
+});
 
 const onChange = (index) => {
   const target = tabList.value[index];
   
   // 特殊处理 Fab 按钮（记账）
   if (target.isFab) {
-    // 1. 阻止选中状态变化：立即重置 active 为当前页面索引
-    // 使用 nextTick 确保覆盖 Vant 的默认更新行为
+    // 立即重置 active，防止进入选中状态
+    active.value = getActiveIndex();
+    
+    // 强制下一帧再次确认重置
     setTimeout(() => {
       active.value = getActiveIndex();
     }, 0);
 
-    // 2. 执行跳转（通常是新页面，非 Tab 页）
     if (target.path) {
       uni.navigateTo({
         url: target.path,
         fail: (err) => {
-          // 如果 navigateTo 失败（例如路径错误），尝试其他方式
           console.error('Navigation failed:', err);
           uni.switchTab({ url: target.path });
         }
