@@ -3,6 +3,10 @@
 		<!-- 顶部资产卡片 -->
 		<view class="asset-header">
 			<view class="total-asset-card">
+				<!-- 背景装饰图标 -->
+				<view class="card-bg-icon">
+					<van-icon name="gold-coin" size="120" color="rgba(255, 255, 255, 0.15)" />
+				</view>
 				<!-- 资产可视化图表 (条形图) -->
 				<view class="chart-container">
 					<view class="chart-title-row">
@@ -96,31 +100,35 @@ const displayLiabilityPercent = ref(0);
 
 const assetGroups = ref([
 	{
-		name: '现金',
-		total: '1.00',
-		items: [
-			{ id: 1, name: '现金', amount: '1.00', icon: 'gold-coin', iconColor: '#fff', bgClass: 'bg-green' }
-		]
-	},
-	{
 		name: '储蓄卡',
-		total: '555.00',
+		total: '12555.00',
 		items: [
-			{ id: 2, name: '建设银行', amount: '555.00', icon: 'card', iconColor: '#fff', bgClass: 'bg-blue' }
+			{ id: 2, name: '建设银行 (工资)', amount: '8555.00', icon: 'card', iconColor: '#fff', bgClass: 'bg-blue' },
+			{ id: 5, name: '招商银行', amount: '4000.00', icon: 'card', iconColor: '#fff', bgClass: 'bg-red' }
 		]
 	},
 	{
 		name: '虚拟账户',
-		total: '555.00',
+		total: '2855.00',
 		items: [
-			{ id: 3, name: '微信', amount: '555.00', icon: 'wechat', iconColor: '#fff', bgClass: 'bg-green-dark' }
+			{ id: 3, name: '微信钱包', amount: '555.00', icon: 'wechat', iconColor: '#fff', bgClass: 'bg-green-dark' },
+			{ id: 6, name: '支付宝余额', amount: '2300.00', icon: 'alipay', iconColor: '#fff', bgClass: 'bg-blue-dark' }
+		]
+	},
+	{
+		name: '投资理财',
+		total: '50000.00',
+		items: [
+			{ id: 7, name: '天天基金', amount: '30000.00', icon: 'balance-o', iconColor: '#fff', bgClass: 'bg-orange' },
+			{ id: 8, name: '股票账户', amount: '20000.00', icon: 'chart-trending-o', iconColor: '#fff', bgClass: 'bg-purple' }
 		]
 	},
 	{
 		name: '负债',
-		total: '-500.00',
+		total: '-2500.00',
 		items: [
-			{ id: 4, name: '哈哈', amount: '-500.00', icon: 'info', iconColor: '#fff', bgClass: 'bg-red' }
+			{ id: 4, name: '蚂蚁花呗', amount: '-1500.00', icon: 'info', iconColor: '#fff', bgClass: 'bg-red' },
+			{ id: 9, name: '信用卡', amount: '-1000.00', icon: 'credit-pay', iconColor: '#fff', bgClass: 'bg-slate' }
 		]
 	}
 ]);
@@ -166,76 +174,95 @@ const goToAdd = () => {
 
 /* 顶部 Header */
 .asset-header {
-	padding: 5px 20px 20px; /* 适配状态栏 */
+	padding: 20px 20px 10px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
 }
 .total-asset-card {
-	display: flex;
-	flex-direction: column;
+	background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
+	border-radius: 15px;
+	padding: 20px;
+	position: relative;
+	overflow: hidden;
+}
+
+/* 背景装饰图标 */
+.card-bg-icon {
+	position: absolute;
+	right: -20px;
+	bottom: -30px;
+	z-index: 0;
+	transform: rotate(-15deg);
+}
+
+/* 移除之前的 after 装饰 */
+.total-asset-card::after {
+	display: none;
 }
 
 /* Chart Styles */
 .chart-container {
     width: 100%;
-    margin-top: 10px;
+	position: relative;
+	z-index: 1;
 }
 
 .chart-title-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .chart-main-label {
     font-size: 14px;
-    color: rgba(0,0,0,0.6);
+    color: rgba(0, 0, 0, 0.5);
+	font-weight: 500;
 }
 
 .chart-main-value {
-    font-size: 18px;
-    font-weight: bold;
-    color: #0f172a;
+    font-size: 28px;
+    font-weight: 800;
+    color: #000;
 }
 
 .chart-row {
     width: 100%;
 }
-.mt-15 { margin-top: 15px; }
+.mt-15 { margin-top: 20px; }
 
 .chart-label-group {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .label-text {
-    font-size: 12px;
-    color: rgba(0,0,0,0.6);
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.45);
 }
 
 .value-text {
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 15px;
+    font-weight: 700;
+	color: #000;
 }
-.text-success { color: #10b981; } /* Green usually stands out well */
-.text-danger { color: #ef4444; }
+.text-success { color: #065f46 !important; } 
+.text-danger { color: #991b1b !important; } 
 
 .progress-bar-track {
-    height: 6px;
-    background-color: rgba(255,255,255,0.5); /* Semi-transparent white for track on yellow bg */
-    border-radius: 3px;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
     overflow: hidden;
 }
 
 .progress-bar-fill {
     height: 100%;
-    border-radius: 3px;
-    transition: width 1s ease-out;
+    border-radius: 4px;
+    transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.bg-green { background-color: #10b981; }
+.bg-green { background-color: #fff !important; } /* 进度条使用白色在黄色背景上更醒目 */
 .bg-red { background-color: #ef4444; }
 
 
@@ -243,7 +270,6 @@ const goToAdd = () => {
 .asset-list-scroll {
 	flex: 1;
 	overflow-y: auto;
-	border-top: 1px solid #f1f5f9;
 }
 
 .list-content {

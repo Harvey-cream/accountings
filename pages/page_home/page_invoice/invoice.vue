@@ -1,6 +1,8 @@
 <template>
   <view class="invoicePage">
     <view class="header">
+      <!-- 状态栏占位 -->
+      <view class="status-bar"></view>
       <view class="headerTop">
         <!-- Year Selector -->
         <view class="yearSelector" @click="showYearPicker = true">
@@ -20,11 +22,8 @@
           </view>
         </view>
 
-        <!-- Right Icons -->
-        <view class="headerIcons">
-          <van-icon name="ellipsis" size="20" class="headerIcon" />
-          <van-icon name="eye-o" size="20" class="headerIcon" />
-        </view>
+        <!-- Capsule Home Button -->
+        <CapsuleButton />
       </view>
       <view class="chartContainer">
         <view class="chartTitle">
@@ -106,7 +105,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
+import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
 
 const showYearPicker = ref(false);
 const currentYear = ref('2026');
@@ -132,13 +132,17 @@ const totalSummary = ref({
 });
 
 const monthBills = ref([
-  { month: '2', income: '0.00', expense: '555.00', balance: '-555.00' },
-  { month: '1', income: '0.00', expense: '0.00', balance: '0.00' },
+  { month: '2', income: '1200.00', expense: '555.00', balance: '645.00' },
+  { month: '1', income: '4500.00', expense: '3200.00', balance: '1300.00' },
+  { month: '12', income: '5000.00', expense: '4800.00', balance: '200.00' },
+  { month: '11', income: '4800.00', expense: '3900.00', balance: '900.00' },
+  { month: '10', income: '6000.00', expense: '5500.00', balance: '500.00' },
 ]);
 
 const yearBills = ref([
-  { year: '2026', income: '0.00', expense: '555.00', balance: '-555.00' },
-  { year: '2025', income: '4,200.00', expense: '30,155.00', balance: '-25,955.00' },
+  { year: '2026', income: '1200.00', expense: '555.00', balance: '645.00' },
+  { year: '2025', income: '58400.00', expense: '52000.00', balance: '6400.00' },
+  { year: '2024', income: '55000.00', expense: '48000.00', balance: '7000.00' },
 ]);
 
 // Animation Refs

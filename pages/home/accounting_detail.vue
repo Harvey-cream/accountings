@@ -73,12 +73,6 @@
 				</view>
 			</van-list>
 		</view>
-
-			<!-- Map FAB -->
-			<view class="fab-map">
-				<van-icon name="location-o" size="24" />
-			</view>
-
 			<!-- Month Picker Popup -->
 			<van-popup v-model:show="showMonthPicker" position="bottom">
 				<van-date-picker
@@ -425,10 +419,6 @@ const onMonthConfirm = ({ selectedValues }) => {
 	flex-direction: column;
 }
 
-.cell-title {
-	/* 已使用全局 .text-style-title */
-}
-
 .cell-time {
 	margin-top: 2px;
 }
@@ -438,10 +428,6 @@ const onMonthConfirm = ({ selectedValues }) => {
 	flex-direction: column;
 	align-items: flex-end;
 }
-
-.cell-amount {
-}
-
 /* Item Colors */
 .bg-amber-light, .bg-blue-light, .bg-purple-light, .bg-emerald-light {
 	background-color: var(--secondary-bg-color);

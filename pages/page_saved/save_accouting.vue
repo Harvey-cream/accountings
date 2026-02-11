@@ -284,7 +284,7 @@ const saveBill = () => {
 	height: 30px;
 	line-height: 30px;
 	text-align: center;
-	font-size: 18px;
+	font-size: 16px;
 	font-weight: 500;
 	color: #0f172a;
 	transition: all 0.2s;

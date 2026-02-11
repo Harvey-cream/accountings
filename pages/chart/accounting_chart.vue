@@ -159,13 +159,6 @@ const currentValues = computed(() => currentChartData.value.values);
 
 // 图表常量与工具函数
 const CHART = { width: 300, height: 150, paddingTop: 40, paddingBottom: 20, paddingX: 10 };
-const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
-const makeYScale = (values) => {
-	const min = 0;
-	const max = Math.max(...values) * 1.05;
-	const range = max - min || 1;
-	return { min, max, range };
-};
 
 // 计算当前视图的最大值
 const maxValue = computed(() => {
@@ -316,7 +309,6 @@ const chartPath = computed(() => {
 });
 
 // 控制标签显示的逻辑
-const LABELS_MAP = { 2: [0, 3, 6, 9, 11], 1: [0, 9, 19, 29], 0: [0, 3, 6] };
 const shouldShowLabel = (index) => {
 	const total = currentValues.value.length;
 	// 年视图 (12个点): 显示 1, 4, 7, 10, 12月 (对应索引 0, 3, 6, 9, 11)
@@ -578,9 +570,6 @@ const expenseList = ref([
 	flex-direction: column;
 }
 
-.cell-title {
-}
-
 .cell-time {
 	margin-top: 2px;
 }
@@ -590,13 +579,6 @@ const expenseList = ref([
 	flex-direction: column;
 	align-items: flex-end;
 }
-
-.cell-amount {
-}
-
-.cell-percent {
-}
-
 /* 颜色类 */
 .bg-orange-light, .bg-blue-light, .bg-green-light, .bg-red-light, .bg-indigo-light, .bg-yellow-light, .bg-cyan-light {
 	background-color: var(--secondary-bg-color);

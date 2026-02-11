@@ -37,7 +37,6 @@
   --font-family-number: "DIN Alternate", "DINCondensed-Bold", "Bahnschrift", "Segoe UI UI", "Segoe UI", "Helvetica Neue", "Courier New", monospace;
 }
 
-/* 复合文本样式 (Composite Text Styles) */
 /* 1. 页面数字样式：包含字体族、字号、粗体 */
 .text-style-number {
   font-family: var(--font-family-number) !important;

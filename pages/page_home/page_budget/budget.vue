@@ -3,24 +3,32 @@
 		<!-- 顶部固定导航区域 -->
 		<view class="fixed-nav-container">
 			<view class="nav-header">
-				<!-- 中间预算类型选择 -->
-				<view class="type-selector" @click="showTypeSheet = true">
-					<text class="type-text">{{ budgetType }}</text>
-					<van-icon name="arrow-down" size="12" color="#0f172a" />
+				<view class="nav-left-title">
+					<text class="nav-title-text">{{ budgetType }}概览</text>
+				</view>
+				<!-- Segmented Control -->
+				<view class="segmentControl">
+					<view 
+						class="segmentItem" :class="{ active: budgetType === '月预算' }" @click="budgetType = '月预算'">
+						<text class="segmentText">月预算</text>
+					</view>
+					<view 
+						class="segmentItem" :class="{ active: budgetType === '年预算' }" @click="budgetType = '年预算'">
+						<text class="segmentText">年预算</text>
+					</view>
+				</view>
+				<!-- 微信样式胶囊按钮 & 编辑按钮 -->
+				<view class="nav-right-actions">
+					<CapsuleButton class="nav-capsule" />
+					<view class="nav-edit-btn" @click="onEditBudget">
+						<van-icon name="edit" size="18" color="#0f172a" />
+					</view>
 				</view>
 			</view>
 		</view>
 		<scroll-view scroll-y class="main-content">
 			<view class="card-container">
 				<view class="budget-card">
-					<view class="card-header">
-						<text class="card-title">{{ budgetType }}概览</text>
-						<view class="edit-btn" @click="onEditBudget">
-							<text class="edit-text">编辑</text>
-							<van-icon name="edit" size="14" color="#64748b" />
-						</view>
-					</view>
-					
 					<view class="card-content">
 						<view class="chart-box">
 							<van-circle
@@ -60,24 +68,26 @@
 				<view class="list-container">
 					<van-cell v-for="item in filteredCategoryBudgets" :key="item.id" center class="custom-cell flat-cell">
 						<template #icon>
-							<view :class="['list-icon-wrap', item.bgClass]" :style="item.customBg ? { backgroundColor: item.customBg } : {}">
-								<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+							<view :class="['list-icon-wrap', item.bgClass]">
+								<van-icon :name="item.icon" :color="item.iconColor" size="24" />
 							</view>
 						</template>
 						<template #title>
 							<view class="cell-content">
 								<view class="cell-main">
-									<text class="text-style-title">{{ item.name }}</text>
-									<view class="progress-bar-bg">
-										<view class="progress-bar-fill" :style="{ width: item.percent + '%', backgroundColor: item.iconColor }"></view>
+									<view class="cell-header">
+										<text class="text-style-title">{{ item.name }}</text>
+										<view class="amount-info">
+											<text class="spent-text text-style-number">¥{{ item.spent.toFixed(2) }}</text>
+											<text class="total-text text-style-desc">/ ¥{{ item.amount.toFixed(2) }}</text>
+										</view>
 									</view>
-								</view>
-								<view class="cell-right">
-									<view class="amount-info">
-										<text class="spent-text text-style-number">¥{{ item.spent.toFixed(2) }}</text>
-										<text class="total-text text-style-desc">/ ¥{{ item.amount.toFixed(2) }}</text>
+									<view class="progress-container">
+										<view class="progress-bar-bg">
+											<view class="progress-bar-fill" :style="{ width: (showAnimation ? item.percent : 0) + '%', backgroundColor: item.iconColor }"></view>
+										</view>
+										<text class="percent-text text-style-desc">{{ item.percent }}%</text>
 									</view>
-									<text class="percent-text text-style-desc">{{ item.percent }}%</text>
 								</view>
 							</view>
 						</template>
@@ -125,7 +135,7 @@
 			</view>
 			<view class="category-grid">
 				<view v-for="cat in categories" :key="cat.id" class="category-item" @click="onSelectCategory(cat)">
-					<view class="icon-circle" :style="{ backgroundColor: cat.colorBg }">
+					<view class="icon-circle">
 						<van-icon :name="cat.icon" :color="cat.colorIcon" size="24" />
 					</view>
 					<text class="category-name">{{ cat.name }}</text>
@@ -171,7 +181,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
 
 // --- 状态定义 ---
 const showTypeSheet = ref(false);
@@ -179,6 +190,7 @@ const showEditPopup = ref(false);
 const showCategoryPopup = ref(false);
 const selectedCategory = ref(null);
 const isAddingCategory = ref(false);
+const showAnimation = ref(false);
 const editBudgetType = ref('月预算');
 const editBudgetValue = ref('');
 
@@ -204,9 +216,13 @@ const categories = ref([
 
 // 分类预算列表
 const categoryBudgets = ref([
-	{ id: 1, type: '月预算', name: '餐饮美食', icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light', amount: 1500, spent: 422.55, percent: 30 },
+	{ id: 1, type: '月预算', name: '餐饮美食', icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light', amount: 1500, spent: 422.55, percent: 28 },
 	{ id: 2, type: '月预算', name: '房屋租金', icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light', amount: 3000, spent: 3000, percent: 100 },
-	{ id: 3, type: '年预算', name: '保险支出', icon: 'shield-envelop-o', iconColor: '#10b981', bgClass: 'bg-green-light', amount: 5000, spent: 1200, percent: 24 }
+	{ id: 4, type: '月预算', name: '交通出行', icon: 'logistics', iconColor: '#3b82f6', bgClass: 'bg-blue-light', amount: 500, spent: 120.50, percent: 24 },
+	{ id: 5, type: '月预算', name: '休闲娱乐', icon: 'music-o', iconColor: '#8b5cf6', bgClass: 'bg-purple-light', amount: 800, spent: 650, percent: 81 },
+	{ id: 6, type: '月预算', name: '购物消费', icon: 'shopping-cart-o', iconColor: '#ec4899', bgClass: 'bg-pink-light', amount: 1200, spent: 1150, percent: 95 },
+	{ id: 7, type: '年预算', name: '年度旅行', icon: 'aim', iconColor: '#f59e0b', bgClass: 'bg-yellow-light', amount: 15000, spent: 4000, percent: 27 },
+	{ id: 8, type: '年预算', name: '数码产品', icon: 'desktop-o', iconColor: '#64748b', bgClass: 'bg-slate-light', amount: 10000, spent: 8900, percent: 89 }
 ]);
 
 // 模拟数据
@@ -254,6 +270,21 @@ const chartColor = computed(() => {
 
 const chartText = computed(() => {
 	return isOverBudget.value ? '已超支' : `${expenseRate.value.toFixed(0)}%`;
+});
+
+// --- 生命周期 & 动画 ---
+onMounted(() => {
+	setTimeout(() => {
+		showAnimation.value = true;
+	}, 100);
+});
+
+// 监听切换，重新触发动画
+watch(budgetType, () => {
+	showAnimation.value = false;
+	setTimeout(() => {
+		showAnimation.value = true;
+	}, 50);
 });
 
 // --- 方法 ---
@@ -333,38 +364,83 @@ const onConfirmAmount = () => {
 
 /* 顶部固定导航 */
 .fixed-nav-container {
-	background-color: #ffd541;
-	padding: 5px 20px 0;
+	background-color: #ffffff;
+	padding: 10px 20px;
 	box-sizing: border-box;
 	flex-shrink: 0;
 	z-index: 2001; 
 }
-:deep(.top-action-sheet) {
-	margin-top: 57px; 
-}
 
 .nav-header {
 	display: flex;
-	flex-direction: column;
-	align-items: center; 
-	gap: 10px; 
-	margin-bottom: 8px;
-	height: 44px;
-	justify-content: center;
+	justify-content: space-between;
+	align-items: center;
+	position: relative;
 }
 
-.type-selector {
+.segmentControl {
+	display: flex;
+	background-color: #ffffff;
+	border: 1px solid #0f172a;
+	border-radius: 6px;
+	overflow: hidden;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.nav-left-title {
+	width: 85px;
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 4px 12px;
-	border-radius: 14px;
 }
 
-.type-text {
-	font-size: var(--font-size-number);
-	font-weight: 700;
+.nav-title-text {
+	font-size: 14px;
+	font-weight: 500;
+	/* color: #0f172a; */
 }
+
+.nav-right-actions {
+	width: 80px; 
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.nav-edit-btn {
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: rgba(255, 255, 255, 0.6);
+	border: 0.5px solid rgba(0, 0, 0, 0.1);
+	border-radius: 50%;
+}
+
+.nav-edit-btn:active {
+	background-color: rgba(0, 0, 0, 0.05);
+}
+
+.nav-capsule {
+	position: static !important;
+}
+
+.segmentItem {
+	padding: 4px 16px;
+	cursor: pointer;
+	transition: all 0.3s;
+}
+
+.segmentItem.active {
+	background-color: #0f172a;
+}
+
+.segmentItem.active .segmentText {
+	color: #fff;
+}
+
 
 /* 悬浮卡片容器 */
 .card-container {
@@ -396,8 +472,6 @@ const onConfirmAmount = () => {
 	align-items: center;
 	gap: 4px;
 	padding: 4px 8px;
-	background-color: #f1f5f9;
-	border-radius: 12px;
 }
 
 .edit-text {
@@ -428,7 +502,7 @@ const onConfirmAmount = () => {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 14px;
 }
 
 .stat-row {
@@ -436,29 +510,6 @@ const onConfirmAmount = () => {
 	justify-content: space-between;
 	align-items: baseline;
 }
-
-.small-row {
-	margin-top: 4px;
-}
-
-.label {
-	font-size: 13px;
-	color: #94a3b8;
-}
-
-.value {
-	font-weight: 600;
-	color: #0f172a;
-}
-
-.large-num {
-	font-size: 24px;
-}
-
-.text-danger {
-	color: #ef4444;
-}
-
 /* 主要内容区 */
 .main-content {
 	flex: 1;
@@ -492,10 +543,6 @@ const onConfirmAmount = () => {
 	margin-bottom: 8px;
 }
 
-.empty-sub {
-	font-size: 12px;
-	color: #cbd5e1;
-}
 
 /* 底部固定栏 */
 .bottom-bar {
@@ -504,7 +551,7 @@ const onConfirmAmount = () => {
 	left: 0;
 	right: 0;
 	background-color: #fff;
-	padding: 12px 16px 30px; /* 适配底部安全区 */
+	padding: 14px 16px 20px; /* 适配底部安全区 */
 	box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
 	z-index: 10;
 }
@@ -541,12 +588,11 @@ const onConfirmAmount = () => {
 
 .list-container {
 	background: #ffffff;
-	border-radius: 16px;
 	overflow: hidden;
 }
 
 .custom-cell {
-	padding: 16px !important;
+	padding: 10px !important;
 }
 
 .flat-cell {
@@ -554,13 +600,22 @@ const onConfirmAmount = () => {
 }
 
 .list-icon-wrap {
-	width: 44px;
-	height: 44px;
+	width: 42px;
+	height: 42px;
 	border-radius: 12px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	margin-right: 12px;
+}
+.bg-orange-light, 
+.bg-blue-light, 
+.bg-purple-light, 
+.bg-pink-light, 
+.bg-green-light, 
+.bg-yellow-light, 
+.bg-slate-light { 
+	background-color: var(--secondary-bg-color); 
 }
 
 .cell-content {
@@ -568,17 +623,31 @@ const onConfirmAmount = () => {
 	justify-content: space-between;
 	align-items: center;
 	flex: 1;
+	overflow: hidden; /* 防止溢出 */
 }
 
 .cell-main {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 10px;
 	flex: 1;
-	margin-right: 20px;
+	min-width: 0;
+}
+
+.cell-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.progress-container {
+	display: flex;
+	align-items: center;
+	gap: 12px;
 }
 
 .progress-bar-bg {
+	flex: 1;
 	height: 6px;
 	background: #f1f5f9;
 	border-radius: 3px;
@@ -588,14 +657,15 @@ const onConfirmAmount = () => {
 .progress-bar-fill {
 	height: 100%;
 	border-radius: 3px;
-	transition: width 0.3s ease;
+	transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.cell-right {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 4px;
+.percent-text {
+	font-size: 12px;
+	font-weight: 500;
+	color: #94a3b8;
+	width: 36px;
+	text-align: right;
 }
 
 .amount-info {
@@ -604,20 +674,15 @@ const onConfirmAmount = () => {
 }
 
 .spent-text {
-	font-size: 16px;
+	font-size: 15px;
 	font-weight: 700;
 	color: #0f172a;
 }
 
 .total-text {
-	font-size: 12px;
+	font-size: 11px;
 	color: #94a3b8;
 	margin-left: 2px;
-}
-
-.percent-text {
-	font-size: 12px;
-	font-weight: 500;
 }
 
 /* 分类选择弹窗样式 */
@@ -641,13 +706,14 @@ const onConfirmAmount = () => {
 }
 
 .icon-circle {
-	width: 50px;
-	height: 50px;
-	border-radius: 25px;
+	width: 42px;
+	height: 42px;
+	border-radius: 16px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	transition: transform 0.2s;
+	background-color: var(--secondary-bg-color) !important;
 }
 
 .category-item:active .icon-circle {
