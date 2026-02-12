@@ -1,350 +1,291 @@
 <template>
-  <view class="invoicePage">
-    <view class="header">
-      <!-- 状态栏占位 -->
-      <view class="status-bar"></view>
-      <view class="headerTop">
-        <!-- Year Selector -->
-        <view class="yearSelector" @click="showYearPicker = true">
-          <text class="yearText">{{ currentYear }}年</text>
-          <van-icon name="arrow-down" size="12" color="#333" />
-        </view>
+	<view class="page-container">
+		<!-- 顶部导航栏 -->
+		<view class="nav-header" :style="{ paddingTop: statusBarHeight + 'px' }">
+			<view class="nav-content">
+				<view class="nav-left"></view>
+				<text class="nav-title">发票助手</text>
+				<view class="nav-right">
+					<CapsuleButton />
+				</view>
+			</view>
+		</view>
 
-        <!-- Segmented Control -->
-        <view class="segmentControl">
-          <view 
-            class="segmentItem" :class="{ active: activeTab === 0 }" @click="activeTab = 0">
-            <text class="segmentText">月账单</text>
-          </view>
-          <view 
-            class="segmentItem" :class="{ active: activeTab === 1 }" @click="activeTab = 1">
-            <text class="segmentText">年账单</text>
-          </view>
-        </view>
+		<!-- 主要内容区 -->
+		<scroll-view scroll-y class="main-content" >
+			<view class="content-wrapper">
+				<!-- 空状态 -->
+				<view class="empty-state" v-if="invoices.length === 0">
+					<view class="empty-icon-bg">
+						<van-icon name="description" size="48" color="#cbd5e1" />
+					</view>
+					<text class="empty-text">暂无发票信息</text>
+				</view>
 
-        <!-- Capsule Home Button -->
-        <CapsuleButton />
-      </view>
-      <view class="chartContainer">
-        <view class="chartTitle">
-          <text>{{ activeTab === 0 ? '年结余' : '总结余' }}</text>
-          <text class="balanceValue font-number"> ¥ {{ activeTab === 0 ? yearSummary.balance : totalSummary.balance }}</text>
-        </view>
-        
-        <!-- Income Bar -->
-        <view class="chartRow">
-          <view class="chartLabelGroup">
-            <text class="text-style-desc">{{ activeTab === 0 ? '年收入' : '总收入' }}</text>
-            <text class="text-success text-style-number">¥ {{ activeTab === 0 ? yearSummary.income : totalSummary.income }}</text>
-          </view>
-          <view class="progressBarTrack">
-            <view 
-              class="progressBarFill incomeFill" 
-              :style="{ width: displayIncomePercent + '%' }"
-            ></view>
-          </view>
-        </view>
+				<!-- 发票列表 -->
+				<view class="invoice-list" v-else>
+					<view class="invoice-card" v-for="item in invoices" :key="item.id">
+						<view class="card-header">
+							<text class="company-name">{{ item.name }}</text>
+							<van-icon name="edit" color="#94a3b8" size="18" @click="onEditInvoice(item)" />
+						</view>
+						<view class="card-body">
+							<view class="info-row">
+								<text class="label">税号</text>
+								<text class="value">{{ item.taxId }}</text>
+							</view>
+							<view class="info-row" v-if="item.address">
+								<text class="label">地址</text>
+								<text class="value">{{ item.address }}</text>
+							</view>
+							<view class="info-row" v-if="item.bank">
+								<text class="label">开户行</text>
+								<text class="value">{{ item.bank }}</text>
+							</view>
+							<view class="info-row" v-if="item.account">
+								<text class="label">账号</text>
+								<text class="value">{{ item.account }}</text>
+							</view>
+						</view>
+					</view>
+				</view>
+			</view>
+		</scroll-view>
 
-        <!-- Expense Bar -->
-        <view class="chartRow" style="margin-top: 15px;">
-          <view class="chartLabelGroup">
-            <text class="text-style-desc">{{ activeTab === 0 ? '年支出' : '总支出' }}</text>
-            <text class="text-danger text-style-number">¥ {{ activeTab === 0 ? yearSummary.expense : totalSummary.expense }}</text>
-          </view>
-          <view class="progressBarTrack">
-            <view 
-              class="progressBarFill expenseFill" 
-              :style="{ width: displayExpensePercent + '%' }"
-            ></view>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view class="listHeader container-padding">
-      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月份' : '年份' }}</text>
-      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月收入' : '年收入' }}</text>
-      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月支出' : '年支出' }}</text>
-      <text class="list-col text-style-desc">{{ activeTab === 0 ? '月结余' : '年结余' }}</text>
-      <view class="header-col-arrow"></view> 
-    </view>
-
-    <view class="billList">
-      <template v-if="activeTab === 0">
-        <view v-for="item in monthBills" :key="item.month" class="billItem container-padding">
-          <text class="list-col text-style-title">{{ item.month }}月</text>
-          <text class="list-col text-style-number">{{ item.income }}</text>
-          <text class="list-col text-style-number">{{ item.expense }}</text>
-          <text class="list-col text-style-number">{{ item.balance }}</text>
-          <view class="col-arrow">
-            <van-icon name="arrow" color="#ccc" size="14" />
-          </view>
-        </view>
-      </template>
-      <template v-else>
-        <view v-for="item in yearBills" :key="item.year" class="billItem container-padding">
-          <text class="list-col text-style-title">{{ item.year }}年</text>
-          <text class="list-col text-style-number">{{ item.income }}</text>
-          <text class="list-col text-style-number">{{ item.expense }}</text>
-          <text class="list-col text-style-number">{{ item.balance }}</text>
-          <view class="col-arrow">
-            <van-icon name="arrow" color="#ccc" size="14" />
-          </view>
-        </view>
-      </template>
-    </view>
-
-    <van-popup v-model:show="showYearPicker" position="bottom">
-      <van-picker
-        :columns="yearColumns"
-        @confirm="onYearConfirm"
-        @cancel="showYearPicker = false"
-      />
-    </van-popup>
-  </view>
+		<!-- 底部按钮 -->
+		<view class="bottom-bar">
+			<view class="add-button" @click="onAddInvoice">
+				<van-icon name="plus" size="18" color="#0f172a" />
+				<text class="add-text">添加发票</text>	
+			</view>
+		</view>
+	</view>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted } from 'vue';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
 
-const showYearPicker = ref(false);
-const currentYear = ref('2026');
-const activeTab = ref(0);
+const statusBarHeight = ref(20);
+const invoices = ref([]);
 
-const yearColumns = [
-  { text: '2026', value: '2026' },
-  { text: '2025', value: '2025' },
-  { text: '2024', value: '2024' },
-];
-
-// Mock Data
-const yearSummary = ref({
-  balance: '-555.00',
-  income: '5000.00',
-  expense: '555.00'
-});
-
-const totalSummary = ref({
-  balance: '-26,510.00',
-  income: '4,200.00',
-  expense: '30,710.00'
-});
-
-const monthBills = ref([
-  { month: '2', income: '1200.00', expense: '555.00', balance: '645.00' },
-  { month: '1', income: '4500.00', expense: '3200.00', balance: '1300.00' },
-  { month: '12', income: '5000.00', expense: '4800.00', balance: '200.00' },
-  { month: '11', income: '4800.00', expense: '3900.00', balance: '900.00' },
-  { month: '10', income: '6000.00', expense: '5500.00', balance: '500.00' },
-]);
-
-const yearBills = ref([
-  { year: '2026', income: '1200.00', expense: '555.00', balance: '645.00' },
-  { year: '2025', income: '58400.00', expense: '52000.00', balance: '6400.00' },
-  { year: '2024', income: '55000.00', expense: '48000.00', balance: '7000.00' },
-]);
-
-// Animation Refs
-const displayIncomePercent = ref(0);
-const displayExpensePercent = ref(0);
-
-// Helper to calculate percentages
-const calculatePercents = () => {
-  const data = activeTab.value === 0 ? yearSummary.value : totalSummary.value;
-  const income = parseFloat(data.income.replace(/,/g, ''));
-  const expense = parseFloat(data.expense.replace(/,/g, ''));
-  const max = Math.max(income, expense);
-  
-  if (max === 0) return { income: 0, expense: 0 };
-  return {
-    income: (income / max) * 100,
-    expense: (expense / max) * 100
-  };
-};
-
-const animateCharts = async () => {
-  // 1. Reset to 0 first
-  displayIncomePercent.value = 0;
-  displayExpensePercent.value = 0;
-  
-  // 2. Wait for DOM update to ensure width is 0
-  await nextTick();
-  
-  // 3. Small delay to ensure the browser captures the change for transition
-  setTimeout(() => {
-    const { income, expense } = calculatePercents();
-    displayIncomePercent.value = income;
-    displayExpensePercent.value = expense;
-  }, 50);
-};
-
-// Watch for tab changes to re-trigger animation
-watch(activeTab, animateCharts);
-
-// Initial animation
 onMounted(() => {
-  animateCharts();
+	const sysInfo = uni.getSystemInfoSync();
+	statusBarHeight.value = sysInfo.statusBarHeight || 20;
+	
+	// 加载模拟数据或从本地存储加载
+	loadInvoices();
 });
 
-const onYearConfirm = ({ selectedOptions }) => {
-  currentYear.value = selectedOptions[0].text;
-  showYearPicker.value = false;
-  // Here you would fetch data for the selected year
-  animateCharts(); // Re-animate after data update
+const loadInvoices = () => {
+		const stored = uni.getStorageSync('invoice_list');
+		if (stored) {
+			const parsedInvoices = JSON.parse(stored);
+			if (parsedInvoices && parsedInvoices.length > 0) {
+				invoices.value = parsedInvoices;
+			} else {
+				// 如果本地存储是空的或无效的，加载模拟数据
+				loadMockInvoices();
+			}
+		} else {
+			// 如果本地没有数据，加载模拟数据
+			loadMockInvoices();
+		}
+	};
+
+	const loadMockInvoices = () => {
+		invoices.value = [
+			{
+				id: 1,
+				name: '深圳市腾讯计算机系统有限公司',
+				taxId: '91440300708461136T',
+				address: '深圳市南山区高新区科技中一路腾讯大厦35层',
+				phone: '0755-86013388',
+				bank: '招商银行深圳威盛大厦支行',
+				account: '817282292910201'
+			},
+			{
+				id: 2,
+				name: '北京字节跳动科技有限公司',
+				taxId: '911101085923662400',
+				address: '北京市海淀区北三环西路43号院2号楼',
+				phone: '010-58341888',
+				bank: '中国银行北京中关村支行',
+				account: '340256025688'
+			},
+			{
+				id: 3,
+				name: '阿里巴巴（中国）网络技术有限公司',
+				taxId: '91330100799655058B',
+				address: '杭州市滨江区网商路699号',
+				phone: '0571-85022088',
+				bank: '招商银行杭州分行',
+				account: '571906688810601'
+			}
+		];
+		uni.setStorageSync('invoice_list', JSON.stringify(invoices.value));
+	};
+
+const onAddInvoice = () => {
+	uni.navigateTo({
+		url: '/pages/page_home/page_invoice/invoice_add'
+	});
+};
+
+const onEditInvoice = (item) => {
+	uni.navigateTo({
+		url: `/pages/page_home/page_invoice/invoice_add?id=${item.id}`
+	});
 };
 </script>
 
 <style scoped>
-.invoicePage {
-  min-height: 100vh;
+.page-container {
+	min-height: 100vh;
+	background-color: #f8fafc;
+	display: flex;
+	flex-direction: column;
 }
 
-.container-padding {
-  padding-left: 20px;
-  padding-right: 20px;
+/* 导航栏 */
+.nav-header {
+	z-index: 100;
+	background-color: #fcd34d; 
 }
 
-.header {
-  padding: 10px 0; 
+.nav-content {
+	height: 34px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 16px;
 }
 
-.headerTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding: 0 20px; /* Add horizontal padding only to top part */
+.nav-left, .nav-right {
+	width: 80px;
+	display: flex;
+	align-items: center;
+	padding-bottom: 15px;
 }
 
-.yearSelector {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.nav-right {
+	justify-content: flex-end;
 }
 
-.yearText {
-  font-size: 16px;
-  font-weight: bold;
+.nav-title {
+	font-size: 17px;
+	font-weight: 600;
+	color: #0f172a;
+	padding-bottom: 15px;
 }
 
-.segmentControl {
-  display: flex;
-  background-color: #ffffff;
-  border: 1px solid var(--primary-text-color);
-  border-radius: 6px;
-  overflow: hidden;
+/* 内容区 */
+.main-content {
+	flex: 1;
+	box-sizing: border-box;
 }
 
-.segmentItem {
-  padding: 4px 16px;
-  cursor: pointer;
-  transition: all 0.3s;
+.content-wrapper {
+	padding: 6px;
+	padding-bottom: 40px; 
 }
 
-.segmentItem.active {
-  background-color: var(--primary-text-color);
+/* 空状态 */
+.empty-state {
+	margin-top: 100px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
 }
 
-.segmentItem.active .segmentText {
-  color: #fff;
+.empty-icon-bg {
+	width: 80px;
+	height: 80px;
+	background-color: #fff;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 10px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
-.segmentText {
-  font-size: 14px;
-  color: var(--primary-text-color);
+.empty-text {
+	font-size: 15px;
+	color: #94a3b8;
 }
 
-.headerIcons {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+/* 发票列表 */
+.invoice-card {
+	background: #fff;
+	border-radius: 16px;
+	padding: 20px;
+	margin-bottom: 10px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
-.headerIcon {
-  color: var(--primary-text-color);
+.card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #f1f5f9;
 }
 
-.chartContainer {
-  width: 100%;
-  margin-top: 10px;
-  padding: 16px 20px; 
-  box-sizing: border-box;
+.company-name {
+	font-size: 16px;
+	font-weight: 600;
+	color: #0f172a;
 }
 
-.chartTitle {
-  font-size: var(--font-size-base);
-  font-weight: bold;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.info-row {
+	display: flex;
+	margin-bottom: 8px;
 }
 
-.balanceValue {
-  font-size: var(--font-size-lg);
+.info-row:last-child {
+	margin-bottom: 0;
 }
 
-.chartRow {
-  width: 100%;
+.label {
+	width: 60px;
+	font-size: 13px;
+	color: #64748b;
+	flex-shrink: 0;
 }
 
-.chartLabelGroup {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
+.value {
+	font-size: 13px;
+	color: #334155;
+	flex: 1;
+	word-break: break-all;
 }
 
-/* .chartLabel and .chartValue removed to use global styles */
-
-.progressBarTrack {
-  height: 8px;
-  background-color: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
+/* 底部按钮 */
+.bottom-bar {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background-color: #fff;
+	padding: 12px 16px 30px;
+	box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+	z-index: 10;
 }
 
-.progressBarFill {
-  height: 100%;
-  border-radius: 4px;
-  width: 0;
-  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+.add-button {
+	height: 15px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 8px;
 }
 
-.incomeFill { background-color: var(--income-color); }
-.expenseFill { background-color: var(--expense-color); }
-
-.listHeader {
-  display: flex;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-.listHeaderItem {
-  /* color: var(--light-text-color); handled by text-style-desc */
-  /* text-align: right; handled by col classes */
-}
-
-.billItem {
-  display: flex;
-  padding-top: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f5f5f5;
-  align-items: center;
-}
-
-/* Column Layout */
-.list-col { flex: 1; text-align: right; }
-.list-col:first-child { text-align: left; }
-
-.col-arrow { 
-  flex: 0.3; 
-  display: flex;
-  justify-content: flex-end;
-  align-items: center; 
-}
-.header-col-arrow {
-  flex: 0.3;
+.add-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: #0f172a;
 }
 </style>

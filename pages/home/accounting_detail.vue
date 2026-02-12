@@ -114,14 +114,14 @@ const quickActions = ref([
 	{ id: 1, name: '账单', icon: 'notes-o', bgColor: 'bg-amber', iconColor: '#f59e0b' },
 	{ id: 2, name: '预算', icon: 'balance-o', bgColor: 'bg-blue', iconColor: '#3b82f6' },
 	{ id: 3, name: '资产', icon: 'gold-coin-o', bgColor: 'bg-emerald', iconColor: '#10b981' },
-	{ id: 4, name: '返现', icon: 'gift-o', bgColor: 'bg-rose', iconColor: '#f43f5e' },
+	{ id: 4, name: '发票', icon: 'records', bgColor: 'bg-rose', iconColor: '#f43f5e' },
 	{ id: 5, name: '更多', icon: 'apps-o', bgColor: 'bg-slate', iconColor: '#64748b' }
 ]);
 
 const onActionClick = (action) => {
 	if (action.name === '账单') {
 		uni.navigateTo({
-			url: '/pages/page_home/page_invoice/invoice'
+			url: '/pages/page_home/page_bill/BillList'
 		});
 	} else if (action.name === '预算') {
 		uni.navigateTo({
@@ -130,6 +130,10 @@ const onActionClick = (action) => {
 	} else if (action.name === '资产') {
 		uni.navigateTo({
 			url: '/pages/page_home/page_asset/asset'
+		});
+	} else if (action.name === '发票') {
+		uni.navigateTo({
+			url: '/pages/page_home/page_invoice/invoice'
 		});
 	}
 };

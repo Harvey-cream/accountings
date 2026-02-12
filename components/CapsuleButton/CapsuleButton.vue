@@ -17,8 +17,8 @@ onMounted(() => {
 });
 
 const handleHome = () => {
-	uni.reLaunch({
-		url: '/pages/page_home/home' // 根据实际首页路径修改
+	uni.navigateTo({
+		url: '/pages/index/index'
 	});
 };
 </script>

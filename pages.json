@@ -6,7 +6,7 @@
 			}
 		},
 		{
-			"path": "pages/page_home/page_invoice/invoice",
+			"path": "pages/page_home/page_bill/BillList",
 			"style": {
 				"navigationBarTitleText": "账单",
 				"navigationStyle": "custom"
@@ -65,6 +65,20 @@
 			"path": "pages/page_home/page_budget/budget",
 			"style": {
 				"navigationBarTitleText": "预算",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_home/page_invoice/invoice",
+			"style": {
+				"navigationBarTitleText": "发票",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_home/page_invoice/invoice_add",
+			"style": {
+				"navigationBarTitleText": "添加发票",
 				"navigationStyle": "custom"
 			}
 		},

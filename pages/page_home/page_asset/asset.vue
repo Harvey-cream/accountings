@@ -1,52 +1,61 @@
 <template>
-	<view class="asset-container">
-		<!-- 顶部资产卡片 -->
-		<view class="asset-header">
-			<view class="total-asset-card">
-				<!-- 背景装饰图标 -->
-				<view class="card-bg-icon">
-					<van-icon name="gold-coin" size="120" color="rgba(255, 255, 255, 0.15)" />
-				</view>
-				<!-- 资产可视化图表 (条形图) -->
-				<view class="chart-container">
-					<view class="chart-title-row">
-						<text class="chart-main-label">净资产</text>
-						<text class="chart-main-value font-number">{{ netAsset }}</text>
-					</view>
-
-					<!-- 总资产 Bar -->
-					<view class="chart-row">
-						<view class="chart-label-group">
-							<text class="label-text">总资产</text>
-							<text class="value-text text-success font-number">{{ totalAsset }}</text>
-						</view>
-						<view class="progress-bar-track">
-							<view 
-								class="progress-bar-fill bg-green" 
-								:style="{ width: displayAssetPercent + '%' }"
-							></view>
-						</view>
-					</view>
-
-					<!-- 负债 Bar -->
-					<view class="chart-row mt-15">
-						<view class="chart-label-group">
-							<text class="label-text">负债</text>
-							<text class="value-text text-danger font-number">{{ totalLiability }}</text>
-						</view>
-						<view class="progress-bar-track">
-							<view 
-								class="progress-bar-fill bg-red" 
-								:style="{ width: displayLiabilityPercent + '%' }"
-							></view>
-						</view>
-					</view>
+	<view class="page-container">
+		<!-- 顶部导航栏 -->
+		<view class="nav-header" :style="{ paddingTop: statusBarHeight + 'px' }">
+			<view class="nav-content">
+				<view class="nav-left"></view>
+				<text class="nav-title">资产管理</text>
+				<view class="nav-right">
+					<CapsuleButton />
 				</view>
 			</view>
 		</view>
 
-		<!-- 资产列表 -->
-		<scroll-view scroll-y class="asset-list-scroll">
+		<scroll-view scroll-y class="main-content">
+			<!-- 顶部资产卡片 -->
+			<view class="asset-header">
+				<view class="total-asset-card">
+					<!-- 背景装饰图标 -->
+					<view class="card-bg-icon">
+						<van-icon name="gold-coin" size="120" color="rgba(0, 0, 0, 0.05)" />
+					</view>
+					<!-- 资产可视化图表 (条形图) -->
+					<view class="chart-container">
+						<view class="chart-title-row">
+							<text class="chart-main-label">净资产</text>
+							<text class="chart-main-value font-number">{{ netAsset }}</text>
+						</view>
+
+						<!-- 总资产 Bar -->
+						<view class="chart-row">
+							<view class="chart-label-group">
+								<text class="label-text">总资产</text>
+								<text class="value-text text-success font-number">{{ totalAsset }}</text>
+							</view>
+							<view class="progress-bar-track">
+								<view 
+									class="progress-bar-fill bg-green" 
+									:style="{ width: displayAssetPercent + '%' }"
+								></view>
+							</view>
+						</view>
+
+						<!-- 负债 Bar -->
+						<view class="chart-row mt-15">
+							<view class="chart-label-group">
+								<text class="label-text">负债</text>
+								<text class="value-text text-danger font-number">{{ totalLiability }}</text>
+							</view>
+							<view class="progress-bar-track">
+								<view 
+									class="progress-bar-fill bg-red" 
+									:style="{ width: displayLiabilityPercent + '%' }"
+								></view>
+							</view>
+						</view>
+					</view>
+				</view>
+			</view>
 			<view class="list-content">
 				<view v-for="(group, index) in assetGroups" :key="index" class="asset-group">
 					<view class="group-header">
@@ -80,8 +89,8 @@
 		<!-- 底部添加按钮 -->
 		<view class="footer-action">
 			<view class="add-btn" @click="goToAdd">
-				<van-icon name="plus" color="#333" />
-				<text>添加账户</text>
+				<van-icon name="plus" color="#0f172a" size="16" />
+				<text class="add-text-asset">添加账户</text>
 			</view>
 		</view>
 	</view>
@@ -89,6 +98,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+
+const statusBarHeight = ref(20);
+
+onMounted(() => {
+	const sysInfo = uni.getSystemInfoSync();
+	statusBarHeight.value = sysInfo.statusBarHeight || 20;
+});
 
 const netAsset = ref('611.00');
 const totalAsset = ref('1111.00');
@@ -165,26 +182,61 @@ const goToAdd = () => {
 </script>
 
 <style scoped>
-.asset-container {
-	height: 100vh;
+.page-container {
+	min-height: 100vh;
+	background-color: #ffffff;
 	display: flex;
 	flex-direction: column;
-	background-color: #ffff;
+}
+
+/* 导航栏 */
+.nav-header {
+	z-index: 100;
+	background-color: #fcd34d; 
+}
+
+.nav-content {
+	height: 34px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 16px;
+}
+
+.nav-left, .nav-right {
+	width: 80px;
+	display: flex;
+	align-items: center;
+	padding-bottom: 15px;
+}
+
+.nav-right {
+	justify-content: flex-end;
+}
+
+.nav-title {
+	font-size: 17px;
+	font-weight: 600;
+	color: #0f172a;
+	padding-bottom: 15px;
 }
 
 /* 顶部 Header */
 .asset-header {
-	padding: 20px 20px 10px;
+	padding: 10px 10px 10px;
 	display: flex;
 	flex-direction: column;
 }
 .total-asset-card {
-	background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
+	background: transparent;
 	border-radius: 15px;
-	padding: 20px;
+	padding: 15px 20px;
 	position: relative;
 	overflow: hidden;
+	box-shadow: 1px 1px 3px 2px rgba(0, 0, 0, 0.1); 
 }
+
+
 
 /* 背景装饰图标 */
 .card-bg-icon {
@@ -194,13 +246,6 @@ const goToAdd = () => {
 	z-index: 0;
 	transform: rotate(-15deg);
 }
-
-/* 移除之前的 after 装饰 */
-.total-asset-card::after {
-	display: none;
-}
-
-/* Chart Styles */
 .chart-container {
     width: 100%;
 	position: relative;
@@ -216,14 +261,14 @@ const goToAdd = () => {
 
 .chart-main-label {
     font-size: 14px;
-    color: rgba(0, 0, 0, 0.5);
+    color: #64748b; /* 更深的灰色 */
 	font-weight: 500;
 }
 
 .chart-main-value {
-    font-size: 28px;
-    font-weight: 800;
-    color: #000;
+    font-size: 22px; /* 稍微调小 */
+    font-weight: 700; /* 稍微降低粗细 */
+    color: #0f172a; /* 更深的颜色 */
 }
 
 .chart-row {
@@ -239,13 +284,13 @@ const goToAdd = () => {
 
 .label-text {
     font-size: 13px;
-    color: rgba(0, 0, 0, 0.45);
+    color: #64748b; /* 更深的灰色 */
 }
 
 .value-text {
-    font-size: 15px;
-    font-weight: 700;
-	color: #000;
+    font-size: 14px; /* 稍微调小 */
+    font-weight: 600;
+	color: #0f172a;
 }
 .text-success { color: #065f46 !important; } 
 .text-danger { color: #991b1b !important; } 
@@ -262,18 +307,18 @@ const goToAdd = () => {
     border-radius: 4px;
     transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.bg-green { background-color: #fff !important; } /* 进度条使用白色在黄色背景上更醒目 */
+.bg-green { background-color: #10b981 !important; } /* 使用更深的绿色 */
 .bg-red { background-color: #ef4444; }
 
 
 /* 列表区域 */
-.asset-list-scroll {
+.main-content {
 	flex: 1;
 	overflow-y: auto;
 }
 
 .list-content {
-	padding: 20px 0 80px; /* 底部留出按钮空间 */
+	padding: 15px 0 80px; /* 底部留出按钮空间 */
 }
 
 .asset-group {
@@ -297,10 +342,8 @@ const goToAdd = () => {
 	color: #94a3b8;
 }
 
-/* 复用 accounting_chart.vue 的 cell 样式 */
 .custom-cell {
-	background-color: #fff !important;
-	padding: 15px 20px !important;
+	padding: 15px 25px !important;
 }
 
 .list-icon-wrap {
@@ -338,23 +381,28 @@ const goToAdd = () => {
 
 /* 底部按钮 */
 .footer-action {
-	padding: 20px 20px 20px; /* 底部留出空间 */
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background-color: #fff;
+	padding: 14px 16px 20px; /* 适配底部安全区 */
+	box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+	z-index: 10;
 }
 
 .add-btn {
-	background-color: #f1f5f9;
-	height: 50px;
+	background-color: #fff;
+	height: 20px;
 	display: flex;
-	align-items: center;
-    border-radius: 12px;
 	justify-content: center;
+	align-items: center;
 	gap: 8px;
-	box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-	border: 1px solid #f1f5f9;
-	font-size: 16px;
-	font-weight: 500;
-	color: #333;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.add-text-asset {
+	font-size: 16px;
+	font-weight: 600;
+	color: #0f172a;
+}
 </style>
