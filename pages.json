@@ -113,6 +113,13 @@
 				"navigationBarTitleText": "账单管理",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/page_function/budget_center/budget",
+			"style": {
+				"navigationBarTitleText": "预算中心",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

@@ -89,7 +89,7 @@
 
 		<!-- 财务管理 -->
 		<view class="menu-group">
-			<view class="menu-item">
+			<view class="menu-item" @click="goToBudget">
 				<view class="menu-left">
 					<van-icon name="chart-trending-o" size="20" color="#1e293b" />
 					<text class="item-title">预算中心</text>
@@ -249,6 +249,12 @@ const goToPoints = () => {
 const goToBilling = () => {
 	uni.navigateTo({
 		url: '/pages/page_function/bill_management/billing'
+	});
+};
+
+const goToBudget = () => {
+	uni.navigateTo({
+		url: '/pages/page_function/budget_center/budget'
 	});
 };
 
