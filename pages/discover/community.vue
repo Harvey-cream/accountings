@@ -12,21 +12,6 @@
 
     <!-- 内容区：卡片 + 信息流 -->
     <view class="content-body">
-      <view class="section-head">
-        <text class="section-title">省钱妙招</text>
-        <text class="section-more">查看更多</text>
-      </view>
-
-      <view class="tips-row">
-        <view v-for="tip in tips" :key="tip.id" :class="['tip-card', tip.bg]">
-          <view class="tip-icon">
-            <van-icon :name="tip.icon" size="18" color="#fff" />
-          </view>
-          <text class="tip-name">{{ tip.title }}</text>
-          <text class="tip-sub">{{ tip.sub }}</text>
-        </view>
-      </view>
-
       <view class="feed">
         <view v-for="post in filteredPosts" :key="post.id" class="post-card">
           <view class="post-left">
@@ -44,9 +29,9 @@
                   <van-icon name="chat-o" size="18" color="#64748b" />
                 </view>
 
-                <view class="action post-like">
-                  <van-icon name="good-job-o" size="18" color="#64748b" />
-                  <text class="action-text">{{ post.likes }}</text>
+                <view class="action post-like" @click="toggleLike(post)">
+                  <van-icon :name="post.isLiked ? 'good-job' : 'good-job-o'" size="18" :color="post.isLiked ? '#ff0000' : '#64748b'" />
+                  <text class="action-text" :class="{ 'liked-text': post.isLiked }">{{ post.likes }}</text>
                 </view>
               </view>
             </view>
@@ -172,7 +157,17 @@ const goToPublish = () => {
   });
 };
 
-const period = ['热门推荐', '最新发布'];
+const toggleLike = (post) => {
+  if (post.isLiked) {
+    post.likes--;
+    post.isLiked = false;
+  } else {
+    post.likes++;
+    post.isLiked = true;
+  }
+};
+
+const period = ['热门推荐', '最新发布', '我的关注'];
 const currentPeriod = ref(0);
 
 const tips = [
@@ -191,6 +186,7 @@ const posts = ref([
       hasImages: true,
       images: ['/static/4.jpg', '/static/4.jpg', '/static/4.jpg'],
       likes: 128,
+      isLiked: false,
       comments: 24,
       showAllComments: false,
       realComments: [
@@ -208,6 +204,7 @@ const posts = ref([
       text: '关于“薅羊毛”的一点心得：每天一杯30元的咖啡，一个月就是900元。坚持自己带咖啡豆手冲，不仅更有仪式感，一年能省下一张出国旅游的机票。',
       hasImages: false,
       likes: 86,
+      isLiked: false,
       comments: 12,
       showAllComments: false,
       realComments: [
@@ -262,7 +259,7 @@ const filteredPosts = computed(() => {
 
 /* 内容区 */
 .content-body {
-    padding: 0 16px 16px;
+    padding: 0 16px 0px;
 }
 
 .section-head {
@@ -325,7 +322,7 @@ const filteredPosts = computed(() => {
 .bg-orange { background-color: #f97316; }
 
 .feed {
-  margin-top: 14px;
+  margin-top: 6px;
 }
 
 .post-card {
@@ -372,6 +369,10 @@ const filteredPosts = computed(() => {
   color: #64748b;
 }
 
+.liked-text {
+  color: #ff0000 !important;
+}
+
 .avatar {
   width: 38px;
   height: 38px;
@@ -407,7 +408,7 @@ const filteredPosts = computed(() => {
     display: flex;
     flex-wrap: wrap;
     gap: 2px;
-    margin-top: 12px;
+    margin-top: 5px;
   }
 
   .img-outer {
@@ -427,9 +428,6 @@ const filteredPosts = computed(() => {
     object-fit: cover;
   }
 
-.post-comments {
-  padding-top: 10px;
-}
 
 .comment-list {
   margin-top: 8px;
@@ -437,7 +435,6 @@ const filteredPosts = computed(() => {
 
 .toggle-comments {
   text-align: center;
-  margin: 8px 0;
 }
 
 .toggle-comments text {
@@ -471,7 +468,6 @@ const filteredPosts = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
 }
 
 .comment-author {
@@ -488,15 +484,12 @@ const filteredPosts = computed(() => {
 .comment-content {
   font-size: 12px;
   color: #334155;
-  line-height: 16px;
 }
 
 .post-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 8px;
   border-top: 1px solid #f1f5f9;
 }
 

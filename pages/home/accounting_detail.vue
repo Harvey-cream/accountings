@@ -51,24 +51,31 @@
 					</view>
 
 					<view class="list-container">
-						<van-cell v-for="item in group.items" :key="item.id" center class="custom-cell flat-cell">
-							<template #icon>
-								<view :class="['list-icon-wrap', item.iconBg]">
-									<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+						<van-swipe-cell v-for="item in group.items" :key="item.id" right-width="65">
+							<van-cell center class="custom-cell flat-cell">
+								<template #icon>
+									<view :class="['list-icon-wrap', item.iconBg]">
+										<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+									</view>
+								</template>
+								<template #title>
+									<view class="cell-content">
+										<view class="cell-main">
+											<text class="cell-title text-style-title">{{ item.title }}</text>
+											<text class="cell-time text-style-desc">{{ item.time }} · {{ item.location }}</text>
+										</view>
+										<view class="cell-right">
+											<text class="cell-amount text-style-number">{{ item.amount }}</text>
+										</view>
+									</view>
+								</template>
+							</van-cell>
+							<template #right>
+								<view class="delete-button" @click="onDelete(group.id, item.id)">
+									<van-icon name="delete-o" size="24" color="#fff" />
 								</view>
 							</template>
-							<template #title>
-								<view class="cell-content">
-									<view class="cell-main">
-										<text class="cell-title text-style-title">{{ item.title }}</text>
-										<text class="cell-time text-style-desc">{{ item.time }} · {{ item.location }}</text>
-									</view>
-									<view class="cell-right">
-										<text class="cell-amount text-style-number">{{ item.amount }}</text>
-									</view>
-								</view>
-							</template>
-						</van-cell>
+						</van-swipe-cell>
 					</view>
 				</view>
 			</van-list>
@@ -207,6 +214,34 @@ const onLoad = () => {
 		// 数据加载完毕
 		if (dailyTransactions.value.length >= 10) {
 			finished.value = true;
+		}
+	});
+};
+
+const onDelete = (groupId, itemId) => {
+	uni.showModal({
+		title: '提示',
+		content: '确定要删除这条记录吗？',
+		success: (res) => {
+			if (res.confirm) {
+				const groupIndex = dailyTransactions.value.findIndex(g => g.id === groupId);
+				if (groupIndex > -1) {
+					const group = dailyTransactions.value[groupIndex];
+					const itemIndex = group.items.findIndex(i => i.id === itemId);
+					if (itemIndex > -1) {
+						group.items.splice(itemIndex, 1);
+						uni.showToast({
+							title: '删除成功',
+							icon: 'success'
+						});
+						
+						// 如果该组没有任何条目了，也移除该组
+						if (group.items.length === 0) {
+							dailyTransactions.value.splice(groupIndex, 1);
+						}
+					}
+				}
+			}
 		}
 	});
 };
@@ -451,5 +486,14 @@ const onMonthConfirm = ({ selectedValues }) => {
 	justify-content: center;
 	border: 1px solid #f1f5f9;
 	color: var(--accent-color);
+}
+
+.delete-button {
+	height: 100%;
+	width: 65px;
+	background-color: #ee0a24;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 </style>

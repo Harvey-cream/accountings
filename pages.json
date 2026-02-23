@@ -85,6 +85,34 @@
 		{
 			"path": "pages/index/index",
 			"style": {}
+		},
+		{
+			"path": "pages/page_core/page_message/message",
+			"style": {
+				"navigationBarTitleText": "消息",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_core/page_medal/medal",
+			"style": {
+				"navigationBarTitleText": "我的勋章",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_core/page_points/point",
+			"style": {
+				"navigationBarTitleText": "我的积分",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_function/bill_management/billing",
+			"style": {
+				"navigationBarTitleText": "账单管理",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

@@ -208,11 +208,8 @@ const deleteImage = (index) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 44px 16px 12px; /* 适配状态栏高度，假设为44px */
+  padding: 10px 16px 12px;
   background-color: #fff;
-  /* position: sticky;
-  top: 0;
-  z-index: 100; */
 }
 
 .cancel-text {

@@ -2,30 +2,32 @@
 	<view class="my-container">
 		<!-- 头部个人信息卡片 -->
 		<view class="header-card">
-			<view class="user-info">
-				<image class="avatar" src="/static/4.jpg" mode="aspectFill"></image>
-				<view class="user-detail">
-					<text class="user-name">oxo</text>
+			<view class="header-banner">
+				<view class="user-info">
+					<image class="avatar" src="/static/4.jpg" mode="aspectFill"></image>
+					<view class="user-detail">
+						<text class="user-name">oxo</text>
+					</view>
+					<view class="check-in-btn" @click="toggleCheckIn">
+						<van-icon :name="isChecked ? 'passed' : 'todo-list-o'" size="14" />
+						<text class="check-in-text">{{ isChecked ? '已打卡' : '打卡' }}</text>
+					</view>
 				</view>
-				<view class="check-in-btn" @click="toggleCheckIn">
-					<van-icon :name="isChecked ? 'passed' : 'todo-list-o'" size="14" />
-					<text class="check-in-text">{{ isChecked ? '已打卡' : '打卡' }}</text>
-				</view>
-			</view>
 
-			<!-- 数据统计 -->
-			<view class="stats-row">
-				<view class="stat-item">
-					<text class="stat-num">1</text>
-					<text class="stat-label">已连续打卡</text>
-				</view>
-				<view class="stat-item">
-					<text class="stat-num">32</text>
-					<text class="stat-label">记账总天数</text>
-				</view>
-				<view class="stat-item">
-					<text class="stat-num">16</text>
-					<text class="stat-label">记账总笔数</text>
+				<!-- 数据统计 -->
+				<view class="stats-row">
+					<view class="stat-item">
+						<text class="stat-num">1</text>
+						<text class="stat-label">已连续打卡</text>
+					</view>
+					<view class="stat-item">
+						<text class="stat-num">32</text>
+						<text class="stat-label">记账总天数</text>
+					</view>
+					<view class="stat-item">
+						<text class="stat-num">16</text>
+						<text class="stat-label">记账总笔数</text>
+					</view>
 				</view>
 			</view>
 
@@ -44,35 +46,35 @@
 
 		<!-- 快捷功能图标栏 -->
 		<view class="quick-actions-card">
-			<view class="action-item">
-				<van-icon name="bell" color="#facc15" size="26" />
+			<view class="action-item" @click="goToMessage">
+				<van-icon name="bell" color="#facc15" size="24" />
 				<text class="action-label">消息</text>
 			</view>
-			<view class="action-item">
-				<van-icon name="medal" color="#d97706" size="26" />
+			<view class="action-item" @click="goToMedal">
+				<van-icon name="medal" color="#d97706" size="24" />
 				<text class="action-label">我的勋章</text>
 			</view>
-			<view class="action-item">
-				<van-icon name="gift" color="#3b82f6" size="26" />
+			<view class="action-item" @click="goToPoints">
+				<van-icon name="gift" color="#3b82f6" size="24" />
 				<text class="action-label">我的积分</text>
 			</view>
-			<view class="action-item">
-				<van-icon name="smile" color="#f97316" size="26" />
+			<view class="action-item" @click="showInvitePopup = true">
+				<van-icon name="smile" color="#f97316" size="24" />
 				<text class="action-label">邀请好友</text>
 			</view>
 			<view class="action-item">
 				<view class="dot-badge"></view>
-				<van-icon name="setting" color="#475569" size="26" />
+				<van-icon name="setting" color="#475569" size="24"/>
 				<text class="action-label">设置</text>
 			</view>
 		</view>
 
 		<!-- 菜单列表组 1 -->
 		<view class="menu-group">
-			<view class="menu-item">
+			<view class="menu-item" @click="goToBilling">
 				<view class="menu-left">
 					<van-icon name="notes-o" size="20" color="#1e293b" />
-					<text class="item-title">我的账本</text>
+					<text class="item-title">账单管理</text>
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
@@ -80,6 +82,42 @@
 				<view class="menu-left">
 					<van-icon name="wap-home-o" size="20" color="#1e293b" />
 					<text class="item-title">家庭账单</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
+		</view>
+
+		<!-- 财务管理 -->
+		<view class="menu-group">
+			<view class="menu-item">
+				<view class="menu-left">
+					<van-icon name="chart-trending-o" size="20" color="#1e293b" />
+					<text class="item-title">预算中心</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
+			<view class="menu-item">
+				<view class="menu-left">
+					<van-icon name="card" size="20" color="#1e293b" />
+					<text class="item-title">资产账户</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
+			<view class="menu-item">
+				<view class="menu-left">
+					<van-icon name="clock-o" size="20" color="#1e293b" />
+					<text class="item-title">定期记账</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
+		</view>
+
+		<!-- 个性化与数据 -->
+		<view class="menu-group">
+			<view class="menu-item">
+				<view class="menu-left">
+					<van-icon name="down" size="20" color="#1e293b" />
+					<text class="item-title">数据导出</text>
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
@@ -117,7 +155,27 @@
 			</view>
 		</view>
 
-		<custom-tabbar />
+		<CustomTabbar :selected="2" />
+		
+		<!-- 邀请好友弹窗 -->
+		<view v-if="showInvitePopup" class="invite-modal-mask" @click.stop="showInvitePopup = false">
+			<view class="invite-modal" @click.stop>
+				<view class="modal-header">
+					<text class="modal-title">邀请好友</text>
+					<van-icon name="cross" size="20" color="#94a3b8" @click="showInvitePopup = false" />
+				</view>
+				<view class="qr-container">
+					<image class="qr-code" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://uni-accounting.com/invite?user=oxo" mode="aspectFit"></image>
+					<text class="qr-tip">扫码下载小龙记账</text>
+				</view>
+				<view class="modal-actions">
+					<view class="save-btn" @click="saveQRCode">
+						<van-icon name="down" color="#fff" size="18" />
+						<text>保存二维码</text>
+					</view>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -127,6 +185,72 @@ import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 
 // 打卡状态
 const isChecked = ref(false);
+// 邀请好友弹窗状态
+const showInvitePopup = ref(false);
+
+// 保存二维码
+const saveQRCode = () => {
+	// H5环境下直接提示长按保存
+	// #ifdef H5
+	uni.showToast({
+		title: '请长按图片保存',
+		icon: 'none'
+	});
+	// #endif
+	
+	// #ifndef H5
+	uni.downloadFile({
+		url: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://uni-accounting.com/invite?user=oxo',
+		success: (res) => {
+			if (res.statusCode === 200) {
+				uni.saveImageToPhotosAlbum({
+					filePath: res.tempFilePath,
+					success: function () {
+						uni.showToast({
+							title: '保存成功',
+							icon: 'success'
+						});
+					},
+					fail: function () {
+						uni.showToast({
+							title: '保存失败',
+							icon: 'none'
+						});
+					}
+				});
+			}
+		}
+	});
+	// #endif
+};
+
+// 跳转到消息页面
+const goToMessage = () => {
+	uni.navigateTo({
+		url: '/pages/page_core/page_message/message'
+	});
+};
+
+// 跳转到勋章页面
+const goToMedal = () => {
+	uni.navigateTo({
+		url: '/pages/page_core/page_medal/medal'
+	});
+};
+
+// 跳转到积分页面
+const goToPoints = () => {
+	uni.navigateTo({
+		url: '/pages/page_core/page_points/point'
+	});
+};
+
+// 跳转到账单管理页面
+const goToBilling = () => {
+	uni.navigateTo({
+		url: '/pages/page_function/bill_management/billing'
+	});
+};
 
 // 切换打卡状态
 const toggleCheckIn = () => {
@@ -147,18 +271,23 @@ const toggleCheckIn = () => {
 	padding: 0 16px 100px;
 }
 
-/* 头部卡片 */
+/* 头部区域 */
 .header-card {
+	margin: 0 -16px 10px;
+	position: relative;
+}
+
+/* 头部黄色背景块 - 整合了用户信息和数据统计的背景 */
+.header-banner {
 	background-color: #ffd541;
-	margin: 0 -16px 35px;
-	padding: 20px 16px 20px; 
+	padding: 20px 16px 50px; /* 底部增加 padding 用于放置 VIP 卡片 */
 }
 
 .user-info {
 	display: flex;
 	align-items: center;
-	margin-bottom: 30px;
-	padding: 0 10px; /* 增加左右内边距，使内容往中间挤一点 */
+	margin-bottom: 15px;
+	padding: 0 10px;
 }
 
 .avatar {
@@ -203,8 +332,8 @@ const toggleCheckIn = () => {
 
 .stat-num {
 	display: block;
-	font-size: 24px;
-	font-weight: 800;
+	font-size: 20px;
+	font-weight: 500;
 	color: #0f172a;
 }
 
@@ -222,17 +351,16 @@ const toggleCheckIn = () => {
 	background-color: #fff;
 	border-radius: 10px;
 	margin-bottom: 10px;
-	padding: 16px;
+	padding: 10px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
-/* VIP 卡片 */
+/* VIP 卡片 - 悬浮在 Banner 之上 */
 .vip-card {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-top: 24px;
-	margin-bottom: -45px; 
+	margin: -35px 16px 0; /* 负 margin 向上提 */
 	position: relative;
 	z-index: 10;
 }
@@ -259,7 +387,7 @@ const toggleCheckIn = () => {
 .quick-actions-card {
 	display: flex;
 	justify-content: space-around;
-	padding: 20px 10px;
+	padding: 10px;
 }
 
 .action-item {
@@ -317,5 +445,83 @@ const toggleCheckIn = () => {
 .risk-text {
 	font-size: 12px;
 	color: #ef4444;
+}
+/* 邀请好友弹窗 */
+.invite-modal-mask {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.6);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 999;
+}
+
+.invite-modal {
+	background-color: #fff;
+	border-radius: 16px;
+	width: 280px;
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.modal-header {
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 20px;
+}
+
+.modal-title {
+	font-size: 18px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.qr-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 20px;
+}
+
+.qr-code {
+	width: 200px;
+	height: 200px;
+	margin-bottom: 12px;
+}
+
+.qr-tip {
+	font-size: 14px;
+	color: #64748b;
+}
+
+.modal-actions {
+	width: 100%;
+}
+
+.save-btn {
+	background: linear-gradient(135deg, #f59e0b, #fbbf24);
+	color: #fff;
+	height: 44px;
+	border-radius: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	font-size: 16px;
+	font-weight: 600;
+	box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.3);
+}
+
+.save-btn:active {
+	opacity: 0.9;
+	transform: scale(0.98);
 }
 </style>
