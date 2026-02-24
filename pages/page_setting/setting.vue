@@ -33,13 +33,6 @@
 					</view>
 					<van-icon name="arrow" color="#cbd5e1" size="16" />
 				</view>
-				<view class="settings-item" @click="handleItemClick('tag')">
-					<view class="item-left">
-						<van-icon name="label-o" size="20" color="#1e293b" />
-						<text class="item-title">标签设置</text>
-					</view>
-					<van-icon name="arrow" color="#cbd5e1" size="16" />
-				</view>
 				<view class="settings-item">
 					<view class="item-left">
 						<van-icon name="balance-list-o" size="20" color="#1e293b" />
@@ -110,6 +103,37 @@
 					<van-icon name="arrow" color="#cbd5e1" size="16" />
 				</view>
 			</view>
+
+			<view class="group-title">社交与互动</view>
+			<view class="settings-group">
+				<view class="settings-item">
+					<view class="item-left">
+						<van-icon name="comment-o" size="20" color="#1e293b" />
+						<view class="item-content">
+							<text class="item-title">评论通知</text>
+							<text class="item-desc">当有人回复您的动态或评论时提醒</text>
+						</view>
+					</view>
+					<van-switch v-model="socialSettings.commentNotify" size="20px" active-color="#ffd541" />
+				</view>
+				<view class="settings-item">
+					<view class="item-left">
+						<van-icon name="good-job-o" size="20" color="#1e293b" />
+						<view class="item-content">
+							<text class="item-title">点赞通知</text>
+							<text class="item-desc">当有人点赞您的动态或评论时提醒</text>
+						</view>
+					</view>
+					<van-switch v-model="socialSettings.likeNotify" size="20px" active-color="#ffd541" />
+				</view>
+				<view class="settings-item" @click="handleItemClick('blacklist')">
+					<view class="item-left">
+						<van-icon name="shield-o" size="20" color="#1e293b" />
+						<text class="item-title">黑名单管理</text>
+					</view>
+					<van-icon name="arrow" color="#cbd5e1" size="16" />
+				</view>
+			</view>
 			
 			<view class="logout-btn" @click="handleLogout">
 				<text>退出登录</text>
@@ -126,6 +150,11 @@
 import { ref } from 'vue';
 
 const enableAccount = ref(false);
+
+const socialSettings = ref({
+	commentNotify: true,
+	likeNotify: true
+});
 
 const goBack = () => {
 	uni.navigateTo({
