@@ -311,14 +311,14 @@ const getChartText = (data) => {
 /* 主内容区 */
 .main-content {
 	flex: 1;
-	padding: 16px;
+	padding: 10px;
 	box-sizing: border-box;
 }
 
 .card-list {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: 10px;
 }
 
 .month-card {
@@ -332,8 +332,8 @@ const getChartText = (data) => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 16px;
-	padding-bottom: 12px;
+	margin-bottom: 10px;
+	padding-bottom: 10px;
 	border-bottom: 1px solid #f1f5f9;
 }
 

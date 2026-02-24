@@ -13,7 +13,7 @@
     <!-- 内容区：卡片 + 信息流 -->
     <view class="content-body">
       <view class="feed">
-        <view v-for="post in filteredPosts" :key="post.id" class="post-card">
+        <view v-for="post in filteredPosts" :key="post.postId" :id="'post-' + post.postId" :class="['post-card', { 'highlight-post': post.isHighlighted }]">
           <view class="post-left">
             <view class="avatar"></view>
           </view>
@@ -25,7 +25,7 @@
                 <text class="post-time">{{ post.time }}</text>
               </view>
               <view class="head-actions">
-                <view class="action post-comment" @click="showReplyInput(post.id)">
+                <view class="action post-comment" @click="showReplyInput(post.postId)">
                   <van-icon name="chat-o" size="18" color="#64748b" />
                 </view>
 
@@ -49,7 +49,7 @@
               <!-- 评论列表 -->
               <view class="comment-list">
                 <!-- 显示评论（最多3条，或全部） -->
-                <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.id, comment)">
+                <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.postId, comment)">
                   <view class="comment-header">
                     <view class="comment-avatar"></view>
                     <view class="comment-main">
@@ -99,12 +99,34 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { ref, computed, nextTick } from 'vue';
+import { onShow, onLoad } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 
 onShow(() => {
 	uni.$emit('updateTabbar');
+});
+
+onLoad((options) => {
+  if (options.postId) {
+    nextTick(() => {
+      setTimeout(() => {
+        uni.pageScrollTo({
+          selector: `#post-${options.postId}`,
+          duration: 300
+        });
+        
+        // 可选：高亮一下对应的帖子
+         const post = posts.value.find(p => p.postId == options.postId);
+         if (post) {
+           post.isHighlighted = true;
+           setTimeout(() => {
+             post.isHighlighted = false;
+           }, 2000);
+         }
+       }, 500); // 稍微延迟确保渲染完成
+     });
+   }
 });
 
 const previewImage = (images, index) => {
@@ -178,7 +200,7 @@ const tips = [
 
 const posts = ref([
     {
-      id: 1,
+      postId: 1,
       type: 0,
       name: '蒜打细算的小王',
       time: '2小时前',
@@ -197,7 +219,7 @@ const posts = ref([
       ]
     },
     {
-      id: 2,
+      postId: 2,
       type: 1,
       name: '极简生活理财',
       time: '5小时前',
@@ -330,6 +352,11 @@ const filteredPosts = computed(() => {
   margin-bottom: 10px;
   display: flex;
   gap: 4px;
+  transition: background-color 0.5s ease;
+}
+
+.highlight-post {
+  background-color: #fff9db !important;
 }
 
 .post-left {

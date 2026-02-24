@@ -98,3 +98,37 @@ page {
   background-color: var(--secondary-bg-color);
 }
 
+/* 全局导航栏样式 */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px; /* 适配状态栏高度 */
+  background-color: #ffd541;
+  position: relative;
+  z-index: 100;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 80px;
+}
+
+.nav-title {
+  font-size: 16px;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.nav-right {
+  width: 80px;
+}
+

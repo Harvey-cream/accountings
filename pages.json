@@ -120,6 +120,41 @@
 				"navigationBarTitleText": "预算中心",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/page_function/data_export/export",
+			"style": {
+				"navigationBarTitleText": "数据导出",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_function/social_messages/message",
+			"style": {
+				"navigationBarTitleText": "互动消息",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting",
+			"style": {
+				"navigationBarTitleText": "设置",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/account_setting/account",
+			"style": {
+				"navigationBarTitleText": "账号设置",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/account_setting/delete_account",
+			"style": {
+				"navigationBarTitleText": "注销账号",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

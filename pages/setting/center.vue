@@ -58,17 +58,26 @@
 				<van-icon name="gift" color="#3b82f6" size="24" />
 				<text class="action-label">我的积分</text>
 			</view>
-			<view class="action-item" @click="showInvitePopup = true">
+			<view class="action-item" @click="handleOpenInvitePopup">
 				<van-icon name="smile" color="#f97316" size="24" />
 				<text class="action-label">邀请好友</text>
 			</view>
-			<view class="action-item">
+			<view class="action-item" @click="goToSetting">
 				<view class="dot-badge"></view>
 				<van-icon name="setting" color="#475569" size="24"/>
 				<text class="action-label">设置</text>
 			</view>
 		</view>
-
+		<!-- 社交消息 -->
+			<view class="menu-group">
+			<view class="menu-item" @click="goToSocialMessage">
+				<view class="menu-left">
+					<van-icon name="notes-o" size="20" color="#1e293b" />
+					<text class="item-title">社交消息</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
+			</view>
 		<!-- 菜单列表组 1 -->
 		<view class="menu-group">
 			<view class="menu-item" @click="goToBilling">
@@ -86,8 +95,7 @@
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
 		</view>
-
-		<!-- 财务管理 -->
+		<!-- 财务与数据 -->
 		<view class="menu-group">
 			<view class="menu-item" @click="goToBudget">
 				<view class="menu-left">
@@ -96,25 +104,14 @@
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
-			<view class="menu-item">
-				<view class="menu-left">
-					<van-icon name="card" size="20" color="#1e293b" />
-					<text class="item-title">资产账户</text>
-				</view>
-				<van-icon name="arrow" color="#cbd5e1" />
-			</view>
-			<view class="menu-item">
+			<view class="menu-item" @click="handleOpenTimePicker">
 				<view class="menu-left">
 					<van-icon name="clock-o" size="20" color="#1e293b" />
 					<text class="item-title">定期记账</text>
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
-		</view>
-
-		<!-- 个性化与数据 -->
-		<view class="menu-group">
-			<view class="menu-item">
+			<view class="menu-item" @click="goToExport">
 				<view class="menu-left">
 					<van-icon name="down" size="20" color="#1e293b" />
 					<text class="item-title">数据导出</text>
@@ -125,7 +122,7 @@
 
 		<!-- 菜单列表组 2 -->
 		<view class="menu-group">
-			<view class="menu-item">
+			<view class="menu-item" @click="goToSetting">
 				<view class="menu-left">
 					<van-icon name="setting-o" size="20" color="#1e293b" />
 					<text class="item-title">设置</text>
@@ -155,14 +152,37 @@
 			</view>
 		</view>
 
+		<!-- 时间选择卡片弹窗 -->
+		<view v-if="showTimePicker" class="time-modal-mask" @click="handleCloseTimePicker">
+			<view class="time-modal-card" @click.stop>
+				<view class="modal-header">
+					<text class="modal-title">选择记账时间</text>
+					<van-icon name="cross" size="20" color="#94a3b8" @click="handleCloseTimePicker" />
+				</view>
+				
+				<view class="picker-container">
+					<van-picker
+						v-model="selectedValues"
+						:columns="pickerColumns"
+						:show-toolbar="false"
+					/>
+				</view>
+
+				<view class="modal-actions">
+					<view class="cancel-btn" @click="handleCloseTimePicker">取消</view>
+					<view class="confirm-btn" @click="onConfirmDateClick">确定</view>
+				</view>
+			</view>
+		</view>
+
 		<CustomTabbar :selected="2" />
 		
 		<!-- 邀请好友弹窗 -->
-		<view v-if="showInvitePopup" class="invite-modal-mask" @click.stop="showInvitePopup = false">
+		<view v-if="showInvitePopup" class="invite-modal-mask" @click.stop="handleCloseInvitePopup">
 			<view class="invite-modal" @click.stop>
 				<view class="modal-header">
 					<text class="modal-title">邀请好友</text>
-					<van-icon name="cross" size="20" color="#94a3b8" @click="showInvitePopup = false" />
+					<van-icon name="cross" size="20" color="#94a3b8" @click="handleCloseInvitePopup" />
 				</view>
 				<view class="qr-container">
 					<image class="qr-code" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://uni-accounting.com/invite?user=oxo" mode="aspectFit"></image>
@@ -180,13 +200,53 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
 
 // 打卡状态
 const isChecked = ref(false);
-// 邀请好友弹窗状态
+// 时间选择
+const showTimePicker = ref(false);
+const selectedValues = ref([]);
+const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+// 生成选择器数据（仅显示今天及以后的一年）
+const pickerColumns = computed(() => {
+	const now = new Date();
+	const dateColumn = Array.from({ length: 365 }, (_, i) => {
+		const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+		return {
+			text: `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`,
+			value: `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+		};
+	});
+	const hours = Array.from({ length: 24 }, (_, i) => ({ text: `${i}时`, value: i.toString().padStart(2, '0') }));
+	const minutes = Array.from({ length: 60 }, (_, i) => ({ text: `${i}分`, value: i.toString().padStart(2, '0') }));
+	return [dateColumn, hours, minutes];
+});
+
+const handleOpenTimePicker = () => {
+	const now = new Date();
+	selectedValues.value = [
+		`${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`,
+		now.getHours().toString().padStart(2, '0'),
+		now.getMinutes().toString().padStart(2, '0')
+	];
+	showTimePicker.value = true;
+};
+
+const handleCloseTimePicker = () => showTimePicker.value = false;
+
+const onConfirmDateClick = () => {
+	showTimePicker.value = false;
+	const [d, h, m] = selectedValues.value;
+	uni.showToast({ title: `已设置：${d} ${h}:${m}`, icon: 'none' });
+};
+
+// 邀请好友
 const showInvitePopup = ref(false);
+const handleOpenInvitePopup = () => showInvitePopup.value = true;
+const handleCloseInvitePopup = () => showInvitePopup.value = false;
 
 // 保存二维码
 const saveQRCode = () => {
@@ -231,6 +291,13 @@ const goToMessage = () => {
 	});
 };
 
+// 跳转到社交消息页面
+const goToSocialMessage = () => {
+	uni.navigateTo({
+		url: '/pages/page_function/social_messages/message'
+	});
+};
+
 // 跳转到勋章页面
 const goToMedal = () => {
 	uni.navigateTo({
@@ -255,6 +322,20 @@ const goToBilling = () => {
 const goToBudget = () => {
 	uni.navigateTo({
 		url: '/pages/page_function/budget_center/budget'
+	});
+};
+
+// 跳转到数据导出页面
+const goToExport = () => {
+	uni.navigateTo({
+		url: '/pages/page_function/data_export/export'
+	});
+};
+
+// 跳转到设置页面
+const goToSetting = () => {
+	uni.navigateTo({
+		url: '/pages/page_setting/setting'
 	});
 };
 
@@ -452,6 +533,78 @@ const toggleCheckIn = () => {
 	font-size: 12px;
 	color: #ef4444;
 }
+
+/* 时间选择弹窗卡片 */
+.time-modal-mask {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.6);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 1000;
+}
+
+.time-modal-card {
+	background-color: #fff;
+	border-radius: 16px;
+	width: 300px;
+	padding: 20px;
+	box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.picker-container {
+	padding: 10px 0;
+	background-color: #f8fafc;
+	border-radius: 12px;
+	margin: 15px 0;
+}
+
+:deep(.van-picker) {
+	background-color: transparent;
+}
+
+:deep(.van-picker-column__item) {
+	font-size: 15px;
+	color: #64748b;
+}
+
+:deep(.van-picker-column__item--selected) {
+	color: #0f172a;
+	font-weight: 600;
+}
+
+.time-modal-card .modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 15px;
+	margin-top: 10px;
+}
+
+.cancel-btn {
+	padding: 8px 20px;
+	font-size: 14px;
+	color: #64748b;
+	background-color: #f1f5f9;
+	border-radius: 20px;
+}
+
+.confirm-btn {
+	padding: 8px 20px;
+	font-size: 14px;
+	color: #0f172a;
+	background-color: #ffd541;
+	border-radius: 20px;
+	font-weight: 600;
+}
+
+.cancel-btn:active, .confirm-btn:active {
+	opacity: 0.8;
+}
+
 /* 邀请好友弹窗 */
 .invite-modal-mask {
 	position: fixed;
