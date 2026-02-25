@@ -129,14 +129,14 @@
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
-			<view class="menu-item">
+			<view class="menu-item" @click="goToHelp">
 				<view class="menu-left">
 					<van-icon name="question-o" size="20" color="#1e293b" />
 					<text class="item-title">使用帮助</text>
 				</view>
 				<van-icon name="arrow" color="#cbd5e1" />
 			</view>
-			<view class="menu-item">
+			<view class="menu-item" @click="goToFeedback">
 				<view class="menu-left">
 					<van-icon name="edit" size="20" color="#1e293b" />
 					<text class="item-title">意见反馈</text>
@@ -336,6 +336,20 @@ const goToExport = () => {
 const goToSetting = () => {
 	uni.navigateTo({
 		url: '/pages/page_setting/setting'
+	});
+};
+
+// 跳转到使用帮助页面
+const goToHelp = () => {
+	uni.navigateTo({
+		url: '/pages/page_other/user_help/helpful'
+	});
+};
+
+// 跳转到意见反馈页面
+const goToFeedback = () => {
+	uni.navigateTo({
+		url: '/pages/page_other/user_feedback/feedback'
 	});
 };
 

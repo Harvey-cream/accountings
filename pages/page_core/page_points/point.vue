@@ -3,7 +3,9 @@
 		<!-- 沉浸式头部 -->
 		<view class="points-header">
 			<view class="nav-bar">
-				<van-icon name="arrow-left" size="20" color="#fff" @click="goBack" />
+				<view class="nav-left" @click="goBack">
+					<van-icon name="arrow-left" size="20" />
+				</view>
 				<text class="nav-title">我的积分</text>
 				<text class="nav-right" @click="showRules">规则</text>
 			</view>
@@ -103,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const goBack = () => uni.navigateBack();
 
@@ -113,15 +115,18 @@ const consecutiveDays = ref(2);
 const isCheckedToday = ref(false);
 
 // 签到配置
-const weekDays = [
-	{ label: '第1天', points: 1 },
-	{ label: '第2天', points: 2 },
-	{ label: '第3天', points: 3 },
-	{ label: '第4天', points: 4 },
-	{ label: '第5天', points: 5 },
-	{ label: '第6天', points: 6 },
-	{ label: '第7天', points: 10 },
-];
+const weekDays = computed(() => {
+	const now = new Date();
+	return Array.from({ length: 7 }, (_, i) => {
+		const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2 + i); // 模拟从前两天开始显示
+		const month = d.getMonth() + 1;
+		const date = d.getDate();
+		return {
+			label: `${month}.${date < 10 ? '0' + date : date}`,
+			points: i === 6 ? 10 : i + 1
+		};
+	});
+});
 
 // 任务列表
 const taskList = ref([
@@ -168,20 +173,19 @@ const exchangeItems = ref([
 // 交互逻辑
 const handleCheckIn = () => {
 	if (isCheckedToday.value) return;
-	
-	uni.showLoading({ title: '签到中' });
-	setTimeout(() => {
-		uni.hideLoading();
-		isCheckedToday.value = true;
-		consecutiveDays.value++;
-		totalPoints.value += weekDays[consecutiveDays.value - 1]?.points || 1;
-		uni.showToast({ title: '签到成功', icon: 'success' });
-	}, 500);
+	isCheckedToday.value = true;
+	consecutiveDays.value++;
+	totalPoints.value += weekDays.value[consecutiveDays.value - 1]?.points || 1;
+	uni.showToast({ title: '签到成功', icon: 'success' });
 };
 
 const handleTask = (task) => {
 	if (task.completed) return;
-	uni.showToast({ title: `前往完成：${task.name}`, icon: 'none' });
+	if (task.name === '每日记账') {
+		uni.navigateTo({ url: '/pages/page_saved/save_accouting' });
+	} else if (task.name === '邀请好友') {
+		uni.switchTab({ url: '/pages/setting/center' });
+	}
 };
 
 const showRules = () => {
@@ -207,9 +211,9 @@ const goToHistory = () => {
 
 /* 头部样式 */
 .points-header {
-	background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-	padding: 44px 16px 60px; /* 底部留白给悬浮卡片 */
-	color: #fff;
+	background-color: var(--main-color);
+	padding: calc(var(--status-bar-height) + 14px) 16px 60px; /* 底部留白给悬浮卡片 */
+	color: var(--main-text-color);
 	position: relative;
 }
 
@@ -221,31 +225,57 @@ const goToHistory = () => {
 }
 
 .nav-title {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
 	font-size: 18px;
 	font-weight: 600;
+	white-space: nowrap;
 }
 
 .nav-right {
+	width: 60px;
+	text-align: right;
 	font-size: 14px;
 	opacity: 0.9;
 }
 
 .points-display {
 	display: flex;
-	justify-content: space-between;
-	align-items: flex-end;
+	flex-direction: column;
+	align-items: center;
+	position: relative;
 }
 
 .points-value {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
 }
 
 .points-value .number {
 	font-size: 48px;
 	font-weight: bold;
 	line-height: 1;
-	margin-bottom: 4px;
+	margin-bottom: 8px;
+}
+
+.points-value .label {
+	font-size: 14px;
+	opacity: 0.8;
+}
+
+.points-action {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	background-color: rgba(255, 255, 255, 0.2);
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 12px;
 }
 
 .points-value .label {

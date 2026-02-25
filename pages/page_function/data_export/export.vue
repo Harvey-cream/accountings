@@ -231,7 +231,7 @@ const onExport = () => {
 /* Header */
 .header {
 	background-color: #ffd541;
-	padding: 20px 20px 30px;
+	padding: 5px 20px 30px;
 }
 
 .status-bar {

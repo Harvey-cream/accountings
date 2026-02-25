@@ -183,6 +183,20 @@
 				"navigationBarTitleText": "个性装扮",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/page_other/user_help/helpful",
+			"style": {
+				"navigationBarTitleText": "使用帮助",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_other/user_feedback/feedback",
+			"style": {
+				"navigationBarTitleText": "意见反馈",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {
