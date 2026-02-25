@@ -70,6 +70,13 @@
 		</view>
 		<!-- 社交消息 -->
 			<view class="menu-group">
+			<view class="menu-item" @click="goToSocialProfile">
+				<view class="menu-left">
+					<van-icon name="user-o" size="20" color="#1e293b" />
+					<text class="item-title">社交主页</text>
+				</view>
+				<van-icon name="arrow" color="#cbd5e1" />
+			</view>
 			<view class="menu-item" @click="goToSocialMessage">
 				<view class="menu-left">
 					<van-icon name="notes-o" size="20" color="#1e293b" />
@@ -294,7 +301,14 @@ const goToMessage = () => {
 // 跳转到社交消息页面
 const goToSocialMessage = () => {
 	uni.navigateTo({
-		url: '/pages/page_function/social_messages/message'
+		url: '/pages/page_social/social_messages/message'
+	});
+};
+
+// 跳转到社交主页
+const goToSocialProfile = () => {
+	uni.navigateTo({
+		url: '/pages/page_social/social_profile/profile'
 	});
 };
 

@@ -14,13 +14,13 @@
     <view class="content-body">
       <view class="feed">
         <view v-for="post in filteredPosts" :key="post.postId" :id="'post-' + post.postId" :class="['post-card', { 'highlight-post': post.isHighlighted }]">
-          <view class="post-left">
+          <view class="post-left" @click="goToProfile(post.userId)">
             <view class="avatar"></view>
           </view>
 
           <view class="post-right">
             <view class="post-head">
-              <view class="post-meta">
+              <view class="post-meta" @click="goToProfile(post.userId)">
                 <text class="post-name">{{ post.name }}</text>
                 <text class="post-time">{{ post.time }}</text>
               </view>
@@ -158,6 +158,12 @@ const goToChatroom = () => {
   });
 };
 
+const goToProfile = (userId) => {
+  uni.navigateTo({
+    url: `/pages/page_social/social_profile/profile?userId=${userId}`
+  });
+};
+
 const submitReply = (postId) => {
   if (!replyContent.value.trim()) return;
 
@@ -201,6 +207,7 @@ const tips = [
 const posts = ref([
     {
       postId: 1,
+      userId: '10001',
       type: 0,
       name: '蒜打细算的小王',
       time: '2小时前',
@@ -215,11 +222,12 @@ const posts = ref([
         { author: '咖啡爱好者', time: '1小时前', content: '这家店具体在哪里啊？' },
         { author: '省钱小能手', time: '45分钟前', content: '周末也有折扣吗？' },
         { author: '住在附近', time: '30分钟前', content: '我也去过，确实很划算！' },
-        { author: '小王回复住在附近', time: '20分钟前', content: '是的是的，老板人也很好' }
+        { author: '小王回复住在附近', time: '20分钟前', content: '是的是的是的，老板人也很好' }
       ]
     },
     {
       postId: 2,
+      userId: '10002',
       type: 1,
       name: '极简生活理财',
       time: '5小时前',
