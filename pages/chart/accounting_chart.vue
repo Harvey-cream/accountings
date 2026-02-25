@@ -1,5 +1,5 @@
 <template>
-	<view class="chart-container">
+	<view class="chart-container" :class="currentThemeClass">
 		<!-- 顶部固定导航区域 -->
 		<view class="fixed-nav-container">
 			<view class="nav-header">

@@ -1,5 +1,5 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="currentThemeClass">
 		<view class="tab-content">
 			<view class="header">
 				<view class="status-bar">

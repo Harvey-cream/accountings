@@ -1,5 +1,5 @@
 <template>
-	<view class="points-page">
+	<view class="points-page" :class="currentThemeClass">
 		<!-- 沉浸式头部 -->
 		<view class="points-header">
 			<view class="nav-bar">

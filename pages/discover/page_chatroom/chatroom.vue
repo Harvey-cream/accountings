@@ -1,5 +1,5 @@
 <template>
-  <view class="chatroom-container">
+  <view class="chatroom-container" :class="currentThemeClass">
     <!-- 消息列表视图 -->
     <view v-if="currentView === 'list'" class="message-list-view">
       <!-- 顶部导航 -->

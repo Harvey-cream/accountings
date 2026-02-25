@@ -1,5 +1,5 @@
 <template>
-	<view class="medal-page">
+	<view class="medal-page" :class="currentThemeClass">
 		<!-- 导航栏 -->
 		<view class="nav-header">
 			<view class="nav-left" @click="goBack">

@@ -1,5 +1,5 @@
 <template>
-  <view class="delete-account-container">
+  <view class="delete-account-container" :class="currentThemeClass">
     <!-- 导航栏 -->
     <view class="nav-bar">
       <view class="nav-left" @click="goBack">

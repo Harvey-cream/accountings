@@ -1,5 +1,5 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="currentThemeClass">
 		<!-- 年份账单列表视图 -->
 		<view v-if="!currentYear" class="year-list-container">
 			<view class="header-row">

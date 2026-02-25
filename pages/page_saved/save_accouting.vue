@@ -1,5 +1,5 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="currentThemeClass">
 		<view class="top-section">
 			<view class="header-bar">
 				<van-icon name="arrow-left" size="24" color="#0f172a" @click="goBack" />

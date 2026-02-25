@@ -1,5 +1,5 @@
 <template>
-  <view class="invoicePage">
+  <view class="invoicePage" :class="currentThemeClass">
     <view class="header">
       <!-- 状态栏占位 -->
       <view class="status-bar"></view>

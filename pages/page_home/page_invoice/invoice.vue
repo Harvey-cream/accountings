@@ -1,5 +1,5 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="currentThemeClass">
 		<!-- 顶部导航栏 -->
 		<view class="nav-header" :style="{ paddingTop: statusBarHeight + 'px' }">
 			<view class="nav-content">

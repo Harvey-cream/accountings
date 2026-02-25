@@ -12,6 +12,11 @@
   --income-color: #10b981;
   --expense-color: #ef4444;
   --accent-color: #f59e0b;
+
+  /* 主题色变量 */
+  --main-color: #ffd541; /* 默认黄色 */
+  --main-color-rgb: 255, 213, 65;
+  --main-text-color: #1e293b;
   
   /* 数字专用字号 */
   --font-size-number: 14px; /* 直接定义具体的像素值，确保生效 */
@@ -90,6 +95,14 @@ page {
 .font-number { font-family: var(--font-family-number) !important; }
 
 /* 背景样式 */
+.bg-main {
+  background-color: var(--main-color) !important;
+}
+
+.bg-main-light {
+  background-color: rgba(var(--main-color-rgb), 0.1) !important;
+}
+
 .bg-white {
   background-color: #ffffff;
 }
@@ -103,8 +116,8 @@ page {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px; /* 适配状态栏高度 */
-  background-color: #ffd541;
+  padding: calc(var(--status-bar-height) + 10px) 16px 10px; /* 适配状态栏高度 */
+  background-color: var(--main-color);
   position: relative;
   z-index: 100;
 }
@@ -118,17 +131,55 @@ page {
 
 .nav-title {
   font-size: 16px;
-  color: #1e293b;
+  color: var(--main-text-color);
   font-weight: 500;
 }
 
 .page-title {
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--main-text-color);
 }
 
 .nav-right {
   width: 80px;
 }
+
+/* 换肤相关样式 */
+.theme-yellow {
+  --main-color: #ffd541;
+  --main-color-rgb: 255, 213, 65;
+  --main-text-color: #1e293b;
+}
+
+.theme-orange {
+  --main-color: #ff7d44;
+  --main-color-rgb: 255, 125, 68;
+  --main-text-color: #ffffff;
+}
+
+.theme-green {
+  --main-color: #4cd964;
+  --main-color-rgb: 76, 217, 100;
+  --main-text-color: #ffffff;
+}
+
+.theme-purple {
+  --main-color: #a370f7;
+  --main-color-rgb: 163, 112, 247;
+  --main-text-color: #ffffff;
+}
+
+.theme-red {
+  --main-color: #ff5a5f;
+  --main-color-rgb: 255, 90, 95;
+  --main-text-color: #ffffff;
+}
+
+.theme-blue {
+  --main-color: #007aff;
+  --main-color-rgb: 0, 122, 255;
+  --main-text-color: #ffffff;
+}
+
 

@@ -1,5 +1,5 @@
 <template>
-	<view class="add-container">
+	<view class="add-container" :class="currentThemeClass">
 		<!-- 顶部导航 -->
 		<!-- <view class="nav-bar">
 			<view class="nav-left" @click="goBack">

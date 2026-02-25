@@ -15,10 +15,12 @@ app.$mount()
 import { createSSRApp } from 'vue'
 import Vant from 'vant';
 import 'vant/lib/index.css';
+import { themeMixin } from './pages/store/theme';
 
 export function createApp() {
   const app = createSSRApp(App)
   app.use(Vant);
+  app.mixin(themeMixin);
   return {
     app
   }

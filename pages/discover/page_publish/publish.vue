@@ -1,5 +1,5 @@
 <template>
-  <view class="publish-container">
+  <view class="publish-container" :class="currentThemeClass">
     <!-- 顶部导航栏 -->
     <view class="nav-header">
       <text class="cancel-text" @click="onCancel">取消</text>

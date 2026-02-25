@@ -1,5 +1,5 @@
 <template>
-  <view class="community-container">
+  <view class="community-container" :class="currentThemeClass">
     <view class="header-section">
       <view class = "nav-header">
         <van-icon name="arrow-left" size="20" color="#0f172a" />

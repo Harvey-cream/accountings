@@ -1,5 +1,5 @@
 <template>
-  <view class="message-container">
+  <view class="message-container" :class="currentThemeClass">
     <!-- Header -->
     <view class="nav-header">
       <view class="nav-left" @click="goBack">

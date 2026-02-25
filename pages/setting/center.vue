@@ -1,5 +1,5 @@
 <template>
-	<view class="my-container">
+	<view class="my-container" :class="currentThemeClass">
 		<!-- 头部个人信息卡片 -->
 		<view class="header-card">
 			<view class="header-banner">

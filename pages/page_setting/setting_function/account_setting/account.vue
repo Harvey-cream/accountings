@@ -1,5 +1,5 @@
 <template>
-  <view class="account-container">
+  <view class="account-container" :class="currentThemeClass">
     <!-- 导航栏 -->
     <view class="nav-bar">
       <view class="nav-left" @click="goBack">
@@ -48,7 +48,7 @@
         <view class="settings-item" @click="handleEdit('phone')">
           <text class="item-title">手机号</text>
           <view class="item-right">
-            <text class="item-value" :class="{ 'not-set': !userInfo.phone }">{{ userInfo.phone || '未绑定' }}</text>
+            <text class="item-value" :class="{ 'not-set': !userInfo.phone }">{{ userInfo.phone ? userInfo.phone : '去绑定' }}</text>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>
@@ -97,21 +97,29 @@
         </view>
       </view>
 
-      <view v-if="showNicknameSheet" class="bottom-sheet-mask" @click="showNicknameSheet = false">
-        <view class="bottom-sheet" @click.stop>
-          <view class="sheet-header">
-            <text class="sheet-title">修改昵称</text>
-            <van-icon name="cross" size="20" color="#94a3b8" @click="showNicknameSheet = false" />
+      <van-popup
+        v-model:show="showNicknamePopup"
+        position="bottom"
+        round
+        :style="{ height: '50%' }"
+      >
+        <view class="popup-content">
+          <view class="popup-header">
+            <text class="popup-title">修改昵称</text>
+            <van-icon name="cross" size="20" color="#94a3b8" @click="showNicknamePopup = false" />
           </view>
-          <view class="sheet-body">
-            <input class="sheet-input" v-model="nicknameDraft" type="text" placeholder="请输入昵称" maxlength="20" confirm-type="done" />
+          <view class="popup-body padding-20">
+            <view class="input-group">
+              <view class="input-label">新昵称</view>
+              <input class="popup-input-bg" v-model="nicknameDraft" type="text" placeholder="请输入昵称" maxlength="20" />
+            </view>
+            <view class="popup-tips">好听的昵称能让大家更快记住你哦。</view>
           </view>
-          <view class="sheet-actions">
-            <view class="sheet-btn cancel" @click="showNicknameSheet = false">取消</view>
-            <view class="sheet-btn confirm" @click="confirmNickname">确定</view>
+          <view class="popup-footer">
+            <view class="confirm-btn" @click="confirmNickname">确定</view>
           </view>
         </view>
-      </view>
+      </van-popup>
     </scroll-view>
   </view>
 </template>
@@ -137,7 +145,7 @@ const goBack = () => {
   });
 };
 
-const showNicknameSheet = ref(false);
+const showNicknamePopup = ref(false);
 const nicknameDraft = ref('');
 
 const confirmNickname = () => {
@@ -147,8 +155,47 @@ const confirmNickname = () => {
     return;
   }
   userInfo.value.nickname = val;
-  showNicknameSheet.value = false;
+  showNicknamePopup.value = false;
   uni.showToast({ title: '已更新', icon: 'success' });
+};
+
+const confirmPhone = () => {
+  const val = phoneDraft.value.trim();
+  if (!/^1[3-9]\d{9}$/.test(val)) {
+    uni.showToast({ title: '请输入有效的手机号', icon: 'none' });
+    return;
+  }
+  if (!verifyCode.value.trim()) {
+    uni.showToast({ title: '请输入验证码', icon: 'none' });
+    return;
+  }
+  
+  userInfo.value.phone = val;
+  showPhoneSheet.value = false;
+  uni.showToast({ title: '绑定成功', icon: 'success' });
+};
+
+const confirmEmergency = () => {
+  const phone = emergencyPhone.value.trim();
+  const email = emergencyEmail.value.trim();
+  
+  if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+    uni.showToast({ title: '请输入有效的应急手机号', icon: 'none' });
+    return;
+  }
+  if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+    uni.showToast({ title: '请输入有效的邮箱地址', icon: 'none' });
+    return;
+  }
+  
+  if (!phone && !email) {
+    uni.showToast({ title: '请至少填写一项', icon: 'none' });
+    return;
+  }
+
+  userInfo.value.emergency = phone || email;
+  showEmergencySheet.value = false;
+  uni.showToast({ title: '保存成功', icon: 'success' });
 };
 
 // 修改头像
@@ -191,7 +238,21 @@ const changeAvatar = () => {
 const handleEdit = (type) => {
   if (type === 'nickname') {
     nicknameDraft.value = userInfo.value.nickname || '';
-    showNicknameSheet.value = true;
+    showNicknamePopup.value = true;
+    return;
+  }
+  if (type === 'phone') {
+    const phoneVal = userInfo.value.phone || '';
+    uni.navigateTo({
+      url: '/pages/page_setting/setting_function/account_setting/page_account/phone?phone=' + phoneVal
+    });
+    return;
+  }
+  if (type === 'emergency') {
+    const contact = encodeURIComponent(userInfo.value.emergency || '');
+    uni.navigateTo({
+      url: '/pages/page_setting/setting_function/account_setting/page_account/emergency?contact=' + contact
+    });
     return;
   }
   if (type === 'gender') {
@@ -210,7 +271,7 @@ const handleEdit = (type) => {
 const handleItemClick = (type) => {
   if (type === 'delete') {
     uni.navigateTo({
-      url: '/pages/page_setting/setting_function/account_setting/delete_account'
+      url: '/pages/page_setting/setting_function/account_setting/page_account/delete_account'
     });
     return;
   }
@@ -244,39 +305,7 @@ const handleLogout = () => {
   background-color: #f8fafc;
 }
 
-/* 导航栏 */
-.nav-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px 10px; /* 适配状态栏高度 */
-  background-color: #ffd541;
-  position: relative;
-  z-index: 100;
-}
-
-.nav-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 80px;
-}
-
-.nav-title {
-  font-size: 16px;
-  color: #1e293b;
-  font-weight: 500;
-}
-
-.page-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.nav-right {
-  width: 80px;
-}
+/* 导航栏样式已移至全局 common.css */
 
 .content-body {
   flex: 1;
@@ -374,39 +403,80 @@ const handleLogout = () => {
   background-color: #f8fafc;
 }
 
-.bottom-sheet-mask {
-  position: fixed;
-  left: 0; right: 0; top: 0; bottom: 0;
-  background-color: rgba(0,0,0,0.5);
+/* 弹窗样式 */
+.popup-content {
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  z-index: 999;
+  flex-direction: column;
+  height: 100%;
 }
-.bottom-sheet {
-  width: 100%;
-  background-color: #fff;
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  padding: 16px;
-}
-.sheet-header {
+
+.popup-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid #f1f5f9;
 }
-.sheet-title { font-size: 16px; font-weight: 600; color: #0f172a; }
-.sheet-body { padding: 12px 0; }
-.sheet-input {
-  width: 100%;
-  height: 40px;
-  background-color: #f8fafc;
-  border-radius: 8px;
-  padding: 0 12px;
+
+.popup-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.popup-body {
+  flex: 1;
+}
+
+.padding-20 {
+  padding: 20px;
+}
+
+.input-group {
+  margin-bottom: 24px;
+}
+
+.input-label {
   font-size: 14px;
+  color: #64748b;
+  margin-bottom: 12px;
 }
-.sheet-actions { display: flex; justify-content: flex-end; gap: 12px; }
-.sheet-btn { padding: 8px 16px; border-radius: 18px; font-size: 14px; }
-.sheet-btn.cancel { background-color: #f1f5f9; color: #64748b; }
-.sheet-btn.confirm { background-color: #ffd541; color: #0f172a; font-weight: 600; }
+
+.popup-input-bg {
+  width: 100%;
+  height: 52px;
+  background-color: #f8fafc;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-size: 16px;
+  color: #1e293b;
+  box-sizing: border-box;
+}
+
+.popup-tips {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.popup-footer {
+  padding: 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+.confirm-btn {
+  height: 50px;
+  background-color: #ffd541;
+  border-radius: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.confirm-btn:active {
+  opacity: 0.9;
+}
 </style>

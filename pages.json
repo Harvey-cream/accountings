@@ -150,9 +150,37 @@
 			}
 		},
 		{
-			"path": "pages/page_setting/setting_function/account_setting/delete_account",
+			"path": "pages/page_setting/setting_function/account_setting/page_account/delete_account",
 			"style": {
 				"navigationBarTitleText": "注销账号",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/category_settings/category",
+			"style": {
+				"navigationBarTitleText": "类别设置",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/account_setting/page_account/phone",
+			"style": {
+				"navigationBarTitleText": "手机号",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/account_setting/page_account/emergency",
+			"style": {
+				"navigationBarTitleText": "应急联系方式",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/page_setting/setting_function/person_style/personal",
+			"style": {
+				"navigationBarTitleText": "个性装扮",
 				"navigationStyle": "custom"
 			}
 		}

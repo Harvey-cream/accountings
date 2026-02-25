@@ -1,5 +1,5 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="currentThemeClass">
 		<!-- 导航栏 -->
 		<view class="nav-header" >
 			<view class="nav-content">
