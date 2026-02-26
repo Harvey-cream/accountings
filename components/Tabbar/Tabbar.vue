@@ -20,7 +20,23 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 
-const tabList = ref(uni.getStorageSync('tabList') || []);
+const getTabList = () => {
+	let list = uni.getStorageSync('tabList');
+	if (!list || list.length === 0) {
+		// 如果缓存被清空了（比如退出登录时），重新初始化默认配置
+		list = [
+			{ text: '明细', icon: 'balance-list-o', selectedIcon: 'balance-list', path: '/pages/home/accounting_detail' },
+			{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/chart/accounting_chart' },
+			{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_saved/save_accouting', isFab: true },
+			{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/discover/community' },
+			{ text: '我的', icon: 'user-o', selectedIcon: 'user', path: '/pages/setting/center' }
+		];
+		uni.setStorageSync('tabList', list);
+	}
+	return list;
+};
+
+const tabList = ref(getTabList());
 
 // 初始化当前页面索引的逻辑封装
 const getActiveIndex = () => {

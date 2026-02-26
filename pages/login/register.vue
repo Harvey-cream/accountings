@@ -15,7 +15,7 @@
       <!-- 输入区域 -->
       <view class="input-group">
         <view class="input-item">
-          <input type="number" v-model="phone" placeholder="请输入手机号" maxlength="11" />
+          <input type="number" v-model="mobile" placeholder="请输入手机号" maxlength="11" />
         </view>
         
         <view class="input-item">
@@ -54,8 +54,9 @@
 
 <script setup>
 import { ref } from 'vue';
+import { register } from '../../api/api.js';
 
-const phone = ref('');
+const mobile = ref('');
 const code = ref('');
 const password = ref('');
 const agreed = ref(true);
@@ -68,7 +69,7 @@ const goBack = () => {
 };
 
 const getCode = () => {
-  if (counting.value || !phone.value) return;
+  if (counting.value || !mobile.value) return;
   counting.value = true;
   uni.showToast({ title: '验证码已发送', icon: 'none' });
   const timer = setInterval(() => {
@@ -81,24 +82,39 @@ const getCode = () => {
   }, 1000);
 };
 
-const handleRegister = () => {
+const handleRegister = async () => {
   if (!agreed.value) {
     uni.showToast({ title: '请先同意用户协议', icon: 'none' });
     return;
   }
-  if (!phone.value || !code.value || !password.value) {
+  if (!mobile.value || !code.value || !password.value) {
     uni.showToast({ title: '请填写完整注册信息', icon: 'none' });
     return;
   }
-  uni.showLoading({ title: '注册中...' });
-  setTimeout(() => {
+  
+  uni.showLoading({ title: '注册中...', mask: true });
+  try {
+    const res = await register({
+      mobile: mobile.value,
+      password: password.value,
+      code: code.value 
+    });
+
+    
     uni.hideLoading();
     uni.showToast({ title: '注册成功', icon: 'success' });
+    
+    // 注册成功后自动登录或跳转到登录页
     setTimeout(() => {
       uni.navigateBack();
-    }, 1000);
-  }, 1000);
+    }, 1500);
+  } catch (err) {
+    uni.hideLoading();
+    // 错误处理在 request.js 中已经 showToast 了
+    console.error('注册失败:', err);
+  }
 };
+
 </script>
 
 <style scoped>

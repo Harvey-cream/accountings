@@ -15,7 +15,7 @@
 			<!-- 输入区域 -->
 			<view class="input-group">
 				<view class="input-item">
-					<input type="number" v-model="phone" placeholder="请输入手机号" maxlength="11" />
+					<input type="number" v-model="mobile" placeholder="请输入手机号" maxlength="11" />
 				</view>
 
 				<view class="input-item">
@@ -69,8 +69,9 @@
 
 <script setup>
 import { ref } from 'vue';
+import { login } from '../../api/api.js';
 
-const phone = ref('');
+const mobile = ref('');
 const password = ref('');
 const agreed = ref(true);
 const showPassword = ref(false);
@@ -87,23 +88,37 @@ const goToForgetPassword = () => {
 	});
 };
 
-const handleLogin = () => {
+const handleLogin = async () => {
 	if (!agreed.value) {
 		uni.showToast({ title: '请先同意用户协议', icon: 'none' });
 		return;
 	}
-	if (!phone.value || !password.value) {
+	if (!mobile.value || !password.value) {
 		uni.showToast({ title: '请输入手机号和密码', icon: 'none' });
 		return;
 	}
-	uni.showLoading({ title: '登录中...' });
-	setTimeout(() => {
+	
+	uni.showLoading({ title: '登录中...', mask: true });
+	try {
+		const res = await login({
+			mobile: mobile.value,
+			password: password.value
+		});
+		
 		uni.hideLoading();
 		uni.showToast({ title: '登录成功', icon: 'success' });
+		
+		// 保存用户信息到缓存
+		uni.setStorageSync('userId', res.data.userId);
+		uni.setStorageSync('userInfo', res.data);
+		
 		setTimeout(() => {
-			uni.switchTab({ url: '/pages/home/accounting_detail' });
+			uni.reLaunch({ url: '/pages/home/accounting_detail' });
 		}, 1000);
-	}, 1000);
+	} catch (err) {
+		uni.hideLoading();
+		console.error('登录失败:', err);
+	}
 };
 </script>
 

@@ -316,11 +316,18 @@ const handleLogout = () => {
 		content: '确定要退出登录吗？',
 		success: (res) => {
 			if (res.confirm) {
+				uni.removeStorageSync('userId');
+				uni.removeStorageSync('userInfo');
+				
 				uni.showToast({
 					title: '已退出登录',
-					icon: 'none'
+					icon: 'success'
 				});
-				// 这里可以添加实际的退出逻辑，如清除 token 等
+				setTimeout(() => {
+					uni.reLaunch({
+						url: '/pages/login/login'
+					});
+				}, 800);
 			}
 		}
 	});
