@@ -1,36 +1,27 @@
 <template>
   <view class="profile-container">
-    <!-- 顶部导航栏 -->
-    <view class="nav-header" :style="{ paddingTop: statusBarHeight + 'px' }">
-      <view class="nav-left" @click="goBack">
-        <van-icon name="wap-nav" v-if="isSelf" size="24" color="#0f172a" />
-        <van-icon name="arrow-left" v-else size="22" color="#0f172a" />
-      </view>
-      <view class="nav-right">
-        <view v-if="isSelf" class="edit-btn-pill" @click="editProfile">
-          <van-icon name="edit" size="14" />
-          <text class="edit-text">编辑主页</text>
-        </view>
-        <van-icon name="qr" size="22" color="#0f172a" class="nav-icon" />
-        <van-icon name="share-o" size="22" color="#0f172a" class="nav-icon" />
-      </view>
-    </view>
-
     <!-- 个人信息头部 -->
-    <view class="profile-header-card">
+    <view class="profile-header-card" :style="{ paddingTop: (statusBarHeight + 10) + 'px' }">
       <view class="header-main">
-        <view class="avatar-wrapper">
-          <image class="avatar" :src="user.avatar" mode="aspectFill"></image>
-          <view v-if="isSelf" class="plus-badge">
-            <van-icon name="plus" size="12" color="#000" />
+        <view class="header-info-left">
+          <view class="avatar-wrapper">
+            <image class="avatar" :src="user.avatar" mode="aspectFill"></image>
+            <view v-if="isSelf" class="plus-badge">
+              <van-icon name="plus" size="12" color="#000" />
+            </view>
+          </view>
+          <view class="header-right">
+            <text class="user-name">{{ user.name }}</text>
+            <view class="user-id-row">
+              <text class="user-id">小龙号: {{ user.id }}</text>
+              <van-icon name="qr-invalid" size="12" color="#94a3b8" />
+            </view>
           </view>
         </view>
-        <view class="header-right">
-          <text class="user-name">{{ user.name }}</text>
-          <view class="user-id-row">
-            <text class="user-id">小龙号: {{ user.id }}</text>
-            <van-icon name="qr-invalid" size="12" color="#94a3b8" />
-          </view>
+        
+        <!-- 头像行右上角的胶囊按钮 -->
+        <view class="header-action-area">
+          <CapsuleButton />
         </view>
       </view>
 
@@ -93,7 +84,7 @@
             <view class="post-footer">
               <text class="post-time">{{ post.time }}</text>
               <view class="post-actions">
-                <view class="action-item">
+                <view class="action-item" @click.stop="openCommentDetail(post)">
                   <van-icon name="comment-o" size="16" />
                   <text class="action-num">{{ post.comments }}</text>
                 </view>
@@ -111,18 +102,70 @@
         <text class="empty-text">暂时还没有发布过动态</text>
       </view>
     </view>
+
+    <!-- 评论详情弹窗 -->
+    <van-popup
+      v-model:show="showCommentPopup"
+      position="bottom"
+      round
+      class="comment-popup"
+      :style="{ height: '75%' }"
+      @close="selectedPost = null"
+    >
+      <view class="popup-header">
+        <text class="popup-title">评论详情</text>
+        <van-icon name="cross" class="close-icon" @click="showCommentPopup = false" />
+      </view>
+      
+      <scroll-view scroll-y class="popup-content">
+        <view class="popup-scroll-inner">
+          <!-- 主评论内容 -->
+          <view class="main-comment" v-if="selectedPost">
+            <view class="comment-user-row">
+              <image class="comment-avatar" :src="user.avatar" mode="aspectFill"></image>
+              <view class="comment-user-info">
+                <text class="comment-user-name">{{ user.name }}</text>
+                <text class="comment-time">{{ selectedPost.time }}</text>
+              </view>
+            </view>
+            <text class="comment-content">{{ selectedPost.text }}</text>
+          </view>
+
+          <!-- 分割线 -->
+          <view class="comment-divider">全部回复 ({{ mockReplies.length }})</view>
+
+          <!-- 回复列表 -->
+          <view class="replies-list">
+            <view v-for="(reply, index) in mockReplies" :key="index" class="reply-item">
+              <image class="reply-avatar" :src="reply.avatar" mode="aspectFill"></image>
+              <view class="reply-body">
+                <view class="reply-header">
+                  <text class="reply-user">{{ reply.name }}</text>
+                  <text class="reply-time">{{ reply.time }}</text>
+                </view>
+                <text class="reply-text">{{ reply.text }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </van-popup>
   </view>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
 
 const statusBarHeight = ref(0);
 const isSelf = ref(true);
 const currentTab = ref(0);
+const showCommentPopup = ref(false);
+const selectedPost = ref(null);
+
 const tabs = [
-  { name: '贴子' },
+  { name: '帖子' },
   { name: '评论', icon: 'lock' },
   { name: '收藏' },
   { name: '赞过', icon: 'lock' }
@@ -162,6 +205,21 @@ const userPosts = ref([
   }
 ]);
 
+const mockReplies = ref([
+  {
+    name: '路人甲',
+    avatar: '/static/1.jpg',
+    time: '2小时前',
+    text: '确实，这种方法坚持下来很有成就感！🙌'
+  },
+  {
+    name: '理财小能手',
+    avatar: '/static/2.jpg',
+    time: '1小时前',
+    text: '我每个月能省下500多呢，加油！'
+  }
+]);
+
 onLoad((options) => {
   // 获取状态栏高度
   const systemInfo = uni.getSystemInfoSync();
@@ -179,6 +237,11 @@ onLoad((options) => {
     user.postsCount = 8;
   }
 });
+
+const openCommentDetail = (post) => {
+  selectedPost.value = post;
+  showCommentPopup.value = true;
+};
 
 const goBack = () => {
   uni.navigateBack();
@@ -223,22 +286,11 @@ const goToFollowList = (type) => {
 
 <style scoped>
 .profile-container {
-  background-color: #f8fafc;
+  background-color: #ffffff;
   min-height: 100vh;
 }
 
-/* 导航栏 */
-.nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  background-color: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
+/* 导航栏样式已移除 */
 .nav-right {
   display: flex;
   align-items: center;
@@ -250,8 +302,6 @@ const goToFollowList = (type) => {
 }
 
 .edit-btn-pill {
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
   padding: 4px 12px;
   border-radius: 20px;
   display: flex;
@@ -269,15 +319,24 @@ const goToFollowList = (type) => {
 /* 个人信息卡片 */
 .profile-header-card {
   background-color: #fff;
-  padding: 20px 16px;
-  margin-bottom: 10px;
+  padding: 10px 16px 10px;
 }
 
 .header-main {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 20px;
+}
+
+.header-info-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-action-area {
+  padding-top: 4px; /* 微调胶囊按钮高度，使其与头像顶部视觉对齐 */
 }
 
 .avatar-wrapper {
@@ -352,10 +411,6 @@ const goToFollowList = (type) => {
   color: #64748b;
 }
 
-/* 简介 */
-.bio-section {
-  margin-bottom: 20px;
-}
 
 .user-bio {
   font-size: 14px;
@@ -416,7 +471,6 @@ const goToFollowList = (type) => {
 .content-tabs {
   background-color: #fff;
   display: flex;
-  padding: 0 16px;
   border-bottom: 1px solid #f1f5f9;
 }
 
@@ -465,10 +519,140 @@ const goToFollowList = (type) => {
 
 .post-card {
   background-color: #fff;
-  border-radius: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* 评论详情弹窗 */
+.comment-popup {
+  border-radius: 20px 20px 0 0;
+  overflow-x: hidden;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  border-bottom: 1px solid #f8fafc;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.popup-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.close-icon {
+  font-size: 20px;
+  color: #94a3b8;
+  padding: 4px;
+}
+
+.popup-content {
+  width: 100%;
+  height: calc(100% - 54px); /* 减去 header 高度 */
+  box-sizing: border-box;
+}
+
+.popup-scroll-inner {
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.main-comment {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.comment-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.comment-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.comment-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.comment-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.comment-content {
+  font-size: 15px;
+  color: #1e293b;
+  line-height: 1.6;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.comment-divider {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 20px 0 15px;
+}
+
+.reply-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reply-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.reply-body {
+  flex: 1;
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.reply-user {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.reply-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.reply-text {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.5;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .post-text {

@@ -41,6 +41,13 @@
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>
+        <view class="settings-item" @click="handleEdit('bio')">
+          <text class="item-title">个性签名</text>
+          <view class="item-right">
+            <text class="item-value bio-text">{{ userInfo.bio || '未填写' }}</text>
+            <van-icon name="arrow" color="#cbd5e1" size="16" />
+          </view>
+        </view>
       </view>
 
       <!-- 账号绑定 -->
@@ -120,6 +127,37 @@
           </view>
         </view>
       </van-popup>
+
+      <!-- 修改签名弹窗 -->
+      <van-popup
+        v-model:show="showBioPopup"
+        position="bottom"
+        round
+        :style="{ height: '50%' }"
+      >
+        <view class="popup-content">
+          <view class="popup-header">
+            <text class="popup-title">修改个性签名</text>
+            <van-icon name="cross" size="20" color="#94a3b8" @click="showBioPopup = false" />
+          </view>
+          <view class="popup-body padding-20">
+            <view class="input-group">
+              <view class="input-label">新签名</view>
+              <textarea 
+                class="popup-input-bg bio-textarea" 
+                v-model="bioDraft" 
+                placeholder="填写个性签名，展现不一样的你" 
+                maxlength="50"
+                auto-height
+              />
+            </view>
+            <view class="popup-tips">最多输入50个字符</view>
+          </view>
+          <view class="popup-footer">
+            <view class="confirm-btn" @click="confirmBio">确定</view>
+          </view>
+        </view>
+      </van-popup>
     </scroll-view>
   </view>
 </template>
@@ -132,6 +170,7 @@ const userInfo = ref({
   avatar: '/static/4.jpg',
   id: '79266855',
   nickname: 'oxo',
+  bio: '保持热爱，奔赴山海。✨',
   gender: '',
   phone: '',
   wechat: 'oxo',
@@ -147,6 +186,8 @@ const goBack = () => {
 
 const showNicknamePopup = ref(false);
 const nicknameDraft = ref('');
+const showBioPopup = ref(false);
+const bioDraft = ref('');
 
 const confirmNickname = () => {
   const val = nicknameDraft.value.trim();
@@ -157,6 +198,12 @@ const confirmNickname = () => {
   userInfo.value.nickname = val;
   showNicknamePopup.value = false;
   uni.showToast({ title: '已更新', icon: 'success' });
+};
+
+const confirmBio = () => {
+  userInfo.value.bio = bioDraft.value.trim();
+  showBioPopup.value = false;
+  uni.showToast({ title: '签名已更新', icon: 'success' });
 };
 
 const confirmPhone = () => {
@@ -239,6 +286,11 @@ const handleEdit = (type) => {
   if (type === 'nickname') {
     nicknameDraft.value = userInfo.value.nickname || '';
     showNicknamePopup.value = true;
+    return;
+  }
+  if (type === 'bio') {
+    bioDraft.value = userInfo.value.bio || '';
+    showBioPopup.value = true;
     return;
   }
   if (type === 'phone') {
@@ -456,6 +508,11 @@ const handleLogout = () => {
 .popup-tips {
   font-size: 12px;
   color: #94a3b8;
+  line-height: 1.6;
+}
+
+.bio-textarea {
+  padding: 10px;
   line-height: 1.6;
 }
 

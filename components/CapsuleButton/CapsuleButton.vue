@@ -1,7 +1,7 @@
 <template>
 	<view class="capsule-container">
-		<view class="capsule-box" @click="handleHome">
-			<van-icon name="wap-home-o" size="20" color="#000" />
+		<view class="capsule-box" @click="handleBack">
+			<van-icon :name="isFirstPage ? 'wap-home-o' : 'wap-home-o'" size="20" color="#000" />
 		</view>
 	</view>
 </template>
@@ -10,16 +10,30 @@
 import { ref, onMounted } from 'vue';
 
 const statusBarHeight = ref(0);
+const isFirstPage = ref(false);
 
 onMounted(() => {
 	const sysInfo = uni.getSystemInfoSync();
 	statusBarHeight.value = sysInfo.statusBarHeight || 20;
+	// 判断是否是当前页面栈的第一页
+	const pages = getCurrentPages();
+	if (pages.length <= 1) {
+		isFirstPage.value = true;
+	}
 });
 
-const handleHome = () => {
-	uni.navigateTo({
-		url: '/pages/index/index'
-	});
+const handleBack = () => {
+	const pages = getCurrentPages();
+	
+	if (pages.length > 1) {
+		uni.navigateBack({
+			delta: 1
+		});
+	} else {
+		uni.switchTab({
+			url: '/pages/index/index'
+		});
+	}
 };
 </script>
 
