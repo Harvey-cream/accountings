@@ -1,4 +1,8 @@
 
+from django.db import models
+import uuid
+from user.models import User
+
 class TransactionIcon(models.Model):
     """图标库"""
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, verbose_name="图标ID")

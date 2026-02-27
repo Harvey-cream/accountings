@@ -1,4 +1,4 @@
-const API_URL = 'http://192.168.110.134:8030';
+const API_URL = 'http://192.168.146.1:8030';
 // 发送放行接口 (不拦截)
 export const sendReleaseRequest = async (url, method = 'GET', data = {}) => {
 	let defaultHeaders = {
