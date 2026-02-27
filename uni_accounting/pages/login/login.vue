@@ -68,13 +68,22 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { login } from '../../api/api.js';
+import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
 
 const mobile = ref('');
 const password = ref('');
 const agreed = ref(true);
 const showPassword = ref(false);
+
+onMounted(() => {
+	// 如果已经登录且 session 有效，直接跳转首页
+	const session = uni.getStorageSync('session');
+	if (session && session.token_info && session.token_info.token) {
+		uni.reLaunch({ url: '/pages/home/accounting_detail' });
+	}
+});
 
 const goToRegister = () => {
 	uni.navigateTo({
@@ -102,15 +111,19 @@ const handleLogin = async () => {
 	try {
 		const res = await login({
 			mobile: mobile.value,
-			password: password.value
+			password: SM2Utils.encrypt(password.value, BACK_PUBLIC_KEY)
 		});
 		
 		uni.hideLoading();
 		uni.showToast({ title: '登录成功', icon: 'success' });
 		
-		// 保存用户信息到缓存
-		uni.setStorageSync('userId', res.data.userId);
-		uni.setStorageSync('userInfo', res.data);
+		// 封装所有登录信息到 session 对象
+		const sessionData = {
+			token_info: res.token_info, // 直接存储后端返回的 token_info (包含 token, refresh, expires, refresh_expires)
+			user_info: res.data
+		};
+		
+		uni.setStorageSync('session', sessionData);
 		
 		setTimeout(() => {
 			uni.reLaunch({ url: '/pages/home/accounting_detail' });

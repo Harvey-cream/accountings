@@ -1,8 +1,16 @@
 <script>
 export default {
 	onLaunch: function () {
-		console.log('App Launch');
-		uni.hideTabBar();
+		// 检查登录状态
+		const session = uni.getStorageSync('session');
+		if (!session || !session.token_info || !session.token_info.token) {
+			uni.reLaunch({
+				url: '/pages/login/login'
+			});
+		}
+		// console.log('App Launch');
+		// 只有在 TabBar 页面才能调用 hideTabBar，使用 catch 防止报错
+		uni.hideTabBar().catch(() => {});
 
 		// 定义初始 TabBar 列表
 		const initialTabList = [
@@ -19,10 +27,10 @@ export default {
 		uni.$emit('updateTabbar');
 	},
 	onShow: function () {
-		console.log('App Show');
+		// console.log('App Show');
 	},
 	onHide: function () {
-		console.log('App Hide');
+		// console.log('App Hide');
 	}
 };
 </script>

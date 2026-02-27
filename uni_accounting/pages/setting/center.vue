@@ -4,9 +4,9 @@
 		<view class="header-card">
 			<view class="header-banner">
 				<view class="user-info">
-					<image class="avatar" src="/static/4.jpg" mode="aspectFill"></image>
+					<image class="avatar" :src="userInfo.avatarUrl || '/static/4.jpg'" mode="aspectFill"></image>
 					<view class="user-detail">
-						<text class="user-name">oxo</text>
+						<text class="user-name">{{ userInfo.username || '未登录' }}</text>
 					</view>
 					<view class="check-in-btn" @click="toggleCheckIn">
 						<van-icon :name="isChecked ? 'passed' : 'todo-list-o'" size="14" />
@@ -207,8 +207,21 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+
+// 登录用户信息
+const userInfo = ref({
+	username: '',
+	avatarUrl: ''
+});
+
+onMounted(() => {
+	const session = uni.getStorageSync('session');
+	if (session && session.user_info) {
+		userInfo.value = session.user_info;
+	}
+});
 
 // 打卡状态
 const isChecked = ref(false);

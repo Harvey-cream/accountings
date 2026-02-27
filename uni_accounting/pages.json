@@ -1,5 +1,13 @@
 {
-	"pages": [{
+	"pages": [
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/home/accounting_detail",
 			"style": {
 				"navigationBarTitleText": "账单明细"
@@ -202,13 +210,6 @@
 			"path": "pages/page_social/social_profile/profile",
 			"style": {
 				"navigationBarTitleText": "个人主页",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/login/login",
-			"style": {
-				"navigationBarTitleText": "登录",
 				"navigationStyle": "custom"
 			}
 		},

@@ -55,6 +55,7 @@
 <script setup>
 import { ref } from 'vue';
 import { register } from '../../api/api.js';
+import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
 
 const mobile = ref('');
 const code = ref('');
@@ -65,7 +66,14 @@ const counting = ref(false);
 const count = ref(60);
 
 const goBack = () => {
-  uni.navigateBack();
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    uni.navigateBack();
+  } else {
+    uni.reLaunch({
+      url: '/pages/login/login'
+    });
+  }
 };
 
 const getCode = () => {
@@ -96,7 +104,7 @@ const handleRegister = async () => {
   try {
     const res = await register({
       mobile: mobile.value,
-      password: password.value,
+      password: SM2Utils.encrypt(password.value, BACK_PUBLIC_KEY),
       code: code.value 
     });
 
@@ -106,7 +114,7 @@ const handleRegister = async () => {
     
     // 注册成功后自动登录或跳转到登录页
     setTimeout(() => {
-      uni.navigateBack();
+      goBack();
     }, 1500);
   } catch (err) {
     uni.hideLoading();

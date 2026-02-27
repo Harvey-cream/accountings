@@ -316,8 +316,8 @@ const handleLogout = () => {
 		content: '确定要退出登录吗？',
 		success: (res) => {
 			if (res.confirm) {
-				uni.removeStorageSync('userId');
-				uni.removeStorageSync('userInfo');
+				// 清除统一的 session 缓存
+				uni.removeStorageSync('session');
 				
 				uni.showToast({
 					title: '已退出登录',

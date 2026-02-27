@@ -50,7 +50,14 @@ const counting = ref(false);
 const count = ref(60);
 
 const goBack = () => {
-  uni.navigateBack();
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    uni.navigateBack();
+  } else {
+    uni.reLaunch({
+      url: '/pages/login/login'
+    });
+  }
 };
 
 const getCode = () => {
@@ -77,7 +84,7 @@ const handleReset = () => {
     uni.hideLoading();
     uni.showToast({ title: '密码重置成功', icon: 'success' });
     setTimeout(() => {
-      uni.navigateBack();
+      goBack();
     }, 1000);
   }, 1000);
 };

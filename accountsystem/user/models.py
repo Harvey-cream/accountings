@@ -2,14 +2,13 @@ from django.db import models
 import uuid
 
 class User(models.Model):
-    # 使用 UUID 作为主键，既保证唯一性又方便作为 id 关联
-    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, verbose_name="用户ID")
     username = models.CharField(max_length=50, null=True, blank=True, verbose_name="姓名")
     mobile = models.CharField(max_length=11, unique=True, null=True, verbose_name="手机号")
     password = models.CharField(max_length=128, verbose_name="密码")
     login_type = models.SmallIntegerField(default=1, verbose_name="登录类型")
     third_party_id = models.CharField(max_length=100, unique=True, null=True, blank=True, verbose_name="第三方唯一标识")
     refer_code = models.CharField(max_length=30, null=True, blank=True, verbose_name="推荐码")
+    self_code = models.CharField(max_length=30, null=True, blank=True, verbose_name="自身邀请码")
     is_verified = models.BooleanField(default=False, verbose_name="是否认证")
     role_id = models.IntegerField(null=True, blank=True, verbose_name="VIP角色ID")
     avatar_url = models.TextField(null=True, blank=True, verbose_name="用户头像地址")

@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "sm-crypto": "^0.4.0"
+  }
+}

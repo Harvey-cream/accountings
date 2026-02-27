@@ -163,19 +163,31 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
-// 虚拟用户信息
+// 初始用户信息
 const userInfo = ref({
   avatar: '/static/4.jpg',
-  id: '79266855',
-  nickname: 'oxo',
+  id: '',
+  nickname: '',
   bio: '保持热爱，奔赴山海。✨',
   gender: '',
   phone: '',
-  wechat: 'oxo',
+  wechat: '',
   apple: '',
   emergency: ''
+});
+
+onMounted(() => {
+  // 从 session 中获取真实用户信息
+  const session = uni.getStorageSync('session');
+  if (session && session.user_info) {
+    const data = session.user_info;
+    userInfo.value.id = data.userId || '';
+    userInfo.value.nickname = data.username || '';
+    userInfo.value.phone = data.mobile || '';
+    userInfo.value.avatar = data.avatarUrl || '/static/4.jpg';
+  }
 });
 
 const goBack = () => {
@@ -339,10 +351,19 @@ const handleLogout = () => {
     content: '确定要退出登录吗？',
     success: (res) => {
       if (res.confirm) {
+        // 清除统一的 session 缓存
+        uni.removeStorageSync('session');
+        
         uni.showToast({
           title: '已退出登录',
-          icon: 'none'
+          icon: 'success'
         });
+        
+        setTimeout(() => {
+          uni.reLaunch({
+            url: '/pages/login/login'
+          });
+        }, 800);
       }
     }
   });
