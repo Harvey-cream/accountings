@@ -1,7 +1,28 @@
-.idea/
-node_modules/
-unpackage/dist/
-*.sqlite3
-*.db
+# Python 缓存
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# 数据库文件
+*.sqlite3
+*.db
+*.sqlite
+
+# IDE 配置
+.idea/
+*.iml
+.vscode/
+
+# Node 前端依赖（如果有）
+node_modules/
+package-lock.json
+yarn.lock
+
+# 环境变量/敏感配置
+.env
+.local
+*.local
+
+# 日志文件
+*.log
