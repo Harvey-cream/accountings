@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import User
 from django.utils import timezone
+from datetime import datetime, timedelta
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
 
@@ -20,23 +21,21 @@ class UserloginView(APIView):
             
         try:
             user = User.objects.get(mobile=mobile)
-            # 1. 解密前端 SM2 密文
             decrypted_password = request_handler.decrypt(password)
-            # 2. SM3 哈希后对比
             if sm3_hash(decrypted_password) == user.password:
                 user.last_login_time = timezone.now()
                 user.save()
-                
-                # 生成 JWT Access Token (10 分钟过期)
-                token, token_expires = create_token(user.id, minutes=10)
-                # 生成 JWT Refresh Token (1 周过期)
-                refresh_token, refresh_expires = create_token(user.id, weeks=1, is_refresh=True)
+                token = create_token(user.id)
+                refresh_token = create_token(user.id)
+
+                token_expires = datetime.now() + timedelta(minutes=10)
+                refresh_expires = datetime.now() + timedelta(weeks=1)
                 
                 token_info = {
                     'token': token,
                     'refresh': refresh_token,
-                    'expires': int(token_expires * 1000),
-                    'refresh_expires': int(refresh_expires * 1000),
+                    'expires': int(token_expires.timestamp() * 1000),
+                    'refresh_expires': int(refresh_expires.timestamp() * 1000),
                 }
                 
                 return Response({

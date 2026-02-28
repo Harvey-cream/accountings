@@ -80,7 +80,6 @@
 				</view>
 			</van-list>
 		</view>
-			<!-- Month Picker Popup -->
 			<van-popup v-model:show="showMonthPicker" position="bottom">
 				<van-date-picker
 					v-model="currentDateArray"
@@ -245,15 +244,6 @@ const onDelete = (groupId, itemId) => {
 		}
 	});
 };
-
-const navItems = ref([
-	{ id: 1, name: '明细', icon: 'list-switch', active: true },
-	{ id: 2, name: '图表', icon: 'chart-trending-o', active: false },
-	{ id: 3, name: '记账', icon: 'plus', isFab: true },
-	{ id: 4, name: '发现', icon: 'search', active: false },
-	{ id: 5, name: '我的', icon: 'user-o', active: false }
-]);
-
 const onMonthConfirm = ({ selectedValues }) => {
 	summary.value.year = selectedValues[0];
 	summary.value.month = selectedValues[1];

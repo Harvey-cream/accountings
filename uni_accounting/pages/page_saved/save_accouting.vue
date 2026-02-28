@@ -2,7 +2,7 @@
 	<view class="page-container" :class="currentThemeClass">
 		<view class="top-section">
 			<view class="header-bar">
-				<van-icon name="arrow-left" size="24" color="#0f172a" @click="goBack" />
+				<van-icon name="arrow-left" size="24" color="#0f172a" @click="goBack('/pages/home/accounting_detail')" />
 				<view class="tab-box">
 					<view class="tab-item" :class="{ active: activeTab === 'expense' }" @click="activeTab = 'expense'">支出</view>
 					<view class="tab-item" :class="{ active: activeTab === 'income' }" @click="activeTab = 'income'">收入</view>
@@ -87,8 +87,6 @@
 					</view>
 				</view>
 			</view>
-
-			<!-- Save Button -->
 			<button class="save-btn" @click="saveBill">
 				<van-icon name="success" color="#0f172a" size="18" style="margin-right: 6px" />
 				<text class="save-text">保存账单</text>
@@ -100,12 +98,23 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { getAllIcons } from '@/api/api.js';
+import { assignDefaultColors } from '@/utils/color.js';
+import { goBack } from '@/utils/common.js';
+
 const amount = ref('');
-const selectedCategoryId = ref(1);
+const selectedCategoryId = ref(null); // 初始设为 null
 const activeTab = ref('expense'); 
 
 const now = new Date();
+// 监听 tab 切换，自动选中该 tab 下的第一个分类
+watch(activeTab, (newTab) => {
+	const currentList = newTab === 'expense' ? categories.value : incomeCategories.value;
+	if (currentList.length > 0) {
+		selectedCategoryId.value = currentList[0].id;
+	}
+});
 const currentDate = ref(`${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`);
 const minDate = new Date(now.getFullYear() - 10, 0, 1);
 const maxDate = new Date();
@@ -116,72 +125,71 @@ const showMoreIcons = ref(false);
 const inputPlaceholder = ref('0.00'); 
 
 // --- Data ---
-const categories = ref([
-	{ id: 1, name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' },
-	{ id: 2, name: '购物', icon: 'bag-o', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ id: 3, name: '交通', icon: 'logistics', colorBg: '#ecfdf5', colorIcon: '#10b981' },
-	{ id: 4, name: '娱乐', icon: 'video-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
-	{ id: 5, name: '医疗', icon: 'friends-o', colorBg: '#fee2e2', colorIcon: '#ef4444' },
-	{ id: 6, name: '学习', icon: 'bookmark-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
-	{ id: 7, name: '房租', icon: 'wap-home-o', colorBg: '#ecfeff', colorIcon: '#06b6d4' },
-	{ id: 8, name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
-]);
-
-const incomeCategories = ref([
-	{ id: 101, name: '工资', icon: 'gold-coin-o', colorBg: '#f0fdf4', colorIcon: '#16a34a' },
-	{ id: 102, name: '兼职', icon: 'records', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ id: 103, name: '理财', icon: 'balance-o', colorBg: '#fffbeb', colorIcon: '#d97706' },
-	{ id: 104, name: '奖金', icon: 'diamond-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
-	{ id: 106, name: '报销', icon: 'notes-o', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ id: 107, name: '租金', icon: 'wap-home-o', colorBg: '#ecfeff', colorIcon: '#06b6d4' },
-	{ id: 108, name: '分红', icon: 'chart-trending-o', colorBg: '#f0fdf4', colorIcon: '#16a34a' },
-	{ id: 105, name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
-]);
+const categories = ref([]);
+const incomeCategories = ref([]);
 
 const currentCategories = computed(() => {
 	return activeTab.value === 'expense' ? categories.value : incomeCategories.value;
 });
 
-const moreIcons = ref([
-	{ name: '电影', icon: 'video-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
-	{ name: '运动', icon: 'fire-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
-	{ name: '礼物', icon: 'gift-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
-	{ name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' },
-	{ name: '办公', icon: 'description', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ name: '维修', icon: 'setting-o', colorBg: '#ecfdf5', colorIcon: '#10b981' },
-	{ name: '话费', icon: 'phone-o', colorBg: '#fee2e2', colorIcon: '#ef4444' },
-	{ name: '社交', icon: 'friends-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
-	{ name: '美发', icon: 'brush-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
-	{ name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
-]);
+// 初始设为空，从后端获取
+const moreIcons = ref([]);
+const moreIncomeIcons = ref([]);
 
-const moreIncomeIcons = ref([
-	{ name: '礼金', icon: 'gift-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
-	{ name: '退款', icon: 'refund-o', colorBg: '#fffbeb', colorIcon: '#d97706' },
-	{ name: '利息', icon: 'balance-list-o', colorBg: '#f1f5f9', colorIcon: '#64748b' },
-	{ name: '二手', icon: 'shop-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
-	{ name: '红包', icon: 'paimai', colorBg: '#fee2e2', colorIcon: '#ef4444' },
-	{ name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
-]);
+const initCategoriesData = (allIcons) => {
+	const normalIcons = allIcons.filter(i => i.group === 'normal');
+	// 2. 按 type 拆分：all 类型在两边都展示
+	const expenseIcons = normalIcons.filter(i => i.type === 'expense' || i.type === 'all');
+	const incomeIcons = normalIcons.filter(i => i.type === 'income' || i.type === 'all');
+	
+	// 3. 分配固定颜色
+	const coloredExpense = assignDefaultColors(expenseIcons);
+	const coloredIncome = assignDefaultColors(incomeIcons);
+
+	// 4. 排序逻辑辅助函数
+	const moveOtherToEnd = (list) => {
+		const rest = list.filter(i => i.name !== '其他');
+		const other = list.find(i => i.name === '其他');
+		return other ? [...rest, other] : rest;
+	};
+
+	const getGridList = (sortedList) => {
+		const rest = sortedList.filter(i => i.name !== '其他');
+		const other = sortedList.find(i => i.name === '其他');
+		const main = rest.slice(0, 7);
+		return other ? [...main, other] : main;
+	};
+
+	// 5. 更新响应式数据
+	moreIcons.value = moveOtherToEnd(coloredExpense);
+	moreIncomeIcons.value = moveOtherToEnd(coloredIncome);
+	categories.value = getGridList(moreIcons.value);
+	incomeCategories.value = getGridList(moreIncomeIcons.value);
+	
+	// 6. 设置初始选中的分类 ID
+	const currentList = activeTab.value === 'expense' ? categories.value : incomeCategories.value;
+	if (currentList.length > 0) {
+		selectedCategoryId.value = currentList[0].id;
+	}
+};
+
+onMounted(async () => {
+	try {
+		const res = await getAllIcons();
+		if (res.code === 200) {
+			initCategoriesData(res.data);
+		}
+	} catch (e) {
+		console.error('Failed to load icons:', e);
+	}
+});
 
 const currentMoreIcons = computed(() => {
 	return activeTab.value === 'expense' ? moreIcons.value : moreIncomeIcons.value;
 });
 
-// --- Methods ---
-const goBack = () => {
-	const pages = getCurrentPages();
-	if (pages.length > 1) {
-		uni.navigateBack();
-	} else {
-		uni.switchTab({
-			url: '/pages/home/accounting_detail'
-		});
-	}
-};
-
 const onSelectCategory = (cat) => {
-	if ((activeTab.value === 'expense' && cat.id === 8) || (activeTab.value === 'income' && cat.id === 105)) {
+	if (cat.name === '其他') {
 		showMoreIcons.value = true;
 	} else {
 		selectedCategoryId.value = cat.id;
@@ -189,11 +197,9 @@ const onSelectCategory = (cat) => {
 };
 
 const onSelectMoreIcon = (icon) => {
-	// 这里可以根据需要处理选择更多图标后的逻辑
-	// 比如更新“其他”分类的图标或者直接选中
-	const targetId = activeTab.value === 'expense' ? 8 : 105;
+	// 查找当前 tab 下的“其他”分类对象并更新它
 	const categoriesToSearch = activeTab.value === 'expense' ? categories.value : incomeCategories.value;
-	const otherCat = categoriesToSearch.find(c => c.id === targetId);
+	const otherCat = categoriesToSearch.find(c => c.name === '其他');
 	if (otherCat) {
 		otherCat.icon = icon.icon;
 		otherCat.colorBg = icon.colorBg;

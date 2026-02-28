@@ -1,13 +1,14 @@
 
 from django.db import models
-import uuid
 from user.models import User
 
 class TransactionIcon(models.Model):
     """图标库"""
-    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, verbose_name="图标ID")
-    name = models.CharField(max_length=50, verbose_name="图标名称")
-    group = models.CharField(max_length=20, verbose_name="图标分组")
+    id = models.AutoField(primary_key=True, verbose_name="图标ID")
+    name = models.CharField(max_length=50, verbose_name="图标名称", blank=True)
+    icon = models.CharField(max_length=50, unique=True, verbose_name="图标值",blank=True) # 保证图标值唯一
+    group = models.CharField(max_length=20, default='normal', verbose_name="图标分组") # normal 或 custom
+    type = models.CharField(max_length=10, default='all', verbose_name="适用类型") # expense, income, all
 
     class Meta:
         verbose_name = "图标库"
@@ -19,7 +20,7 @@ class TransactionCategory(models.Model):
         ('expense', '支出'),
         ('income', '收入'),
     )
-    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, verbose_name="分类ID")
+    id = models.AutoField(primary_key=True, verbose_name="分类ID")
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, verbose_name="所属用户ID")
     name = models.CharField(max_length=20, verbose_name="分类名称")
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='expense', verbose_name="账单类型")
@@ -36,7 +37,7 @@ class TransactionRecord(models.Model):
         ('expense', '支出'),
         ('income', '收入'),
     )
-    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, verbose_name="记录ID")
+    id = models.AutoField(primary_key=True, verbose_name="记录ID")
     # 明确关联 User 的 id
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="所属用户ID")
     category = models.ForeignKey(TransactionCategory, on_delete=models.CASCADE, verbose_name="所属分类ID")

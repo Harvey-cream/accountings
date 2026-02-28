@@ -101,7 +101,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { getAllIcons } from '@/api/api.js';
 
 const tabs = ['支出', '收入'];
 const currentTab = ref(0);
@@ -132,30 +133,29 @@ const newCategory = ref({
   icon: 'apps-o'
 });
 
-// 预设图标库
-const availableIcons = [
-  // 餐饮
-  'shop-o', 'bag-o', 'brush-o', 'logistics', 'flower-o', 'cluster-o', 'cake', 'fire-o',
-  // 生活
-  'home-o', 'cart-o', 'phone-o', 'video-o', 'music-o', 'smile-o', 'gift-o', 'gem-o',
-  // 交通/旅行
-  'location-o', 'guide-o', 'hotel-o', 'flag-o', 'map-marked', 'photograph',
-  // 运动/健康
-  'medal-o', 'points', 'underway-o', 'clock-o', 'bell', 'shield-o',
-  // 办公/学习
-  'edit', 'notes-o', 'records', 'envelop-o', 'newspaper-o', 'award-o',
-  // 购物/财务
-  'gold-coin-o', 'balance-o', 'card', 'bill-o', 'coupon-o', 'orders-o',
-  // 其他
-  'tv-o', 'bullhorn-o', 'photo-o', 'apps-o', 'filter-o', 'setting-o', 'user-o',
-  'star-o', 'good-job-o', 'comment-o', 'manager-o', 'label-o', 'bookmark-o',
-  'service-o', 'chat-o', 'search', 'ellipsis', 'exchange'
-];
+// 预设图标库 (初始设为空，从后端获取)
+const availableIcons = ref([]);
+
+onMounted(async () => {
+  try {
+    const res = await getAllIcons();
+    if (res.code === 200) {
+      // 过滤出 group 为 custom 的图标编码
+      availableIcons.value = res.data
+        .filter(item => item.group === 'custom')
+        .map(item => item.icon);
+      
+      console.log('Custom icons loaded:', availableIcons.value.length);
+    }
+  } catch (e) {
+    console.error('Failed to fetch icons:', e);
+  }
+});
 
 // 过滤掉当前 Tab 已使用的图标
 const filteredAvailableIcons = computed(() => {
   const usedIcons = categories.value[currentTab.value].map(item => item.icon);
-  return availableIcons.filter(icon => !usedIcons.includes(icon));
+  return availableIcons.value.filter(icon => !usedIcons.includes(icon));
 });
 
 const goBack = () => {

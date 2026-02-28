@@ -1,15 +1,17 @@
 <script>
+import { initRouterInterceptor, checkInitialPath } from '@/utils/navigate.js';
+
 export default {
 	onLaunch: function () {
-		// 检查登录状态
-		const session = uni.getStorageSync('session');
-		if (!session || !session.token_info || !session.token_info.token) {
-			uni.reLaunch({
-				url: '/pages/login/login'
-			});
-		}
-		// console.log('App Launch');
-		// 只有在 TabBar 页面才能调用 hideTabBar，使用 catch 防止报错
+		console.log('App Launch');
+		// 1. 初始化路由拦截器
+		initRouterInterceptor();
+		// 2. 针对首次加载的 H5/APP 初始页面进行拦截
+		let currentPath = '';
+		currentPath = window.location.hash || window.location.pathname;
+		currentPath = this.$scope?.route || '';
+		checkInitialPath(currentPath);
+		// 3. 其它初始化逻辑
 		uni.hideTabBar().catch(() => {});
 
 		// 定义初始 TabBar 列表
