@@ -28,7 +28,9 @@ yarn.lock
 *.log
 
 # Django 迁移文件
-# 忽略所有迁移文件（0001_initial.py 等），但保留 __init__.py 以保证目录结构存在
+# 忽略所有迁移文件
 **/migrations/*.py
-!**/migrations/__init__.py
 **/migrations/__pycache__/
+
+# 忽略初始化文件 (如果你不想在版本管理中看到它们)
+__init__.py
