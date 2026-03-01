@@ -6,7 +6,7 @@ class TransactionIcon(models.Model):
     """图标库"""
     id = models.AutoField(primary_key=True, verbose_name="图标ID")
     name = models.CharField(max_length=50, verbose_name="图标名称", blank=True)
-    icon = models.CharField(max_length=50, unique=True, verbose_name="图标值",blank=True) # 保证图标值唯一
+    icon = models.CharField(max_length=50, unique=True, verbose_name="图标值", blank=True) # 保证图标值唯一
     group = models.CharField(max_length=20, default='normal', verbose_name="图标分组") # normal 或 custom
     type = models.CharField(max_length=10, default='all', verbose_name="适用类型") # expense, income, all
 
