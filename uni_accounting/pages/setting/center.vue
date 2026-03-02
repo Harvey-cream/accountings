@@ -217,7 +217,6 @@ const userInfo = ref({
 });
 
 onMounted(() => {
-	// 1. 优先尝试从缓存获取
 	const session = uni.getStorageSync('session');
 	if (session && session.user_info) {
 		userInfo.value = session.user_info;

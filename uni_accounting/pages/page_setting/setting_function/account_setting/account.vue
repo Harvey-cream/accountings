@@ -17,10 +17,10 @@
         <view class="settings-item avatar-item" @click="changeAvatar">
           <text class="item-title">头像</text>
           <view class="item-right">
-            <image class="avatar-img" :src="userInfo.avatar" mode="aspectFill"></image>
+            <image class="avatar-img" :src="userInfo.avatarUrl" mode="aspectFill"></image>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
-        </view>
+        </view>   
         <view class="settings-item">
           <text class="item-title">ID</text>
           <view class="item-right">
@@ -164,6 +164,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useUserStore } from '@/store/user.js';
 
 // 初始用户信息
 const userInfo = ref({
@@ -196,6 +197,7 @@ const goBack = () => {
   });
 };
 
+const userStore = useUserStore();
 const showNicknamePopup = ref(false);
 const nicknameDraft = ref('');
 const showBioPopup = ref(false);
@@ -351,19 +353,7 @@ const handleLogout = () => {
     content: '确定要退出登录吗？',
     success: (res) => {
       if (res.confirm) {
-        // 清除统一的 session 缓存
-        uni.removeStorageSync('session');
-        
-        uni.showToast({
-          title: '已退出登录',
-          icon: 'success'
-        });
-        
-        setTimeout(() => {
-          uni.reLaunch({
-            url: '/pages/login/login'
-          });
-        }, 800);
+        userStore.logout();
       }
     }
   });

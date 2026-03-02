@@ -28,7 +28,7 @@ export const sendReleaseRequest = async (url, method = 'GET', data = {}) => {
 					resolve(res.data)
 				} else {
 					uni.showToast({
-						title: res.data.message || '请求失败',
+						title: res.data.msg || '请求失败',
 						icon: 'none'
 					});
 					reject(res.data)
@@ -101,7 +101,7 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 
 	// 3. 正常发起请求
 	defaultHeaders['Authorization'] = 'Bearer ' + token;
-	const userId = session?.user_info?.userId;
+	const userId = sessionInfo?.user_info?.userId;
 	if (userId) {
 		defaultHeaders['X-User-ID'] = userId;
 	}
@@ -132,7 +132,7 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 					});
 				} else {
 					uni.showToast({
-						title: res.data.message || '请求失败',
+						title: res.data.msg || '请求失败',
 						icon: 'none'
 					});
 					reject(res.data)
@@ -165,15 +165,15 @@ const refreshToken = () => {
 				refresh_token: refresh
 			}, // 接口参数名保持不变
 			success(res) {
-				if (res.statusCode === 200 && res.data.code === 200) {
+				if (res.statusCode === 200 && res.data.code === 0) {
 					// 更新 session 中的 token_info (后端返回的是完整的 token_info 对象)
-					sessionInfo.token_info = res.data.token_info;
+					sessionInfo.token_info = res.data.data;
 					uni.setStorageSync('session', sessionInfo);
-					resolve(res.data.token_info.token);
+					resolve(res.data.data.token);
 				} else {
 					// 刷新彻底失败，清除登录状态
 					uni.removeStorageSync('session');
-					reject(res.data.message || '刷新失败');
+					reject(res.data.msg || '刷新失败');
 				}
 			},
 			fail(err) {

@@ -13,18 +13,19 @@ app.$mount()
 
 // #ifdef VUE3
 import { createSSRApp } from 'vue'
+import { createPinia } from 'pinia';
 import Vant from 'vant';
 import 'vant/lib/index.css';
-import { themeMixin } from './pages/store/theme';
+import { themeMixin } from './store/theme';
 import { authMixin } from './utils/navigate';
 
 export function createApp() {
   const app = createSSRApp(App)
+  const pinia = createPinia(); 
+  app.use(pinia);
   app.use(Vant);
   app.mixin(themeMixin);
   app.mixin(authMixin);
-  return {
-    app
-  }
+  return { app, pinia }
 }
 // #endif

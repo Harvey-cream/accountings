@@ -4,6 +4,7 @@
 
 // 无需登录的页面白名单
 const ignore_urls = [
+	'/', // H5 根路径
 	'/pages/login/login',
 	'/pages/login/register',
 	'/pages/login/forget_password'

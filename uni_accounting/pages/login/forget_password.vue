@@ -62,6 +62,10 @@ const goBack = () => {
 
 const getCode = () => {
   if (counting.value || !phone.value) return;
+  if (!/^1[3-9]\d{9}$/.test(phone.value)) {
+    uni.showToast({ title: '请输入正确的手机号码', icon: 'none' });
+    return;
+  }
   counting.value = true;
   uni.showToast({ title: '验证码已发送', icon: 'none' });
   const timer = setInterval(() => {
@@ -77,6 +81,10 @@ const getCode = () => {
 const handleReset = () => {
   if (!phone.value || !code.value || !password.value) {
     uni.showToast({ title: '请填写完整信息', icon: 'none' });
+    return;
+  }
+  if (!/^1[3-9]\d{9}$/.test(phone.value)) {
+    uni.showToast({ title: '请输入正确的手机号码', icon: 'none' });
     return;
   }
   uni.showLoading({ title: '处理中...' });

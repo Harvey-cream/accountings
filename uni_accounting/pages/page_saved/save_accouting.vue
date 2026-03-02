@@ -87,7 +87,7 @@
 					</view>
 				</view>
 			</view>
-			<button class="save-btn" @click="saveBill">
+			<button class="save-btn" @click="handleSave">
 				<van-icon name="success" color="#0f172a" size="18" style="margin-right: 6px" />
 				<text class="save-text">保存账单</text>
 			</button>
@@ -99,7 +99,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { getAllIcons } from '@/api/api.js';
+import { getAllIcons, saveBill } from '@/api/api.js';
 import { assignDefaultColors } from '@/utils/color.js';
 import { goBack } from '@/utils/common.js';
 
@@ -176,7 +176,7 @@ const initCategoriesData = (allIcons) => {
 onMounted(async () => {
 	try {
 		const res = await getAllIcons();
-		if (res.code === 200) {
+		if (res.code === 0) {
 			initCategoriesData(res.data);
 		}
 	} catch (e) {
@@ -238,20 +238,47 @@ const onConfirmDate = (date) => {
 	showCalendar.value = false;
 };
 
-const saveBill = () => {
+const handleSave = async () => {
 	if (!amount.value) {
 		uni.showToast({ title: '请输入金额', icon: 'none' });
 		return;
 	}
-
+	const selectedCategory = currentCategories.value.find(c => c.id === selectedCategoryId.value);
+	if (!selectedCategory) {
+		uni.showToast({ title: '请选择分类', icon: 'none' });
+		return;
+	}
 	uni.showLoading({ title: '保存中' });
-	setTimeout(() => {
+	try {
+		console.log('--- 开始保存账单 ---');
+		const params = {
+			amount: amount.value,
+			type: activeTab.value === 'expense' ? 'expense' : 'income',
+			icon_id: selectedCategoryId.value,
+			date: currentDate.value,
+			location: location.value,
+			remark: remark.value,
+		};
+		console.log('发送请求参数:', JSON.stringify(params));
+
+		const res = await saveBill(params);
+		console.log('后端返回结果:', JSON.stringify(res));
+
+		if (res.code === 0) {
+			uni.showToast({ title: '保存成功', icon: 'success' });
+			setTimeout(() => {
+				uni.navigateBack();
+			}, 1000);
+		} else {
+			console.error('业务逻辑报错:', res.msg);
+			uni.showToast({ title: res.msg || '保存失败', icon: 'none' });
+		}
+	} catch (e) {
+		console.error('接口调用发生异常:', e);
+		uni.showToast({ title: '网络请求异常，请检查后端服务', icon: 'none' });
+	} finally {
 		uni.hideLoading();
-		uni.showToast({ title: '保存成功' });
-		setTimeout(() => {
-			uni.navigateBack();
-		}, 1000);
-	}, 800);
+	}
 };
 </script>
 

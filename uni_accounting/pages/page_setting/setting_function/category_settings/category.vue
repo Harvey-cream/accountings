@@ -139,16 +139,14 @@ const availableIcons = ref([]);
 onMounted(async () => {
   try {
     const res = await getAllIcons();
-    if (res.code === 200) {
+    if (res.code === 0) {
       // 过滤出 group 为 custom 的图标编码
       availableIcons.value = res.data
         .filter(item => item.group === 'custom')
         .map(item => item.icon);
-      
-      console.log('Custom icons loaded:', availableIcons.value.length);
     }
   } catch (e) {
-    console.error('Failed to fetch icons:', e);
+    // console.error('Failed to fetch icons:', e);
   }
 });
 

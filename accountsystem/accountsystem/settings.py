@@ -52,6 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'common.global_middleware.GlobalMiddleware', # 全局 JWT 校验
 ]
 
 # 允许所有来源（域名）的跨域请求

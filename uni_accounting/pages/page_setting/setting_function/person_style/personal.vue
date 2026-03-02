@@ -35,7 +35,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useTheme } from '@/pages/store/theme';
+import { useTheme } from '@/store/theme';
 
 const { selectTheme: setTheme } = useTheme();
 

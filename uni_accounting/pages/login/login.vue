@@ -71,7 +71,9 @@
 import { ref, onMounted } from 'vue';
 import { login } from '../../api/api.js';
 import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
+import { useUserStore } from '../../store/user.js';
 
+const userStore = useUserStore();
 const mobile = ref('');
 const password = ref('');
 const agreed = ref(true);
@@ -106,6 +108,10 @@ const handleLogin = async () => {
 		uni.showToast({ title: '请输入手机号和密码', icon: 'none' });
 		return;
 	}
+	if (!/^1[3-9]\d{9}$/.test(mobile.value)) {
+		uni.showToast({ title: '请输入正确的手机号码', icon: 'none' });
+		return;
+	}
 	
 	uni.showLoading({ title: '登录中...', mask: true });
 	try {
@@ -115,19 +121,19 @@ const handleLogin = async () => {
 		});
 		
 		uni.hideLoading();
-		uni.showToast({ title: '登录成功', icon: 'success' });
 		
-		// 封装所有登录信息到 session 对象
-		const sessionData = {
-			token_info: res.token_info, // 直接存储后端返回的 token_info (包含 token, refresh, expires, refresh_expires)
-			user_info: res.data
-		};
-		
-		uni.setStorageSync('session', sessionData);
-		
-		setTimeout(() => {
-			uni.reLaunch({ url: '/pages/home/accounting_detail' });
-		}, 1000);
+		if (res.code === 0) {
+			uni.showToast({ title: '登录成功', icon: 'success' });
+			
+			// 使用 store 统一管理登录信息(包括 token 和用户信息)
+			userStore.setLoginInfo(res.data);
+			
+			setTimeout(() => {
+				uni.reLaunch({ url: '/pages/home/accounting_detail' });
+			}, 1000);
+		} else {
+			uni.showToast({ title: res.msg || '登录失败', icon: 'none' });
+		}
 	} catch (err) {
 		uni.hideLoading();
 		console.error('登录失败:', err);
