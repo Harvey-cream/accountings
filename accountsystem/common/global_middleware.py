@@ -24,28 +24,30 @@ class GlobalMiddleware(MiddlewareMixin):
         if path in self.WHITE_LIST:
             return None
 
+        # 1. 从 Authorization 头获取 Token
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return HttpResult.json_fail("未授权访问，请先登录", code=WebStatusEnum.UNAUTHORIZED.code)
 
         token = auth_header.split(' ')[1]
-        try:
-            user_id = verify_token(token)
-        except Exception as e:
-            logger.error(f"JWT 验证异常: {str(e)}")
-            user_id = None
+        
+        # 2. 调用 jwt_token.py 中的 verify_token 进行公钥解密
+        user_id = verify_token(token)
         
         if not user_id:
-            return HttpResult.json_fail("登录已失效，请重新登录", code=WebStatusEnum.UNAUTHORIZED.code)
+            return HttpResult.json_fail("登录已失效或 Token 错误，请重新登录", code=WebStatusEnum.UNAUTHORIZED.code)
 
         try:
+            # 3. 根据解密出的 user_id 拿到真实的 User 对象
             user = User.objects.get(id=user_id)
-            request.user = user
+            
+            # 4. 注入到自定义属性中，避免被 Django 默认中间件重置
+            request.user_obj = user
             return None
         except User.DoesNotExist:
             return HttpResult.json_fail("用户不存在", code=WebStatusEnum.NOT_FOUND.code)
         except Exception as e:
-            return HttpResult.json_fail(f"身份校验异常: {str(e)}", code=WebStatusEnum.FAILURE.code)
+            return HttpResult.json_fail(f"身份识别异常: {str(e)}", code=WebStatusEnum.FAILURE.code)
 
     def process_exception(self, request, exception):
         """处理视图中抛出的异常"""

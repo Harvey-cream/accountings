@@ -7,6 +7,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
+from user.utils.user import get_current_user
 from common.response_web import HttpResult, WebStatusEnum
 
 class UserloginView(APIView):
@@ -41,13 +42,13 @@ class UserloginView(APIView):
                 
                 # 构造详细用户信息
                 user_info = {
-                    'user_id': user.id,
+                    'userId': user.id,
                     'username': user.username if user.username else user.mobile,
                     'mobile': user.mobile,
-                    'login_type': user.login_type,
-                    'self_code': user.self_code,
-                    'avatar_url': user.avatar_url,
-                    'is_verified': user.is_verified,
+                    'loginType': user.login_type,
+                    'selfCode': user.self_code,
+                    'avatarUrl': user.avatar_url,
+                    'isVerified': user.is_verified,
                 }
                 
                 return HttpResult.success_with_data("登录成功", {
@@ -121,3 +122,22 @@ class UserRegisterView(APIView):
         except Exception as e:
             print(f"用户注册失败: {e}")
             return HttpResult.fail("注册失败")
+
+
+class GetUserInfoView(APIView):
+    """获取用户信息接口"""
+    def get(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录", code=WebStatusEnum.UNAUTHORIZED.code)
+        
+        user_info = {
+            'userId': user.id,
+            'username': user.username if user.username else user.mobile,
+            'mobile': user.mobile,
+            'loginType': user.login_type,
+            'selfCode': user.self_code,
+            'avatarUrl': user.avatar_url,
+            'isVerified': user.is_verified,
+        }
+        return HttpResult.success_with_data("获取成功", user_info)

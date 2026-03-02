@@ -10,6 +10,7 @@ class User(models.Model):
     refer_code = models.CharField(max_length=30, null=True, blank=True, verbose_name="推荐码")
     self_code = models.CharField(max_length=30, null=True, blank=True, verbose_name="自身邀请码")
     is_verified = models.BooleanField(default=False, verbose_name="是否认证")
+    is_active = models.BooleanField(default=True, verbose_name="是否激活") # 添加此字段
     role_id = models.IntegerField(null=True, blank=True, verbose_name="VIP角色ID")
     avatar_url = models.TextField(null=True, blank=True, verbose_name="用户头像地址")
     create_time = models.DateTimeField(auto_now_add=True, verbose_name="注册时间")

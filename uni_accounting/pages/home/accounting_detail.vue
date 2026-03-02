@@ -54,15 +54,19 @@
 						<van-swipe-cell v-for="item in group.items" :key="item.id" right-width="65">
 							<van-cell center class="custom-cell flat-cell">
 								<template #icon>
-									<view :class="['list-icon-wrap', item.iconBg]">
-										<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+									<view class="list-icon-wrap" :style="item.iconBgStyle">
+										<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
 									</view>
 								</template>
 								<template #title>
 									<view class="cell-content">
 										<view class="cell-main">
 											<text class="cell-title text-style-title">{{ item.title }}</text>
-											<text class="cell-time text-style-desc">{{ item.time }} · {{ item.location }}</text>
+											<view class="cell-sub-info">
+												<text class="cell-time text-style-desc">{{ item.time }}</text>
+												<text v-if="item.location" class="cell-location text-style-desc"> · {{ item.location }}</text>
+												<text v-if="item.remark" class="cell-remark text-style-desc"> · {{ item.remark }}</text>
+											</view>
 										</view>
 										<view class="cell-right">
 											<text class="cell-amount text-style-number">{{ item.amount }}</text>
@@ -97,11 +101,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+import { getBills, deleteBill } from '@/api/api.js';
+import { colorPairs } from '@/utils/color.js';
 
 const showMonthPicker = ref(false);
-const currentDateArray = ref(['2025', '12']);
+const currentDateArray = ref([new Date().getFullYear().toString(), (new Date().getMonth() + 1).toString().padStart(2, '0')]);
 const minDate = new Date(2020, 0, 1);
 const maxDate = new Date(2025, 11, 31);
 const activeNav = ref(0);
@@ -110,10 +117,10 @@ const loading = ref(false);
 const finished = ref(false);
 
 const summary = ref({
-	year: '2025',
-	month: '12',
-	expense: '26,510.00',
-	income: '4,200.00'
+	year: new Date().getFullYear().toString(),
+	month: (new Date().getMonth() + 1).toString().padStart(2, '0'),
+	expense: '0.00',
+	income: '0.00'
 });
 
 const quickActions = ref([
@@ -146,99 +153,95 @@ const onActionClick = (action) => {
 
 const dailyTransactions = ref([]);
 
-const onLoad = () => {
-	setTimeout(() => {
-		// 模拟生成更多历史数据
-		const lastId = dailyTransactions.value.length ? dailyTransactions.value[dailyTransactions.value.length - 1].id : 0;
-		const newData = [
-			{
-				id: lastId + 1,
-				date: '12月' + (31 - lastId) + '日 星期' + ['三', '二', '一', '日', '六', '五', '四'][lastId % 7],
-				totalExpense: '16,246.00',
-				items: [
-					{
-						id: (lastId + 1) * 100 + 1,
-						title: '育儿费用',
-						amount: '-4,225.00',
-						time: '14:20',
-						location: '幼儿园生活区',
-						icon: 'smile-o',
-						iconBg: 'bg-amber-light',
-						iconColor: '#d97706'
-					},
-					{
-						id: (lastId + 1) * 100 + 2,
-						title: '办公租赁',
-						amount: '-6,466.00',
-						time: '10:30',
-						location: '科技园园区',
-						icon: 'shop-o',
-						iconBg: 'bg-blue-light',
-						iconColor: '#2563eb'
-					},
-					{
-						id: (lastId + 1) * 100 + 3,
-						title: '交通保险',
-						amount: '-5,555.00',
-						time: '09:15',
-						location: '私家车月度车险',
-						icon: 'logistics',
-						iconBg: 'bg-purple-light',
-						iconColor: '#9333ea'
+const onLoad = async () => {
+	// 如果正在加载，直接返回，避免重复请求
+	if (loading.value) return;
+	
+	loading.value = true;
+	try {
+		const res = await getBills();
+		if (res.code === 0) {
+			// 直接使用后端返回的已分组数据
+			const formattedData = res.data.map(group => {
+				return {
+					...group,
+					items: group.items.map(item => {
+						// 根据 icon_id 从 color.js 中取色，确保颜色与保存账单时一致
+						// 注意：保存账单页面使用的是图标 ID 进行取色
+						const colorIndex = Number(item.icon_id) % colorPairs.length;
+						const colors = colorPairs[colorIndex];
+						return {
+							...item,
+							iconBgStyle: `background-color: ${colors.bg}`,
+							iconColorStyle: colors.icon
+						};
+					})
+				};
+			});
+			
+			dailyTransactions.value = formattedData;
+			
+			// 计算本月总计
+			let totalExp = 0;
+			let totalInc = 0;
+			res.data.forEach(group => {
+				group.items.forEach(item => {
+					if (item.type === 'expense') {
+						totalExp += item.amount_value;
+					} else {
+						totalInc += item.amount_value;
 					}
-				]
-			},
-			{
-				id: lastId + 2,
-				date: '12月' + (30 - lastId) + '日 星期' + ['二', '一', '日', '六', '五', '四', '三'][lastId % 7],
-				totalExpense: '5,225.00',
-				items: [
-					{
-						id: (lastId + 2) * 100 + 1,
-						title: '医疗健康',
-						amount: '-5,225.00',
-						time: '16:45',
-						location: '市立医院',
-						icon: 'hospital-o',
-						iconBg: 'bg-emerald-light',
-						iconColor: '#059669'
-					}
-				]
-			}
-		];
-
-		dailyTransactions.value.push(...newData);
-		loading.value = false;
-
-		// 数据加载完毕
-		if (dailyTransactions.value.length >= 10) {
-			finished.value = true;
+				});
+			});
+			summary.value.expense = totalExp.toFixed(2);
+			summary.value.income = totalInc.toFixed(2);
 		}
-	});
+	} catch (e) {
+		console.error('获取账单列表失败:', e);
+	} finally {
+		loading.value = false;
+		finished.value = true;
+	}
 };
+
+// 页面每次显示时（包括从保存页面返回时）都重新刷新数据
+onShow(() => {
+	console.log('Accounting Detail Page Show - Refreshing Data');
+	finished.value = false; // 重置完成状态以允许 onLoad 运行
+	onLoad();
+});
+
+onMounted(() => {
+	// 初始加载由 onShow 负责
+});
 
 const onDelete = (groupId, itemId) => {
 	uni.showModal({
 		title: '提示',
 		content: '确定要删除这条记录吗？',
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
-				const groupIndex = dailyTransactions.value.findIndex(g => g.id === groupId);
-				if (groupIndex > -1) {
-					const group = dailyTransactions.value[groupIndex];
-					const itemIndex = group.items.findIndex(i => i.id === itemId);
-					if (itemIndex > -1) {
-						group.items.splice(itemIndex, 1);
+				try {
+					const deleteRes = await deleteBill(itemId);
+					if (deleteRes.code === 0) {
 						uni.showToast({
 							title: '删除成功',
 							icon: 'success'
 						});
-						
-						// 如果该组没有任何条目了，也移除该组
-						if (group.items.length === 0) {
-							dailyTransactions.value.splice(groupIndex, 1);
-						}
+						// 重新加载数据以同步最新统计和列表
+						onLoad();
+					} else {
+						uni.showToast({
+							title: deleteRes.msg || '删除失败',
+							icon: 'none'
+						});
 					}
+				} catch (e) {
+					console.error('删除账单失败:', e);
+					uni.showToast({
+						title: '网络错误，删除失败',
+						icon: 'none'
+					});
 				}
 			}
 		}

@@ -26,6 +26,9 @@ class TransactionCategory(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='expense', verbose_name="账单类型")
     icon = models.ForeignKey(TransactionIcon, on_delete=models.CASCADE, verbose_name="关联图标ID")       
     sort = models.IntegerField(default=0, verbose_name="排序权重")
+    count = models.IntegerField(default=0, verbose_name="账单数量") # 统计该用户该分类下的账单笔数
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="最后更新时间") # 每次该分类下产生新账单时更新
 
     class Meta:
         verbose_name = "账单分类"
