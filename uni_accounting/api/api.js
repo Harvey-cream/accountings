@@ -27,7 +27,7 @@ export const saveBill = (params) => sendRequest("/api/account/bill/save/", 'POST
 export const deleteBill = (id) => sendRequest("/api/account/bill/delete/", 'POST', { id });
 
 // 获取账单汇总统计
-export const getBillSummary = (year) => sendRequest("/api/account/bill/summary/", 'GET', { year });
+export const getBillSummary = (params) => sendRequest("/api/account/bill/summary/", 'GET', params);
 
 // --- 预算相关接口 ---
 

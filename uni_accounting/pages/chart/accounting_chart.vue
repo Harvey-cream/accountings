@@ -18,12 +18,12 @@
 				<view class="total-display">
 					<view class="display-row">
 						<view class="display-group">
-							<text class="display-label">总支出:</text>
-							<text class="display-value ">{{ currentChartData.total }}</text>
+							<text class="display-label">总{{ currentType }}:</text>
+							<text class="display-value ">{{ chartData.total }}</text>
 						</view>
 						<view class="display-group">
 							<text class="display-label">均值:</text>
-							<text class="display-value ">{{ currentChartData.average }}</text>
+							<text class="display-value ">{{ chartData.average }}</text>
 						</view>
 					</view>
 				</view>
@@ -80,26 +80,25 @@
 			<!-- 支出明细列表 -->
 			<view class="detail-section">
 				<view class="section-header">
-					<text class="section-title">支出明细</text>
+					<text class="section-title">{{ currentType }}排行榜</text>
 					<text class="view-all">查看全部</text>
 				</view>
 
 				<view class="list-container">
 					<van-cell v-for="item in expenseList" :key="item.id" center class="custom-cell flat-cell">
 						<template #icon>
-							<view :class="['list-icon-wrap', item.bgClass]">
-								<van-icon :name="item.icon" :color="item.iconColor" size="20" />
+							<view class="list-icon-wrap" :style="{ backgroundColor: getIconColors(item.icon_id).bg }">
+								<van-icon :name="item.icon" :color="getIconColors(item.icon_id).icon" size="20" />
 							</view>
 						</template>
 						<template #title>
 							<view class="cell-content">
 								<view class="cell-main">
 									<text class="text-style-title">{{ item.name }}</text>
-									<text class="cell-time text-style-desc">{{ item.time }}</text>
+									<text class="cell-time text-style-desc">{{ item.percent }}%</text>
 								</view>
 								<view class="cell-right">
 									<text class="text-style-number">{{ item.amount }}</text>
-									<text class="text-style-desc">{{ item.percent }}%</text>
 								</view>
 							</view>
 						</template>
@@ -122,40 +121,57 @@
 </template>
 
 <script setup>
-import { ref, computed, getCurrentInstance } from 'vue';
+import { ref, computed, getCurrentInstance, onMounted, watch } from 'vue';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+import { getBillSummary } from '@/api/api.js';
+import { colorPairs } from '@/utils/color.js';
 
 const periods = ['周', '月', '年'];
 const currentPeriod = ref(0);
 
-// 模拟图表数据
-const chartDataMap = {
-	0: { // 周视图
-		labels: ['02-01', '02-02', '02-03', '02-04', '02-05', '02-06', '02-07'],
-		values: [4200, 3800, 5600, 4500, 8000, 9200, 6400],
-		total: '¥ 41,700',
-		average: '¥ 5,957',
-		growth: '12%'
-	},
-	1: { // 月视图 (30天)
-		labels: Array.from({length: 30}, (_, i) => `${String(i + 1).padStart(2, '0')}`),
-		values: [120, 450, 200, 890, 1000, 300, 340, 560, 230, 400, 890, 150, 700, 440, 670, 890, 500, 120, 340, 560, 700, 230, 450, 780, 600, 120, 340, 560, 890, 230],
-		total: '¥ 120,000',
-		average: '¥ 4,000',
-		growth: '5%'
-	},
-	2: { // 年视图 (12月)
-		labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-		values: [120000, 0,0, 200000, 220000, 190000,0, 230000, 250000, 0, 260000, 8000],
-		total: '¥ 2,570,000',
-		average: '¥ 214,166',
-		growth: '8%'
+// 图表数据
+const chartData = ref({
+	labels: [],
+	values: [],
+	total: '¥ 0.00',
+	average: '¥ 0.00'
+});
+
+const expenseList = ref([]);
+
+const currentLabels = computed(() => chartData.value.labels);
+const currentValues = computed(() => chartData.value.values);
+
+const getIconColors = (iconId) => {
+	const colorIndex = Number(iconId) % colorPairs.length;
+	return colorPairs[colorIndex];
+};
+
+const fetchChartData = async () => {
+	try {
+		const periodMap = { 0: 'week', 1: 'month', 2: 'year' };
+		const params = {
+			period: periodMap[currentPeriod.value],
+			type: currentType.value === '支出' ? 'expense' : 'income'
+		};
+		const res = await getBillSummary(params);
+		if (res.code === 0) {
+			chartData.value = res.data.chartData;
+			expenseList.value = res.data.categoryStats;
+		}
+	} catch (e) {
+		console.error('Failed to fetch chart data:', e);
 	}
 };
 
-const currentChartData = computed(() => chartDataMap[currentPeriod.value]);
-const currentLabels = computed(() => currentChartData.value.labels);
-const currentValues = computed(() => currentChartData.value.values);
+onMounted(() => {
+	fetchChartData();
+});
+
+watch([currentPeriod, () => currentType.value], () => {
+	selectedIndex.value = -1;
+	fetchChartData();
+});
 
 // 图表常量与工具函数
 const CHART = { width: 300, height: 150, paddingTop: 40, paddingBottom: 20, paddingX: 10 };
@@ -184,13 +200,6 @@ const startHideTimer = () => {
 		hideTimer = null;
 	}, 3000);
 };
-
-// 监听周期变化，重置选中状态
-import { watch } from 'vue';
-watch(currentPeriod, () => {
-	// 默认不选中任何点
-	selectedIndex.value = -1;
-});
 
 // 计算所有点的坐标
 const chartPoints = computed(() => {
@@ -337,18 +346,7 @@ const typeActions = [
 const onTypeSelect = (event) => {
 	currentType.value = event.name;
 	showTypeSheet.value = false;
-	// 这里可以根据类型切换数据
 };
-
-const expenseList = ref([
-	{ id: 1, name: '餐饮美食', time: '今天, 12:45 PM', amount: '-¥ 42,255.00', percent: 30, icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light' },
-	{ id: 2, name: '房屋租金', time: '12月1日, 09:00 AM', amount: '-¥ 64,662.00', percent: 40, icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light' },
-	{ id: 3, name: '交通出行', time: '昨天, 08:30 AM', amount: '-¥ 1,200.00', percent: 5, icon: 'location-o', iconColor: '#10b981', bgClass: 'bg-green-light' },
-	{ id: 4, name: '生活用品', time: '前天, 03:15 PM', amount: '-¥ 800.00', percent: 3, icon: 'goods-collect-o', iconColor: '#ef4444', bgClass: 'bg-red-light' },
-	{ id: 5, name: '娱乐休闲', time: '上周, 07:00 PM', amount: '-¥ 3,500.00', percent: 10, icon: 'play-circle-o', iconColor: '#6366f1', bgClass: 'bg-indigo-light' },
-	{ id: 6, name: '教育学习', time: '本月, 10:00 AM', amount: '-¥ 2,000.00', percent: 7, icon: 'bookmark-o', iconColor: '#f59e0b', bgClass: 'bg-yellow-light' },
-	{ id: 7, name: '医疗健康', time: '上月, 02:00 PM', amount: '-¥ 1,500.00', percent: 5, icon: 'plus', iconColor: '#06b6d4', bgClass: 'bg-cyan-light' }
-]);
 </script>
 
 <style scoped>
