@@ -107,43 +107,33 @@
 <script setup>
 import { ref, onMounted, watch, nextTick } from 'vue';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getBillSummary } from '@/api/api.js';
 
 const showYearPicker = ref(false);
-const currentYear = ref('2026');
+const currentYear = ref(new Date().getFullYear().toString());
 const activeTab = ref(0);
 
-const yearColumns = [
+const yearColumns = ref([
   { text: '2026', value: '2026' },
   { text: '2025', value: '2025' },
   { text: '2024', value: '2024' },
-];
+]);
 
-// Mock Data
+// Summary Data
 const yearSummary = ref({
-  balance: '-555.00',
-  income: '5000.00',
-  expense: '555.00'
+  balance: '0.00',
+  income: '0.00',
+  expense: '0.00'
 });
 
 const totalSummary = ref({
-  balance: '-26,510.00',
-  income: '4,200.00',
-  expense: '30,710.00'
+  balance: '0.00',
+  income: '0.00',
+  expense: '0.00'
 });
 
-const monthBills = ref([
-  { month: '2', income: '1200.00', expense: '555.00', balance: '645.00' },
-  { month: '1', income: '4500.00', expense: '3200.00', balance: '1300.00' },
-  { month: '12', income: '5000.00', expense: '4800.00', balance: '200.00' },
-  { month: '11', income: '4800.00', expense: '3900.00', balance: '900.00' },
-  { month: '10', income: '6000.00', expense: '5500.00', balance: '500.00' },
-]);
-
-const yearBills = ref([
-  { year: '2026', income: '1200.00', expense: '555.00', balance: '645.00' },
-  { year: '2025', income: '58400.00', expense: '52000.00', balance: '6400.00' },
-  { year: '2024', income: '55000.00', expense: '48000.00', balance: '7000.00' },
-]);
+const monthBills = ref([]);
+const yearBills = ref([]);
 
 // Animation Refs
 const displayIncomePercent = ref(0);
@@ -179,19 +169,40 @@ const animateCharts = async () => {
   }, 50);
 };
 
+const fetchData = async () => {
+  try {
+    const res = await getBillSummary(currentYear.value);
+    if (res.code === 0) {
+      const data = res.data;
+      yearSummary.value = data.yearSummary;
+      totalSummary.value = data.totalSummary;
+      monthBills.value = data.monthBills;
+      yearBills.value = data.yearBills;
+      
+      // Update year columns based on available years
+      if (data.yearBills && data.yearBills.length > 0) {
+        yearColumns.value = data.yearBills.map(y => ({ text: y.year, value: y.year }));
+      }
+      
+      animateCharts();
+    }
+  } catch (err) {
+    console.error('获取账单汇总失败:', err);
+  }
+};
+
 // Watch for tab changes to re-trigger animation
 watch(activeTab, animateCharts);
 
-// Initial animation
+// Initial data fetch
 onMounted(() => {
-  animateCharts();
+  fetchData();
 });
 
 const onYearConfirm = ({ selectedOptions }) => {
   currentYear.value = selectedOptions[0].text;
   showYearPicker.value = false;
-  // Here you would fetch data for the selected year
-  animateCharts(); // Re-animate after data update
+  fetchData();
 };
 </script>
 

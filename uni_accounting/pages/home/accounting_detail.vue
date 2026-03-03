@@ -103,13 +103,13 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getBills, deleteBill } from '@/api/api.js';
+import { getBills, deleteBill, getBillSummary } from '@/api/api.js';
 import { colorPairs } from '@/utils/color.js';
 
 const showMonthPicker = ref(false);
 const currentDateArray = ref([new Date().getFullYear().toString(), (new Date().getMonth() + 1).toString().padStart(2, '0')]);
 const minDate = new Date(2020, 0, 1);
-const maxDate = new Date(2025, 11, 31);
+const maxDate = new Date(2030, 11, 31);
 const activeNav = ref(0);
 
 const loading = ref(false);
@@ -152,13 +152,42 @@ const onActionClick = (action) => {
 
 const dailyTransactions = ref([]);
 
+// 获取月度/年度汇总统计 (使用新接口)
+const fetchSummary = async () => {
+	try {
+		const res = await getBillSummary(summary.value.year);
+		if (res.code === 0) {
+			const data = res.data;
+			// 从月度明细中找到当前选中的月份
+			const currentMonthData = data.monthBills.find(m => m.month === parseInt(summary.value.month).toString());
+			if (currentMonthData) {
+				summary.value.expense = currentMonthData.expense;
+				summary.value.income = currentMonthData.income;
+			} else {
+				summary.value.expense = '0.00';
+				summary.value.income = '0.00';
+			}
+		}
+	} catch (e) {
+		console.error('获取汇总统计失败:', e);
+	}
+};
+
 const onLoad = async () => {
 	// 如果正在加载，直接返回，避免重复请求
 	if (loading.value) return;
 
 	loading.value = true;
 	try {
-		const res = await getBills();
+		// 1. 获取汇总统计
+		fetchSummary();
+
+		// 2. 获取当前年月的账单明细
+		const res = await getBills({
+			year: summary.value.year,
+			month: summary.value.month
+		});
+
 		if (res.code === 0) {
 			// 直接使用后端返回的已分组数据
 			const formattedData = res.data.map((group) => {
@@ -166,7 +195,6 @@ const onLoad = async () => {
 					...group,
 					items: group.items.map((item) => {
 						// 根据 icon_id 从 color.js 中取色，确保颜色与保存账单时一致
-						// 注意：保存账单页面使用的是图标 ID 进行取色
 						const colorIndex = Number(item.icon_id) % colorPairs.length;
 						const colors = colorPairs[colorIndex];
 						return {
@@ -179,21 +207,6 @@ const onLoad = async () => {
 			});
 
 			dailyTransactions.value = formattedData;
-
-			// 计算本月总计
-			let totalExp = 0;
-			let totalInc = 0;
-			res.data.forEach((group) => {
-				group.items.forEach((item) => {
-					if (item.type === 'expense') {
-						totalExp += item.amount_value;
-					} else {
-						totalInc += item.amount_value;
-					}
-				});
-			});
-			summary.value.expense = totalExp.toFixed(2);
-			summary.value.income = totalInc.toFixed(2);
 		}
 	} catch (e) {
 		console.error('获取账单列表失败:', e);
@@ -245,10 +258,13 @@ const onDelete = (groupId, itemId) => {
 		}
 	});
 };
+
 const onMonthConfirm = ({ selectedValues }) => {
 	summary.value.year = selectedValues[0];
 	summary.value.month = selectedValues[1];
 	showMonthPicker.value = false;
+	// 切换月份后立即刷新数据
+	onLoad();
 };
 </script>
 

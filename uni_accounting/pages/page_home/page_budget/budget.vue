@@ -68,8 +68,8 @@
 				<view class="list-container">
 					<van-cell v-for="item in filteredCategoryBudgets" :key="item.id" center class="custom-cell flat-cell">
 						<template #icon>
-							<view :class="['list-icon-wrap', item.bgClass]">
-								<van-icon :name="item.icon" :color="item.iconColor" size="24" />
+							<view class="list-icon-wrap" :style="{ backgroundColor: getIconColors(item.icon_id).bg }">
+								<van-icon :name="item.icon" :color="getIconColors(item.icon_id).icon" size="24" />
 							</view>
 						</template>
 						<template #title>
@@ -84,7 +84,7 @@
 									</view>
 									<view class="progress-container">
 										<view class="progress-bar-bg">
-											<view class="progress-bar-fill" :style="{ width: (showAnimation ? item.percent : 0) + '%', backgroundColor: item.iconColor }"></view>
+											<view class="progress-bar-fill" :style="{ width: (showAnimation ? item.percent : 0) + '%', backgroundColor: getIconColors(item.icon_id).icon }"></view>
 										</view>
 										<text class="percent-text text-style-desc">{{ item.percent }}%</text>
 									</view>
@@ -135,7 +135,7 @@
 			</view>
 			<view class="category-grid">
 				<view v-for="cat in categories" :key="cat.id" class="category-item" @click="onSelectCategory(cat)">
-					<view class="icon-circle">
+					<view class="icon-circle" :style="{ backgroundColor: cat.colorBg }">
 						<van-icon :name="cat.icon" :color="cat.colorIcon" size="24" />
 					</view>
 					<text class="category-name">{{ cat.name }}</text>
@@ -168,6 +168,11 @@
 			>
 			</van-field>
 			
+			<view class="limit-info" v-if="budgetLimitInfo">
+				<van-icon name="info-o" size="14" color="#94a3b8" style="margin-right: 4px;" />
+				<text class="limit-text">{{ budgetLimitInfo }}</text>
+			</view>
+			
 			<view class="confirm-btn-box">
 				<van-button block round 
 					@click="onConfirmAmount" 
@@ -183,6 +188,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getAllIcons, getBudgets, saveBudget } from '@/api/api.js';
+import { assignDefaultColors, colorPairs } from '@/utils/color.js';
 
 // --- 状态定义 ---
 const showTypeSheet = ref(false);
@@ -193,6 +200,7 @@ const isAddingCategory = ref(false);
 const showAnimation = ref(false);
 const editBudgetType = ref('月预算');
 const editBudgetValue = ref('');
+const budgetLimitInfo = ref(''); // 用于展示限额提示
 
 const budgetType = ref('月预算');
 const viewActions = [
@@ -200,41 +208,27 @@ const viewActions = [
 	{ name: '年预算' },
 ];
 
-// 记账分类数据
-const categories = ref([
-	{ id: 1, name: '餐饮', icon: 'logistics', colorBg: '#fffbeb', colorIcon: '#d97706' },
-	{ id: 2, name: '购物', icon: 'bag-o', colorBg: '#eff6ff', colorIcon: '#3b82f6' },
-	{ id: 3, name: '交通', icon: 'logistics', colorBg: '#ecfdf5', colorIcon: '#10b981' },
-	{ id: 4, name: '娱乐', icon: 'video-o', colorBg: '#f3e8ff', colorIcon: '#9333ea' },
-	{ id: 5, name: '医疗', icon: 'friends-o', colorBg: '#fee2e2', colorIcon: '#ef4444' },
-	{ id: 6, name: '学习', icon: 'bookmark-o', colorBg: '#ffedd5', colorIcon: '#f97316' },
-	{ id: 7, name: '房租', icon: 'wap-home-o', colorBg: '#ecfeff', colorIcon: '#06b6d4' },
-	{ id: 8, name: '工资', icon: 'gold-coin-o', colorBg: '#f0fdf4', colorIcon: '#16a34a' },
-	{ id: 9, name: '礼物', icon: 'gift-o', colorBg: '#fdf2f8', colorIcon: '#db2777' },
-	{ id: 10, name: '其他', icon: 'ellipsis', colorBg: '#f1f5f9', colorIcon: '#64748b' }
-]);
+// 记账分类数据 - 初始为空，从接口获取
+const categories = ref([]);
 
 // 分类预算列表
-const categoryBudgets = ref([
-	{ id: 1, type: '月预算', name: '餐饮美食', icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light', amount: 1500, spent: 422.55, percent: 28 },
-	{ id: 2, type: '月预算', name: '房屋租金', icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light', amount: 3000, spent: 3000, percent: 100 },
-	{ id: 4, type: '月预算', name: '交通出行', icon: 'logistics', iconColor: '#3b82f6', bgClass: 'bg-blue-light', amount: 500, spent: 120.50, percent: 24 },
-	{ id: 5, type: '月预算', name: '休闲娱乐', icon: 'music-o', iconColor: '#8b5cf6', bgClass: 'bg-purple-light', amount: 800, spent: 650, percent: 81 },
-	{ id: 6, type: '月预算', name: '购物消费', icon: 'shopping-cart-o', iconColor: '#ec4899', bgClass: 'bg-pink-light', amount: 1200, spent: 1150, percent: 95 },
-	{ id: 7, type: '年预算', name: '年度旅行', icon: 'aim', iconColor: '#f59e0b', bgClass: 'bg-yellow-light', amount: 15000, spent: 4000, percent: 27 },
-	{ id: 8, type: '年预算', name: '数码产品', icon: 'desktop-o', iconColor: '#64748b', bgClass: 'bg-slate-light', amount: 10000, spent: 8900, percent: 89 }
-]);
+const categoryBudgets = ref([]);
 
-// 模拟数据
-const monthBudget = ref(5000);
-const monthExpense = ref(3200);
-const yearBudget = ref(60000);
-const yearExpense = ref(45000);
+// 模拟数据 (改为由接口返回真实数据)
+const monthBudget = ref(0);
+const monthExpense = ref(0);
+const yearBudget = ref(0);
+const yearExpense = ref(0);
 
 // --- 计算属性 ---
 const filteredCategoryBudgets = computed(() => {
 	return categoryBudgets.value.filter(item => item.type === budgetType.value);
 });
+
+const getIconColors = (iconId) => {
+	const colorIndex = Number(iconId) % colorPairs.length;
+	return colorPairs[colorIndex];
+};
 
 const currentBudgetValue = computed(() => {
 	return budgetType.value === '月预算' ? monthBudget.value : yearBudget.value;
@@ -260,6 +254,56 @@ const isOverBudget = computed(() => {
 	return currentExpenseValue.value > currentBudgetValue.value;
 });
 
+// 获取当前周期 (2024-03 或 2024)
+const getCurrentPeriod = () => {
+	const now = new Date();
+	if (budgetType.value === '月预算') {
+		const year = now.getFullYear();
+		const month = String(now.getMonth() + 1).padStart(2, '0');
+		return `${year}-${month}`;
+	} else {
+		return String(now.getFullYear());
+	}
+};
+
+const fetchBudgetData = async () => {
+	try {
+		const isMonth = budgetType.value === '月预算';
+		const params = {
+			budget_type: isMonth ? 'month' : 'year',
+			period: getCurrentPeriod()
+		};
+		const res = await getBudgets(params);
+		if (res.code === 0) {
+			if (isMonth) {
+				monthBudget.value = res.data.totalAmount;
+				monthExpense.value = res.data.totalSpent;
+				
+				// 额外获取一次年度总预算，用于前端限额判断提示
+				const yearParams = {
+					budget_type: 'year',
+					period: getCurrentPeriod().split('-')[0]
+				};
+				const yearRes = await getBudgets(yearParams);
+				if (yearRes.code === 0) {
+					yearBudget.value = yearRes.data.totalAmount;
+				}
+			} else {
+				yearBudget.value = res.data.totalAmount;
+				yearExpense.value = res.data.totalSpent;
+			}
+			// 映射分类预算数据，保持前端渲染结构
+			categoryBudgets.value = res.data.categories.map(item => ({
+				...item,
+				type: budgetType.value,
+				icon_id: item.icon_id
+			}));
+		}
+	} catch (e) {
+		console.error('Failed to fetch budgets:', e);
+	}
+};
+
 const chartColor = computed(() => {
 	// 使用渐变色对象
 	if (isOverBudget.value) {
@@ -273,7 +317,28 @@ const chartText = computed(() => {
 });
 
 // --- 生命周期 & 动画 ---
-onMounted(() => {
+onMounted(async () => {
+	try {
+		const res = await getAllIcons();
+		if (res.code === 0) {
+			// 只展示普通分类，且类型为支出或全部
+			const normalIcons = res.data.filter(i => i.group === 'normal' && (i.type === 'expense' || i.type === 'all'));
+			
+			// 将“其他”图标移到最后
+			const restIcons = normalIcons.filter(i => i.name !== '其他');
+			const otherIcon = normalIcons.find(i => i.name === '其他');
+			const sortedIcons = otherIcon ? [...restIcons, otherIcon] : restIcons;
+			
+			// 分配颜色
+			categories.value = assignDefaultColors(sortedIcons);
+		}
+	} catch (e) {
+		console.error('Failed to load icons:', e);
+	}
+
+	// 获取预算真实数据
+	fetchBudgetData();
+	
 	setTimeout(() => {
 		showAnimation.value = true;
 	}, 100);
@@ -282,6 +347,7 @@ onMounted(() => {
 // 监听切换，重新触发动画
 watch(budgetType, () => {
 	showAnimation.value = false;
+	fetchBudgetData();
 	setTimeout(() => {
 		showAnimation.value = true;
 	}, 50);
@@ -297,9 +363,23 @@ const onEditBudget = () => {
 	isAddingCategory.value = false;
 	editBudgetType.value = budgetType.value;
 	
+	// 关闭键盘，防止遮挡
+	uni.hideKeyboard();
+	
 	// 回显当前已有的预算值
 	const currentVal = editBudgetType.value === '月预算' ? monthBudget.value : yearBudget.value;
 	editBudgetValue.value = currentVal > 0 ? currentVal.toString() : '';
+	
+	// 设置限额提示
+	if (editBudgetType.value === '月预算') {
+		if (yearBudget.value > 0) {
+			budgetLimitInfo.value = `年总限额: ¥${yearBudget.value}`;
+		} else {
+			budgetLimitInfo.value = '提示: 请先设置年度总预算';
+		}
+	} else {
+		budgetLimitInfo.value = '';
+	}
 	
 	showEditPopup.value = true;
 };
@@ -312,44 +392,65 @@ const onAddBudget = () => {
 const onSelectCategory = (cat) => {
 	selectedCategory.value = cat;
 	editBudgetValue.value = '';
+	
+	// 关闭键盘
+	uni.hideKeyboard();
+	
+	// 计算当前已分配的分类预算总额
+	const allocated = categoryBudgets.value.reduce((sum, item) => sum + item.amount, 0);
+	const limit = budgetType.value === '月预算' ? monthBudget.value : yearBudget.value;
+	
+	if (limit > 0) {
+		budgetLimitInfo.value = `${budgetType.value}上限: ¥${limit} / 已添加: ¥${allocated.toFixed(2)}`;
+	} else {
+		budgetLimitInfo.value = `提示: 请先设置${budgetType.value}总额`;
+	}
+	
 	showCategoryPopup.value = false;
 	showEditPopup.value = true;
 };
 
-const onConfirmAmount = () => {
+const onConfirmAmount = async () => {
 	const value = parseFloat(editBudgetValue.value) || 0;
-	
-	if (isAddingCategory.value && selectedCategory.value) {
-		// 添加或更新分类预算
-		const existingIdx = categoryBudgets.value.findIndex(b => b.name === selectedCategory.value.name && b.type === budgetType.value);
-		if (existingIdx > -1) {
-			categoryBudgets.value[existingIdx].amount = value;
+	if (value <= 0) {
+		uni.showToast({ title: '金额必须大于0', icon: 'none' });
+		return;
+	}
+
+	uni.showLoading({ title: '保存中...' });
+	try {
+		const params = {
+			amount: value,
+			budget_type: (isAddingCategory.value ? budgetType.value : editBudgetType.value) === '月预算' ? 'month' : 'year',
+			period: getCurrentPeriod(),
+			is_total: !isAddingCategory.value,
+			icon_id: isAddingCategory.value && selectedCategory.value ? selectedCategory.value.id : null
+		};
+		
+		const res = await saveBudget(params);
+		if (res.code === 0) {
+			uni.showToast({ title: '保存成功', icon: 'success' });
+			showEditPopup.value = false;
+			// 刷新数据
+			fetchBudgetData();
 		} else {
-			categoryBudgets.value.push({
-				id: Date.now(),
-				type: budgetType.value,
-				name: selectedCategory.value.name,
-				icon: selectedCategory.value.icon,
-				iconColor: selectedCategory.value.colorIcon,
-				bgClass: 'bg-custom', // 后面在 style 中定义一个通用背景
-				customBg: selectedCategory.value.colorBg,
-				amount: value,
-				spent: 0,
-				percent: 0
+			// 检测到超支等规则错误，先关闭输入弹窗，再显示 Modal 提示
+			showEditPopup.value = false;
+			
+			uni.showModal({
+				title: '预算警告',
+				content: res.msg || '预算金额不符合规则',
+				showCancel: false,
+				confirmText: '我知道了',
+				confirmColor: '#ffd541'
 			});
 		}
-		uni.showToast({ title: '添加成功', icon: 'success' });
-	} else {
-		// 更新总预算
-		if (editBudgetType.value === '月预算') {
-			monthBudget.value = value;
-		} else {
-			yearBudget.value = value;
-		}
-		uni.showToast({ title: '设置成功', icon: 'success' });
+	} catch (e) {
+		console.error('Failed to save budget:', e);
+		uni.showToast({ title: '网络异常', icon: 'none' });
+	} finally {
+		uni.hideLoading();
 	}
-	
-	showEditPopup.value = false;
 };
 </script>
 
@@ -608,15 +709,6 @@ const onConfirmAmount = () => {
 	align-items: center;
 	margin-right: 12px;
 }
-.bg-orange-light, 
-.bg-blue-light, 
-.bg-purple-light, 
-.bg-pink-light, 
-.bg-green-light, 
-.bg-yellow-light, 
-.bg-slate-light { 
-	background-color: var(--secondary-bg-color); 
-}
 
 .cell-content {
 	display: flex;
@@ -713,7 +805,6 @@ const onConfirmAmount = () => {
 	justify-content: center;
 	align-items: center;
 	transition: transform 0.2s;
-	background-color: var(--secondary-bg-color) !important;
 }
 
 .category-item:active .icon-circle {
@@ -766,6 +857,24 @@ const onConfirmAmount = () => {
 	font-size: 28px;
 	font-weight: 700;
 	color: #1e293b;
+	text-align: center;
+}
+
+.limit-info {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8px 16px;
+	margin: 0 24px 20px;
+	background-color: #f8fafc;
+	border-radius: 8px;
+	border: 1px solid #f1f5f9;
+}
+
+.limit-text {
+	font-size: 12px;
+	color: #64748b;
+	line-height: 1.4;
 	text-align: center;
 }
 

@@ -56,3 +56,26 @@ class TransactionRecord(models.Model):
     class Meta:
         verbose_name = "账单记录"
         db_table = "transaction_record"
+
+class TransactionBudget(models.Model):
+    """预算管理"""
+    BUDGET_TYPE_CHOICES = (
+        ('month', '月预算'),
+        ('year', '年预算'),
+    )
+    id = models.AutoField(primary_key=True, verbose_name="预算ID")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="所属用户ID")
+    is_total = models.BooleanField(default=False, verbose_name="是否为总预算") # True 表示总预算，False 表示分类预算
+    category = models.ForeignKey(TransactionCategory, on_delete=models.CASCADE, null=True, blank=True, verbose_name="关联分类ID") 
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="预算金额")
+    budget_type = models.CharField(max_length=10, choices=BUDGET_TYPE_CHOICES, default='month', verbose_name="预算类型")
+    period = models.CharField(max_length=20, verbose_name="预算周期") # 存储格式如 "2023-02" 或 "2023"
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "预算管理"
+        db_table = "transaction_budget"
+        # 确保同一个用户在同一个周期内，针对同一个分类（或总预算）只有一个预算记录
+        unique_together = ('user', 'category', 'budget_type', 'period', 'is_total')
+
