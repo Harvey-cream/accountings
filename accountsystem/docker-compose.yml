@@ -10,14 +10,28 @@ services:
       - mysql_data:/var/lib/mysql
     ports:
       - "3307:3306"
+    # 新增：健康检查，确保MySQL完全就绪
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   web:
     build: .
+    # 替换command：等待MySQL就绪 + 全量迁移 + 启动服务
     command: >
-      sh -c "python manage.py makemigrations && 
-             python manage.py migrate && 
-             uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899"
-    # command: daphne -b 0.0.0.0 -p 8899 accountsystem.asgi:application
+      sh -c "
+        until mysqladmin ping -h db -u root -proot --silent; do
+          echo '等待MySQL就绪...';
+          sleep 2;
+        done;
+        echo 'MySQL已就绪，执行全量迁移...';
+        python manage.py makemigrations --noinput;
+        python manage.py migrate --noinput;
+        echo '迁移完成，启动服务...';
+        uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899;
+      "
     volumes:
       - .:/app
     ports:
@@ -25,13 +39,16 @@ services:
     expose:
       - 8899
     depends_on:
-      - db
+      # 依赖db的健康检查，确保MySQL服务就绪
+      db:
+        condition: service_healthy
     environment:
       - DB_HOST=db
       - DB_PORT=3306
       - DB_NAME=account
       - DB_USER=root
       - DB_PASSWORD=root
+      - DEBUG=1
 
   celery:
     build: .
@@ -39,8 +56,10 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - web
-      - db
+      web:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   celery-beat:
     build: .
@@ -48,8 +67,10 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - web
-      - db
+      web:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   nginx:
     image: nginx:latest
