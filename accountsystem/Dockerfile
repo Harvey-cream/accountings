@@ -11,12 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制整个项目 
 COPY . /app/ 
 
-# 执行数据库迁移 
+# 执行数据库迁移 (已移动到 docker-compose.yml 启动时执行)
 ENV DJANGO_ENV=production 
-# 注意：在构建阶段运行迁移通常需要数据库连接，如果构建时数据库不可用，这些命令可能会失败。
-# 建议在容器启动脚本中运行迁移，或者确保构建环境可以访问数据库。
-RUN python manage.py makemigrations 
-RUN python manage.py migrate 
 
 # 暴露端口 
 EXPOSE 8899

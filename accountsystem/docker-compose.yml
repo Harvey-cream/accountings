@@ -1,9 +1,22 @@
-version: '3.8'
-
 services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_DATABASE: account
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
   web:
     build: .
-    command: uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899
+    command: >
+      sh -c "python manage.py makemigrations && 
+             python manage.py migrate && 
+             uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899"
     # command: daphne -b 0.0.0.0 -p 8899 accountsystem.asgi:application
     volumes:
       - .:/app
@@ -11,6 +24,14 @@ services:
       - "8010:8899"
     expose:
       - 8899
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=account
+      - DB_USER=root
+      - DB_PASSWORD=root
 
   celery:
     build: .
@@ -19,6 +40,7 @@ services:
       - .:/app
     depends_on:
       - web
+      - db
 
   celery-beat:
     build: .
@@ -27,6 +49,7 @@ services:
       - .:/app
     depends_on:
       - web
+      - db
 
   nginx:
     image: nginx:latest
