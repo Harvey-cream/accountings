@@ -1,6 +1,14 @@
-// 开发环境后端地址 (根据当前电脑 IP 切换)
-// const API_URL = 'http://192.168.146.1:8030'; 
-const API_URL = 'http://172.20.10.3:8030'; // 手机热点/局域网访问地址
+// 环境判断逻辑
+let API_URL = '';
+
+if (process.env.NODE_ENV === 'development') {
+    // 开发环境后端地址
+    // API_URL = 'http://192.168.146.1:8030'; 
+    API_URL = 'http://172.20.10.3:8030'; // 手机热点/局域网访问地址
+} else {
+    // 生产环境部署地址
+    API_URL = 'http://47.107.238.136:8011'; 
+}
 
 // 请求锁：存储正在进行中的请求，防止重复点击
 const pendingReqs = new Set()
