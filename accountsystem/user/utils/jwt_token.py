@@ -2,6 +2,7 @@ import datetime
 import logging
 import os.path
 import jwt
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,16 @@ def create_token(user_id, minutes=None):
     """
     使用 RSA 私钥生成 JWT token (RS256)
     """
+    now = datetime.datetime.now(datetime.timezone.utc)
     if minutes:
-        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=minutes)
+        expiration_time = now + datetime.timedelta(minutes=minutes)
     else:
         # 默认 1 年
-        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(days=365)
+        expiration_time = now + datetime.timedelta(days=365)
     
     payload = {
         'user_id': user_id,
-        'exp': expiration_time.timestamp()
+        'exp': int(expiration_time.timestamp())
     }
     
     token = jwt.encode(payload, PRIVATE_KEY, algorithm='RS256')
@@ -38,7 +40,7 @@ def create_token(user_id, minutes=None):
         token = token.decode('utf-8')
     return token
 
-def verify_token(token):
+def verify_token(token, expect_refresh=False):
     """
     使用 RSA 公钥验证 JWT token (RS256)
     """
@@ -48,7 +50,11 @@ def verify_token(token):
         token = token[7:]
     try:
         decoded_payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
-        return decoded_payload.get('user_id')
+        # 如果调用方只需要 user_id (通常是中间件)
+        if not expect_refresh:
+            return decoded_payload.get('user_id')
+        # 如果需要完整 payload (通常是 RefreshTokenView)
+        return decoded_payload
     except Exception as e:
         logger.error(f'RSA Token验证失败：{str(e)}')
         return None

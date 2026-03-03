@@ -25,3 +25,14 @@ export const saveBill = (params) => sendRequest("/api/account/bill/save/", 'POST
 
 // 删除账单
 export const deleteBill = (id) => sendRequest("/api/account/bill/delete/", 'POST', { id });
+
+// 获取账单汇总统计
+export const getBillSummary = (params) => sendRequest("/api/account/bill/summary/", 'GET', params);
+
+// --- 预算相关接口 ---
+
+// 获取预算详情 (总预算 + 分类预算列表)
+export const getBudgets = (params) => sendRequest("/api/account/budget/get/", 'GET', params);
+
+// 保存或更新预算
+export const saveBudget = (params) => sendRequest("/api/account/budget/save/", 'POST', params);

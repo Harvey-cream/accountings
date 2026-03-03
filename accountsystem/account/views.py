@@ -1,12 +1,14 @@
 from rest_framework.views import APIView
-from .models import TransactionIcon, TransactionCategory, TransactionRecord
+from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget
 from user.models import User
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult
 from common.utils import parse_date, format_datetime, format_date
 from django.utils import timezone
 from django.db.models import Sum
+from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 class GetIconsView(APIView):
     """获取所有图标列表"""
@@ -37,6 +39,11 @@ class SaveBillView(APIView):
 
         if not amount:
             return HttpResult.fail("请输入金额")
+        
+        try:
+            amount = Decimal(str(amount))
+        except Exception:
+            return HttpResult.fail("金额格式错误")
         if not bill_type:
             return HttpResult.fail("请选择账单类型")
         if not icon_id:
@@ -57,14 +64,11 @@ class SaveBillView(APIView):
                 type=bill_type,
                 icon=icon
             )
-            
             # 更新该分类的账单笔数和更新时间
             category.count += 1
             category.save()
-
             # 使用公共方法解析日期
             obs_date = parse_date(date_str)
-
             # 创建账单记录 (TransactionRecord)
             record = TransactionRecord.objects.create(
                 user=user,
@@ -90,10 +94,21 @@ class GetBillListView(APIView):
         if not user:
             return HttpResult.fail("用户身份校验失败，请重新登录")
 
-        # 1. 查询该用户的所有账单记录，按日期倒序
-        records = TransactionRecord.objects.filter(user=user).select_related('category', 'category__icon').order_by('-date', '-create_time')
+        # 1. 获取过滤参数
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
 
-        # 2. 格式化数据并按日期分组
+        # 2. 构建查询条件
+        query = TransactionRecord.objects.filter(user=user)
+        if year:
+            query = query.filter(date__year=year)
+        if month:
+            query = query.filter(date__month=month)
+
+        # 3. 查询并排序
+        records = query.select_related('category', 'category__icon').order_by('-date', '-create_time')
+
+        # 4. 格式化数据并按日期分组
         # 前端需要的格式: [{ date: '...', totalExpense: '...', items: [...] }]
         grouped_data = []
         date_map = {} # 用于快速查找日期索引
@@ -110,7 +125,7 @@ class GetBillListView(APIView):
                     'id': len(grouped_data) + 1,
                     'date': display_date,
                     'date_raw': date_str,
-                    'totalExpense': 0,
+                    'totalExpense': Decimal('0'),
                     'items': []
                 }
                 date_map[date_str] = len(grouped_data)
@@ -134,11 +149,11 @@ class GetBillListView(APIView):
             
             grouped_data[idx]['items'].append(item)
             if record.type == 'expense':
-                grouped_data[idx]['totalExpense'] += float(record.amount)
+                grouped_data[idx]['totalExpense'] += Decimal(str(record.amount))
 
         # 格式化总支出金额
         for group in grouped_data:
-            group['totalExpense'] = f"{group['totalExpense']:.2f}"
+            group['totalExpense'] = f"{float(group['totalExpense']):.2f}"
 
         return HttpResult.success_with_data("获取账单成功", grouped_data)
 
@@ -170,3 +185,378 @@ class DeleteBillView(APIView):
             return HttpResult.fail("账单不存在或无权删除")
         except Exception as e:
             return HttpResult.fail(f"删除失败: {str(e)}")
+
+class GetBillSummaryView(APIView):
+    """获取账单汇总统计数据"""
+    def get(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+            
+        # 基础参数获取
+        now = timezone.now()
+        year_param = request.query_params.get('year', str(now.year))
+        period = request.query_params.get('period', 'month') # week, month, year
+        bill_type = request.query_params.get('type', 'expense') # expense, income
+        
+        # 1. 基础统计 (原有逻辑保留)
+        total_income = TransactionRecord.objects.filter(user=user, type='income').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+        total_expense = TransactionRecord.objects.filter(user=user, type='expense').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+        total_summary = {
+            'balance': f"{float(total_income - total_expense):,.2f}",
+            'income': f"{float(total_income):,.2f}",
+            'expense': f"{float(total_expense):,.2f}"
+        }
+        
+        year_income = TransactionRecord.objects.filter(user=user, type='income', date__year=year_param).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+        year_expense = TransactionRecord.objects.filter(user=user, type='expense', date__year=year_param).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+        year_summary = {
+            'balance': f"{float(year_income - year_expense):.2f}",
+            'income': f"{float(year_income):.2f}",
+            'expense': f"{float(year_expense):.2f}"
+        }
+        
+        # 2. 分类统计 (用于排行榜)
+        # 根据 period 确定时间范围
+        category_query = TransactionRecord.objects.filter(user=user, type=bill_type)
+        if period == 'month':
+            category_query = category_query.filter(date__year=now.year, date__month=now.month)
+        elif period == 'week':
+            week_start = now - timedelta(days=now.weekday())
+            category_query = category_query.filter(date__gte=week_start)
+        elif period == 'year':
+            category_query = category_query.filter(date__year=year_param)
+
+        total_amount = category_query.aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+        category_stats = category_query.values('category__name', 'category__icon__icon', 'category__icon__id') \
+            .annotate(amount=Sum('amount')) \
+            .order_by('-amount')
+
+        formatted_category_stats = []
+        for stat in category_stats:
+            amount = stat['amount']
+            percent = (amount / total_amount * 100) if total_amount > 0 else Decimal('0')
+            formatted_category_stats.append({
+                'id': stat['category__icon__id'],
+                'name': stat['category__name'],
+                'amount': f"{'-' if bill_type == 'expense' else '+'}¥ {float(amount):,.2f}",
+                'amount_value': float(amount),
+                'percent': round(float(percent), 1),
+                'icon': stat['category__icon__icon'],
+                'icon_id': stat['category__icon__id']
+            })
+
+        # 3. 趋势图数据
+        chart_labels = []
+        chart_values = []
+        
+        if period == 'week':
+            # 最近 7 天
+            for i in range(6, -1, -1):
+                day = now - timedelta(days=i)
+                label = day.strftime('%m-%d')
+                val = TransactionRecord.objects.filter(user=user, type=bill_type, date=day.date()).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                chart_labels.append(label)
+                chart_values.append(val)
+        elif period == 'month':
+            # 本月每天
+            import calendar
+            _, last_day = calendar.monthrange(now.year, now.month)
+            for d in range(1, last_day + 1):
+                label = f"{d:02d}"
+                val = TransactionRecord.objects.filter(user=user, type=bill_type, date__year=now.year, date__month=now.month, date__day=d).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                chart_labels.append(label)
+                chart_values.append(val)
+        elif period == 'year':
+            # 全年每月
+            for m in range(1, 13):
+                label = f"{m}月"
+                val = TransactionRecord.objects.filter(user=user, type=bill_type, date__year=year_param, date__month=m).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                chart_labels.append(label)
+                chart_values.append(val)
+
+        # 计算均值
+        avg_value = sum(chart_values) / len(chart_values) if chart_values else Decimal('0')
+
+        # 获取月度明细
+        month_stats = TransactionRecord.objects.filter(user=user, date__year=year_param) \
+            .annotate(month=ExtractMonth('date')) \
+            .values('month', 'type') \
+            .annotate(total=Sum('amount')) \
+            .order_by('-month')
+
+        month_bills_dict = {}
+        for stat in month_stats:
+            m = str(stat['month'])
+            if m not in month_bills_dict:
+                month_bills_dict[m] = {'month': m, 'income': Decimal('0'), 'expense': Decimal('0')}
+            if stat['type'] == 'income':
+                month_bills_dict[m]['income'] = stat['total']
+            else:
+                month_bills_dict[m]['expense'] = stat['total']
+
+        month_bills = []
+        for m in range(12, 0, -1):
+            m_str = str(m)
+            if m_str in month_bills_dict:
+                item = month_bills_dict[m_str]
+                item['balance'] = f"{float(item['income'] - item['expense']):.2f}"
+                item['income'] = f"{float(item['income']):.2f}"
+                item['expense'] = f"{float(item['expense']):.2f}"
+                month_bills.append(item)
+        
+        # 获取年度明细
+        year_stats = TransactionRecord.objects.filter(user=user) \
+            .annotate(year=ExtractYear('date')) \
+            .values('year', 'type') \
+            .annotate(total=Sum('amount')) \
+            .order_by('-year')
+
+        year_bills_dict = {}
+        for stat in year_stats:
+            y = str(stat['year'])
+            if y not in year_bills_dict:
+                year_bills_dict[y] = {'year': y, 'income': Decimal('0'), 'expense': Decimal('0')}
+            if stat['type'] == 'income':
+                year_bills_dict[y]['income'] = stat['total']
+            else:
+                year_bills_dict[y]['expense'] = stat['total']
+
+        year_bills = []
+        for y in sorted(year_bills_dict.keys(), key=int, reverse=True):
+            item = year_bills_dict[y]
+            item['balance'] = f"{float(item['income'] - item['expense']):.2f}"
+            item['income'] = f"{float(item['income']):.2f}"
+            item['expense'] = f"{float(item['expense']):.2f}"
+            year_bills.append(item)
+            
+        data = {
+            'totalSummary': total_summary,
+            'yearSummary': year_summary,
+            'monthBills': month_bills,
+            'yearBills': year_bills,
+            'categoryStats': formatted_category_stats,
+            'chartData': {
+                'labels': chart_labels,
+                'values': [float(v) for v in chart_values],
+                'total': f"¥ {float(sum(chart_values)):,.2f}",
+                'average': f"¥ {float(avg_value):,.2f}"
+            }
+        }
+        
+        return HttpResult.success_with_data("获取汇总数据成功", data)
+
+class SaveBudgetView(APIView):
+    """保存或更新预算"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+            
+        data = request.data
+        amount = data.get('amount')
+        budget_type = data.get('budget_type', 'month') # 'month' 或 'year'
+        period = data.get('period') # "2024-03" 或 "2024"
+        is_total = data.get('is_total', False)
+        icon_id = data.get('icon_id') # 仅在 is_total 为 False 时有效
+
+        if not amount:
+            return HttpResult.fail("请输入预算金额")
+        if not period:
+            return HttpResult.fail("请输入预算周期")
+
+        try:
+            amount = Decimal(str(amount))
+            category = None
+            year_period = period[:4] if budget_type == 'month' else period
+
+            # 1. 获取对应的年总预算 (用于约束判断)
+            ytb_obj = TransactionBudget.objects.filter(
+                user=user, budget_type='year', period=year_period, is_total=True
+            ).first()
+            ytb_amount = ytb_obj.amount if ytb_obj else Decimal('0')
+
+            if not is_total:
+                # 分类预算
+                if not icon_id:
+                    return HttpResult.fail("请选择分类图标")
+                try:
+                    icon = TransactionIcon.objects.get(id=icon_id)
+                    category, _ = TransactionCategory.objects.get_or_create(
+                        user=user, name=icon.name, type='expense', icon=icon
+                    )
+                except TransactionIcon.DoesNotExist:
+                    return HttpResult.fail("分类图标不存在")
+
+                if budget_type == 'month':
+                    # A. 月度分类预算约束：Sum(本月所有分类预算) <= 本月总预算
+                    mtb_obj = TransactionBudget.objects.filter(
+                        user=user, budget_type='month', period=period, is_total=True
+                    ).first()
+                    if not mtb_obj:
+                        return HttpResult.fail("请先设置本月总预算")
+                    
+                    other_mcb_sum = TransactionBudget.objects.filter(
+                        user=user, budget_type='month', period=period, is_total=False
+                    ).exclude(category=category).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                    
+                    if (other_mcb_sum + amount) > mtb_obj.amount:
+                        return HttpResult.fail(f"本月分类预算总额({other_mcb_sum + amount})不能超过月总预算({mtb_obj.amount})")
+
+                    # B. 自动同步：如果年预算中没有这个分类，自动创建一个 (数据一致)
+                    ycb_obj, created = TransactionBudget.objects.get_or_create(
+                        user=user, budget_type='year', period=year_period, is_total=False, category=category,
+                        defaults={'amount': amount}
+                    )
+                    # 如果已经存在，我们不自动修改年分类预算金额，因为“用户可以修改年预算”
+                else:
+                    # 年度分类预算约束：Sum(本年所有分类预算) <= 年总预算
+                    if not ytb_obj:
+                        return HttpResult.fail("请先设置年度总预算")
+                    
+                    other_ycb_sum = TransactionBudget.objects.filter(
+                        user=user, budget_type='year', period=year_period, is_total=False
+                    ).exclude(category=category).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                    
+                    if (other_ycb_sum + amount) > ytb_amount:
+                        return HttpResult.fail(f"年度分类预算总额({other_ycb_sum + amount})不能超过年总预算({ytb_amount})")
+            else:
+                # 总预算
+                if budget_type == 'month':
+                    # 月总预算约束：Sum(本年所有月份的总预算) <= 年总预算
+                    if not ytb_obj:
+                        return HttpResult.fail("请先设置年度总预算")
+                    
+                    other_mtb_sum = TransactionBudget.objects.filter(
+                        user=user, budget_type='month', period__startswith=year_period, is_total=True
+                    ).exclude(period=period).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                    
+                    if (other_mtb_sum + amount) > ytb_amount:
+                        return HttpResult.fail(f"各月总预算之和({other_mtb_sum + amount})不能超过年总预算({ytb_amount})")
+                else:
+                    # 年总预算修改：必须大于等于已设置的月总预算之和
+                    all_mtb_sum = TransactionBudget.objects.filter(
+                        user=user, budget_type='month', period__startswith=year_period, is_total=True
+                    ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                    
+                    if amount < all_mtb_sum:
+                        return HttpResult.fail(f"年总预算({amount})不能小于已设置的月总预算之和({all_mtb_sum})")
+
+            # 保存或更新当前记录
+            budget, _ = TransactionBudget.objects.update_or_create(
+                user=user, category=category, budget_type=budget_type, period=period, is_total=is_total,
+                defaults={'amount': amount}
+            )
+
+            return HttpResult.success_with_data("保存预算成功", {"id": budget.id})
+
+        except Exception as e:
+            print(f"保存预算异常: {str(e)}")
+            return HttpResult.fail(f"保存预算失败: {str(e)}")
+
+class GetBudgetView(APIView):
+    """获取预算概览及分类预算列表"""
+    def get(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+
+        budget_type = request.query_params.get('budget_type', 'month') # 'month' 或 'year'
+        period = request.query_params.get('period') # "2024-03" 或 "2024"
+
+        if not period:
+            return HttpResult.fail("请提供预算周期")
+
+        try:
+            year_val = period[:4] if budget_type == 'month' else period
+            
+            # 1. 获取总预算
+            total_budget_obj = TransactionBudget.objects.filter(
+                user=user, budget_type=budget_type, period=period, is_total=True
+            ).first()
+            
+            total_amount = Decimal('0.0')
+            if total_budget_obj:
+                total_amount = total_budget_obj.amount
+            elif budget_type == 'year':
+                # 如果没有设置年总预算，汇总所有月份的总预算作为展示值
+                total_amount = TransactionBudget.objects.filter(
+                    user=user, budget_type='month', period__startswith=year_val, is_total=True
+                ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.0')
+
+            # 2. 获取该周期内的总支出
+            record_query = TransactionRecord.objects.filter(user=user, type='expense')
+            if budget_type == 'month':
+                y, m = period.split('-')
+                record_query = record_query.filter(date__year=y, date__month=m)
+            else:
+                record_query = record_query.filter(date__year=year_val)
+            
+            total_spent = record_query.aggregate(Sum('amount'))['amount__sum'] or Decimal('0.0')
+
+            # 3. 获取分类预算列表
+            # 获取当前周期下所有的分类预算记录
+            budget_records = TransactionBudget.objects.filter(
+                user=user, budget_type=budget_type, period=period, is_total=False
+            ).select_related('category', 'category__icon')
+
+            # 如果是年视图，还需要找出那些“只在月度设置了预算但年度还没设置”的分类
+            category_list = []
+            seen_categories = set()
+
+            for br in budget_records:
+                cat_record_query = record_query.filter(category=br.category)
+                cat_spent = cat_record_query.aggregate(Sum('amount'))['amount__sum'] or Decimal('0.0')
+                
+                amount = br.amount
+                # 年视图下，如果用户没有手动修改过（或者我们想展示汇总），可以这里处理
+                # 但根据 SaveBudgetView 的同步逻辑，已经存在了。
+                
+                percent = round(float(cat_spent / amount * 100), 1) if amount > 0 else 0
+                
+                category_list.append({
+                    'id': br.id,
+                    'name': br.category.name,
+                    'icon': br.category.icon.icon,
+                    'icon_id': br.category.icon.id,
+                    'amount': float(amount),
+                    'spent': float(cat_spent),
+                    'percent': min(percent, 100)
+                })
+                seen_categories.add(br.category_id)
+
+            # 年视图特有：自动汇总月度分类预算到年度显示中（如果年度还没这条记录）
+            if budget_type == 'year':
+                monthly_categories = TransactionBudget.objects.filter(
+                    user=user, budget_type='month', period__startswith=year_val, is_total=False
+                ).exclude(category_id__in=seen_categories).values('category').annotate(total_amount=Sum('amount'))
+                
+                for item in monthly_categories:
+                    cat = TransactionCategory.objects.select_related('icon').get(id=item['category'])
+                    cat_record_query = record_query.filter(category=cat)
+                    cat_spent = cat_record_query.aggregate(Sum('amount'))['amount__sum'] or Decimal('0.0')
+                    
+                    amount = item['total_amount']
+                    percent = round(float(cat_spent / amount * 100), 1) if amount > 0 else 0
+                    
+                    category_list.append({
+                        'id': f"temp_{cat.id}",
+                        'name': cat.name,
+                        'icon': cat.icon.icon,
+                        'icon_id': cat.icon.id,
+                        'amount': float(amount),
+                        'spent': float(cat_spent),
+                        'percent': min(percent, 100)
+                    })
+
+            data = {
+                'totalAmount': float(total_amount),
+                'totalSpent': float(total_spent),
+                'categories': category_list
+            }
+
+            return HttpResult.success_with_data("获取预算数据成功", data)
+
+        except Exception as e:
+            print(f"获取预算异常: {str(e)}")
+            return HttpResult.fail(f"获取预算失败: {str(e)}")

@@ -2,88 +2,87 @@
 	<view class="page-container" :class="currentThemeClass">
 		<view class="tab-content">
 			<view class="header">
-				<view class="status-bar">
-				</view>
+				<view class="status-bar"></view>
 				<view class="summary-row">
 					<view class="month-selector" @click="showMonthPicker = true">
 						<text class="year-text">{{ summary.year }}年</text>
 						<view class="month-display">
 							<text class="month-text font-number">{{ summary.month }}</text>
-						<text class="month-unit">月</text>
-						<van-icon name="arrow-down" size="12" color="#0f172a" class="arrow-icon" />
+							<text class="month-unit">月</text>
+							<van-icon name="arrow-down" size="12" color="#0f172a" class="arrow-icon" />
+						</view>
 					</view>
-				</view>
-				
-				<view class="divider"></view>
 
-				<view class="stat-group">
-					<view class="stat-item">
-						<text class="stat-label">收入</text>
-						<text class="stat-value ">{{ summary.income }}</text>
-					</view>
-					<view class="stat-item">
-						<text class="stat-label">支出</text>
-						<text class="stat-value ">{{ summary.expense }}</text>
+					<view class="divider"></view>
+
+					<view class="stat-group">
+						<view class="stat-item">
+							<text class="stat-label">收入</text>
+							<text class="stat-value">{{ summary.income }}</text>
+						</view>
+						<view class="stat-item">
+							<text class="stat-label">支出</text>
+							<text class="stat-value">{{ summary.expense }}</text>
+						</view>
 					</view>
 				</view>
 			</view>
-		</view>
-		<view class="quick-actions">
-			<van-grid :column-num="5" :border="false" :gutter="10">
-				<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
-					<template #icon>
-						<view :class="['action-icon-wrap', action.bgColor]">
-							<van-icon :name="action.icon" :color="action.iconColor" size="24" />
+			<view class="quick-actions">
+				<van-grid :column-num="5" :border="false" :gutter="10">
+					<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
+						<template #icon>
+							<view :class="['action-icon-wrap', action.bgColor]">
+								<van-icon :name="action.icon" :color="action.iconColor" size="24" />
+							</view>
+						</template>
+						<template #text>
+							<text class="action-name">{{ action.name }}</text>
+						</template>
+					</van-grid-item>
+				</van-grid>
+			</view>
+			<view class="transactions-section">
+				<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
+					<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
+						<view class="day-header">
+							<text class="day-date">{{ group.date }}</text>
+							<text class="text-style-desc">支出: {{ group.totalExpense }}</text>
 						</view>
-					</template>
-					<template #text>
-						<text class="action-name">{{ action.name }}</text>
-					</template>
-				</van-grid-item>
-			</van-grid>
-		</view>
-		<view class="transactions-section">
-			<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
-				<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
-					<view class="day-header">
-						<text class="day-date">{{ group.date }}</text>
-						<text class="text-style-desc">支出: {{ group.totalExpense }}</text>
-					</view>
 
-					<view class="list-container">
-						<van-swipe-cell v-for="item in group.items" :key="item.id" right-width="65">
-							<van-cell center class="custom-cell flat-cell">
-								<template #icon>
-									<view class="list-icon-wrap" :style="item.iconBgStyle">
-										<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
-									</view>
-								</template>
-								<template #title>
-									<view class="cell-content">
-										<view class="cell-main">
-											<text class="cell-title text-style-title">{{ item.title }}</text>
-											<view class="cell-sub-info">
-												<text class="cell-time text-style-desc">{{ item.time }}</text>
-												<text v-if="item.location" class="cell-location text-style-desc"> · {{ item.location }}</text>
-												<text v-if="item.remark" class="cell-remark text-style-desc"> · {{ item.remark }}</text>
+						<view class="list-container">
+							<van-swipe-cell v-for="item in group.items" :key="item.id" right-width="65">
+								<van-cell center class="custom-cell flat-cell">
+									<template #icon>
+										<view class="list-icon-wrap" :style="item.iconBgStyle">
+											<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
+										</view>
+									</template>
+									<template #title>
+										<view class="cell-content">
+											<view class="cell-main">
+												<text class="cell-title text-style-title">{{ item.title }}</text>
+												<view class="cell-sub-info">
+													<text class="cell-time text-style-desc">{{ item.time }}</text>
+													<text v-if="item.location" class="cell-location text-style-desc">· {{ item.location }}</text>
+													<text v-if="item.remark" class="cell-remark text-style-desc">· {{ item.remark }}</text>
+												</view>
+											</view>
+											<view class="cell-right">
+												<text class="cell-amount text-style-number">{{ item.amount }}</text>
 											</view>
 										</view>
-										<view class="cell-right">
-											<text class="cell-amount text-style-number">{{ item.amount }}</text>
-										</view>
+									</template>
+								</van-cell>
+								<template #right>
+									<view class="delete-button" @click="onDelete(group.id, item.id)">
+										<van-icon name="delete-o" size="24" color="#fff" />
 									</view>
 								</template>
-							</van-cell>
-							<template #right>
-								<view class="delete-button" @click="onDelete(group.id, item.id)">
-									<van-icon name="delete-o" size="24" color="#fff" />
-								</view>
-							</template>
-						</van-swipe-cell>
+							</van-swipe-cell>
+						</view>
 					</view>
-				</view>
-			</van-list>
-		</view>
+				</van-list>
+			</view>
 			<van-popup v-model:show="showMonthPicker" position="bottom">
 				<van-date-picker
 					v-model="currentDateArray"
@@ -104,13 +103,13 @@
 import { ref, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getBills, deleteBill } from '@/api/api.js';
+import { getBills, deleteBill, getBillSummary } from '@/api/api.js';
 import { colorPairs } from '@/utils/color.js';
 
 const showMonthPicker = ref(false);
 const currentDateArray = ref([new Date().getFullYear().toString(), (new Date().getMonth() + 1).toString().padStart(2, '0')]);
 const minDate = new Date(2020, 0, 1);
-const maxDate = new Date(2025, 11, 31);
+const maxDate = new Date(2030, 11, 31);
 const activeNav = ref(0);
 
 const loading = ref(false);
@@ -153,21 +152,49 @@ const onActionClick = (action) => {
 
 const dailyTransactions = ref([]);
 
+// 获取月度/年度汇总统计 (使用新接口)
+const fetchSummary = async () => {
+	try {
+		const res = await getBillSummary(summary.value.year);
+		if (res.code === 0) {
+			const data = res.data;
+			// 从月度明细中找到当前选中的月份
+			const currentMonthData = data.monthBills.find(m => m.month === parseInt(summary.value.month).toString());
+			if (currentMonthData) {
+				summary.value.expense = currentMonthData.expense;
+				summary.value.income = currentMonthData.income;
+			} else {
+				summary.value.expense = '0.00';
+				summary.value.income = '0.00';
+			}
+		}
+	} catch (e) {
+		console.error('获取汇总统计失败:', e);
+	}
+};
+
 const onLoad = async () => {
 	// 如果正在加载，直接返回，避免重复请求
 	if (loading.value) return;
-	
+
 	loading.value = true;
 	try {
-		const res = await getBills();
+		// 1. 获取汇总统计
+		fetchSummary();
+
+		// 2. 获取当前年月的账单明细
+		const res = await getBills({
+			year: summary.value.year,
+			month: summary.value.month
+		});
+
 		if (res.code === 0) {
 			// 直接使用后端返回的已分组数据
-			const formattedData = res.data.map(group => {
+			const formattedData = res.data.map((group) => {
 				return {
 					...group,
-					items: group.items.map(item => {
+					items: group.items.map((item) => {
 						// 根据 icon_id 从 color.js 中取色，确保颜色与保存账单时一致
-						// 注意：保存账单页面使用的是图标 ID 进行取色
 						const colorIndex = Number(item.icon_id) % colorPairs.length;
 						const colors = colorPairs[colorIndex];
 						return {
@@ -178,23 +205,8 @@ const onLoad = async () => {
 					})
 				};
 			});
-			
+
 			dailyTransactions.value = formattedData;
-			
-			// 计算本月总计
-			let totalExp = 0;
-			let totalInc = 0;
-			res.data.forEach(group => {
-				group.items.forEach(item => {
-					if (item.type === 'expense') {
-						totalExp += item.amount_value;
-					} else {
-						totalInc += item.amount_value;
-					}
-				});
-			});
-			summary.value.expense = totalExp.toFixed(2);
-			summary.value.income = totalInc.toFixed(2);
 		}
 	} catch (e) {
 		console.error('获取账单列表失败:', e);
@@ -206,7 +218,6 @@ const onLoad = async () => {
 
 // 页面每次显示时（包括从保存页面返回时）都重新刷新数据
 onShow(() => {
-	console.log('Accounting Detail Page Show - Refreshing Data');
 	finished.value = false; // 重置完成状态以允许 onLoad 运行
 	onLoad();
 });
@@ -247,10 +258,13 @@ const onDelete = (groupId, itemId) => {
 		}
 	});
 };
+
 const onMonthConfirm = ({ selectedValues }) => {
 	summary.value.year = selectedValues[0];
 	summary.value.month = selectedValues[1];
 	showMonthPicker.value = false;
+	// 切换月份后立即刷新数据
+	onLoad();
 };
 </script>
 
@@ -388,7 +402,11 @@ const onMonthConfirm = ({ selectedValues }) => {
 }
 
 /* Action Colors */
-.bg-amber, .bg-blue, .bg-emerald, .bg-rose, .bg-slate {
+.bg-amber,
+.bg-blue,
+.bg-emerald,
+.bg-rose,
+.bg-slate {
 	background-color: var(--secondary-bg-color);
 }
 
@@ -461,7 +479,10 @@ const onMonthConfirm = ({ selectedValues }) => {
 	align-items: flex-end;
 }
 /* Item Colors */
-.bg-amber-light, .bg-blue-light, .bg-purple-light, .bg-emerald-light {
+.bg-amber-light,
+.bg-blue-light,
+.bg-purple-light,
+.bg-emerald-light {
 	background-color: var(--secondary-bg-color);
 }
 

@@ -72,7 +72,7 @@
 												class="item-checkbox"
 											/>
 										</view>
-										<view :class="['list-icon-wrap', item.iconBg]">
+										<view class="list-icon-wrap" :style="item.iconBgStyle">
 											<van-icon :name="item.icon" :color="item.iconColor" size="20" />
 										</view>
 									</view>
@@ -108,104 +108,59 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getBills, deleteBill, getBillSummary } from '@/api/api.js';
+import { colorPairs } from '@/utils/color.js';
 
 // 状态管理
 const currentYear = ref(null);
 const isEditMode = ref(false);
 const selectedIds = ref([]);
+const yearsList = ref([]);
+const currentYearDetails = ref([]);
 
-// 虚拟数据 - 年度列表
-const yearsList = ref([
-	{ year: '2025', income: '45,200.00', expense: '26,510.00' },
-	{ year: '2024', income: '128,400.00', expense: '98,320.00' },
-	{ year: '2023', income: '110,000.00', expense: '88,150.00' }
-]);
-
-// 虚拟数据 - 详情数据 (按年份存储)
-const yearDetailsMap = ref({
-	'2025': [
-		{
-			id: 1,
-			date: '12月31日 星期三',
-			totalExpense: '16,246.00',
-			items: [
-				{
-					id: 101,
-					title: '育儿费用',
-					amount: '-4,225.00',
-					time: '14:20',
-					location: '幼儿园生活区',
-					icon: 'smile-o',
-					iconBg: 'bg-amber-light',
-					iconColor: '#d97706'
-				},
-				{
-					id: 102,
-					title: '办公租赁',
-					amount: '-6,466.00',
-					time: '10:30',
-					location: '科技园园区',
-					icon: 'shop-o',
-					iconBg: 'bg-blue-light',
-					iconColor: '#2563eb'
-				},
-				{
-					id: 103,
-					title: '交通保险',
-					amount: '-5,555.00',
-					time: '09:15',
-					location: '私家车月度车险',
-					icon: 'logistics',
-					iconBg: 'bg-purple-light',
-					iconColor: '#9333ea'
-				}
-			]
-		},
-		{
-			id: 2,
-			date: '12月30日 星期二',
-			totalExpense: '5,225.00',
-			items: [
-				{
-					id: 201,
-					title: '医疗健康',
-					amount: '-5,225.00',
-					time: '16:45',
-					location: '市立医院',
-					icon: 'hospital-o',
-					iconBg: 'bg-emerald-light',
-					iconColor: '#059669'
-				}
-			]
+// 获取年度汇总统计
+const fetchYearlyStats = async () => {
+	try {
+		const res = await getBillSummary();
+		if (res.code === 0) {
+			yearsList.value = res.data.yearBills;
 		}
-	],
-	'2024': [
-		{
-			id: 3,
-			date: '12月15日 星期日',
-			totalExpense: '2,000.00',
-			items: [
-				{
-					id: 301,
-					title: '餐饮美食',
-					amount: '-2,000.00',
-					time: '18:30',
-					location: '海底捞火锅',
-					icon: 'shop-o',
-					iconBg: 'bg-rose-light',
-					iconColor: '#f43f5e'
-				}
-			]
-		}
-	]
-});
+	} catch (e) {
+		console.error('获取年度统计失败:', e);
+	}
+};
 
-// 当前显示的详情列表
-const currentYearDetails = computed(() => {
-	if (!currentYear.value) return [];
-	return yearDetailsMap.value[currentYear.value.year] || [];
+// 获取特定年份的详情
+const fetchYearDetails = async (year) => {
+	try {
+		const res = await getBills({ year: year });
+		if (res.code === 0) {
+			// 格式化颜色和样式
+			currentYearDetails.value = res.data.map((group) => {
+				return {
+					...group,
+					items: group.items.map((item) => {
+						const colorIndex = Number(item.icon_id) % colorPairs.length;
+						const colors = colorPairs[colorIndex];
+						return {
+							...item,
+							iconBg: '', // 移除旧的 class
+							iconBgStyle: `background-color: ${colors.bg}`,
+							iconColor: colors.icon
+						};
+					})
+				};
+			});
+		}
+	} catch (e) {
+		console.error('获取年份详情失败:', e);
+	}
+};
+
+onMounted(() => {
+	fetchYearlyStats();
 });
 
 // 计算全选状态
@@ -239,6 +194,7 @@ const openYearDetail = (yearData) => {
 	currentYear.value = yearData;
 	isEditMode.value = false;
 	selectedIds.value = [];
+	fetchYearDetails(yearData.year);
 };
 
 // 关闭年份详情
@@ -246,19 +202,17 @@ const closeYearDetail = () => {
 	currentYear.value = null;
 	isEditMode.value = false;
 	selectedIds.value = [];
+	fetchYearlyStats(); // 返回列表时刷新一下统计
 };
 
-// 删除年份
+// 删除年份 (此功能建议后端增加批量删除年份接口，目前仅前端提示)
 const onDeleteYear = (index) => {
 	uni.showModal({
 		title: '提示',
-		content: '确定要删除该年份的所有账单吗？',
+		content: '确定要删除该年份的所有账单吗？此操作不可撤销。',
 		success: (res) => {
 			if (res.confirm) {
-				const year = yearsList.value[index].year;
-				yearsList.value.splice(index, 1);
-				delete yearDetailsMap.value[year];
-				uni.showToast({ title: '删除成功', icon: 'success' });
+				uni.showToast({ title: '演示版暂不支持批量删除年份', icon: 'none' });
 			}
 		}
 	});
@@ -288,29 +242,26 @@ const toggleSelectAll = () => {
 };
 
 // 批量删除
-const batchDelete = () => {
+const batchDelete = async () => {
 	if (selectedIds.value.length === 0) return;
 	
 	uni.showModal({
 		title: '提示',
 		content: `确定要删除选中的 ${selectedIds.value.length} 条记录吗？`,
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
-				const yearKey = currentYear.value.year;
-				const groups = yearDetailsMap.value[yearKey];
-				
-				// 过滤掉被选中的项
-				const newGroups = groups.map(group => {
-					return {
-						...group,
-						items: group.items.filter(item => !selectedIds.value.includes(item.id))
-					};
-				}).filter(group => group.items.length > 0); // 移除空组
-				
-				yearDetailsMap.value[yearKey] = newGroups;
-				selectedIds.value = [];
-				isEditMode.value = false;
-				uni.showToast({ title: '删除成功', icon: 'success' });
+				try {
+					// 循环调用单条删除接口 (建议后续后端增加批量删除接口)
+					for (const id of selectedIds.value) {
+						await deleteBill(id);
+					}
+					uni.showToast({ title: '删除成功', icon: 'success' });
+					selectedIds.value = [];
+					isEditMode.value = false;
+					fetchYearDetails(currentYear.value.year);
+				} catch (e) {
+					uni.showToast({ title: '部分删除失败', icon: 'none' });
+				}
 			}
 		}
 	});
@@ -321,25 +272,16 @@ const onDeleteItem = (groupId, itemId) => {
 	uni.showModal({
 		title: '提示',
 		content: '确定要删除这条记录吗？',
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
-				const yearKey = currentYear.value.year;
-				const groups = yearDetailsMap.value[yearKey];
-				const groupIndex = groups.findIndex(g => g.id === groupId);
-				
-				if (groupIndex > -1) {
-					const group = groups[groupIndex];
-					const itemIndex = group.items.findIndex(i => i.id === itemId);
-					if (itemIndex > -1) {
-						group.items.splice(itemIndex, 1);
-						
-						// 如果组为空，移除组
-						if (group.items.length === 0) {
-							groups.splice(groupIndex, 1);
-						}
-						
+				try {
+					const res = await deleteBill(itemId);
+					if (res.code === 0) {
 						uni.showToast({ title: '删除成功', icon: 'success' });
+						fetchYearDetails(currentYear.value.year);
 					}
+				} catch (e) {
+					uni.showToast({ title: '删除失败', icon: 'none' });
 				}
 			}
 		}
