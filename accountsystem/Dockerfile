@@ -1,25 +1,23 @@
-# 使用 Python 作为基础镜像 
-FROM python:3.9-slim
+# 使用 Python slim 镜像以减少内存占用 
+FROM python:3.9-slim 
 
 # 设置工作目录 
 WORKDIR /app 
 
-# 安装系统依赖（包含 mysql-client 以便在启动脚本中检查数据库状态）
-RUN apt-get update && apt-get install -y \
-    default-mysql-client \
-    gcc \
-    libmariadb-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# 只装必需的 MySQL 客户端（用于启动时检查状态），并清理缓存以减少体积
+RUN apt-get update && apt-get install -y --no-install-recommends \ 
+    default-mysql-client \ 
+    && rm -rf /var/lib/apt/lists/* 
 
-# 复制 requirements.txt 并安装依赖 
+# 配置国内源并安装依赖
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 COPY requirements.txt /app/ 
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir -r requirements.txt 
 
-# 复制整个项目 
+# 复制项目代码 
 COPY . /app/ 
 
-# 环境设置
+# 设置生产环境标识
 ENV DJANGO_ENV=production 
 
 # 暴露端口 
