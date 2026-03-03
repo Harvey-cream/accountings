@@ -1,5 +1,5 @@
 # 使用 Python 作为基础镜像 
-FROM 47.115.79.247:5000/pyenv:v4 
+FROM python:3.9-slim
 
 # 设置工作目录 
 WORKDIR /app 
