@@ -1,4 +1,6 @@
-const API_URL = 'http://192.168.110.134:8030';
+// 开发环境后端地址 (根据当前电脑 IP 切换)
+// const API_URL = 'http://192.168.146.1:8030'; 
+const API_URL = 'http://172.20.10.3:8030'; // 手机热点/局域网访问地址
 
 // 请求锁：存储正在进行中的请求，防止重复点击
 const pendingReqs = new Set()

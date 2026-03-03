@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+  web:
+    build: .
+    command: uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899
+    # command: daphne -b 0.0.0.0 -p 8899 accountsystem.asgi:application
+    volumes:
+      - .:/app
+    ports:
+      - "8010:8899"
+    expose:
+      - 8899
+
+  celery:
+    build: .
+    command: celery -A accountsystem worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+
+  celery-beat:
+    build: .
+    command: celery -A accountsystem beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/conf/cert:/etc/nginx/certs
+      - ./nginx/conf/wx-sercret:/etc/nginx/wx-sercret
+      - ./static:/app/static
+      - ./media:/app/media
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+
+volumes:
+  mysql_data:
