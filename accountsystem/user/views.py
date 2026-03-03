@@ -19,7 +19,7 @@ class UserloginView(APIView):
         password = request.data.get('password')
         
         if not mobile or not password:
-            return HttpResult.fail("手机号和密码不能为空", code=WebStatusEnum.PARAM_ERROR.code)
+            return HttpResult.fail("手机号和密码不能为空")
             
         try:
             user = User.objects.get(mobile=mobile)
@@ -56,9 +56,9 @@ class UserloginView(APIView):
                     'user_info': user_info
                 })
             else:
-                return HttpResult.fail("密码错误", code=WebStatusEnum.PARAM_ERROR.code)
+                return HttpResult.fail("密码错误")
         except User.DoesNotExist:
-            return HttpResult.fail("用户不存在", code=WebStatusEnum.NOT_FOUND.code)
+            return HttpResult.fail("用户不存在")
         except Exception as e:
             print(f"登录异常: {e}")
             return HttpResult.fail(f"登录失败: {str(e)}")
@@ -67,29 +67,28 @@ class UserloginView(APIView):
 class RefreshTokenView(APIView):
     """刷新 Token 接口"""
     def post(self, request, format=None):
-        refresh_token = request.data.get('refresh_token')
+        refresh_token = request.data.get('token')
         if not refresh_token:
-            return HttpResult.fail("刷新令牌不能为空", code=WebStatusEnum.PARAM_ERROR.code)
-        
-        # 验证刷新令牌 (1周内有效)
-        payload = verify_token(refresh_token, expect_refresh=True)
-        if not payload:
-            return HttpResult.fail("刷新令牌已失效，请重新登录", code=WebStatusEnum.UNAUTHORIZED.code)
-        
-        user_id = payload.get('user_id')
-        refresh_expires = payload.get('exp') # 原始刷新令牌的过期时间
-        
-        # 生成新的 Access Token (延续 10 分钟)
-        new_token, new_expires = create_token(user_id, minutes=10)
-        
-        token_info = {
-            'token': new_token,
-            'refresh': refresh_token, # 保持使用当前的刷新令牌
-            'expires': int(new_expires * 1000),
-            'refresh_expires': int(refresh_expires * 1000),
-        }
-        
-        return HttpResult.success_with_data("刷新成功", token_info)
+            return HttpResult.fail("刷新令牌不能为空")
+        # 1. 验证旧的 Token (返回 user_id)
+        user_id = verify_token(refresh_token)
+        if not user_id:
+            return HttpResult.fail("Token 已失效，请重新登录")
+        # 2. 生成Token (10 分钟)
+        token = create_token(user_id, minutes=10)
+        try: 
+            user = User.objects.get(id=user_id, is_active=True) 
+        except User.DoesNotExist: 
+            return HttpResult.fail('用户不存在或已被禁用') 
+        except Exception as e:
+            return HttpResult.fail(f'刷新异常: {str(e)}')
+            
+        expires_at = datetime.now() + timedelta(minutes=10)
+        print(f"Token 刷新成功: 用户 ID={user_id}, 新 Token 前缀={token[:10]}...")
+        return HttpResult.success_with_data('刷新token成功', {
+            'token': token, 
+            'expires': int(expires_at.timestamp() * 1000)
+        })
 
 
 class UserRegisterView(APIView):
@@ -99,10 +98,10 @@ class UserRegisterView(APIView):
         refer_code = request.data.get('refer_code') # 前端传来的推荐码
         
         if not mobile or not password:
-            return HttpResult.fail("手机号和密码不能为空", code=WebStatusEnum.PARAM_ERROR.code)
+            return HttpResult.fail("手机号和密码不能为空")
         
         if User.objects.filter(mobile=mobile).exists():
-            return HttpResult.fail("该手机号已注册", code=WebStatusEnum.PARAM_ERROR.code)
+            return HttpResult.fail("该手机号已注册")
         
         try:
             # 1. 解密前端 SM2 加密的密码
@@ -129,7 +128,7 @@ class GetUserInfoView(APIView):
     def get(self, request, format=None):
         user = get_current_user(request)
         if not user:
-            return HttpResult.fail("用户未登录", code=WebStatusEnum.UNAUTHORIZED.code)
+            return HttpResult.fail("用户未登录")
         
         user_info = {
             'userId': user.id,

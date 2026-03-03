@@ -57,14 +57,11 @@ class SaveBillView(APIView):
                 type=bill_type,
                 icon=icon
             )
-            
             # 更新该分类的账单笔数和更新时间
             category.count += 1
             category.save()
-
             # 使用公共方法解析日期
             obs_date = parse_date(date_str)
-
             # 创建账单记录 (TransactionRecord)
             record = TransactionRecord.objects.create(
                 user=user,

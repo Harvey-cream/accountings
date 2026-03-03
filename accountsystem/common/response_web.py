@@ -40,18 +40,20 @@ class HttpResult:
         return Response(result, status=HTTP_200_OK)
 
     @classmethod
-    def fail(cls, msg="操作失败", code=WebStatusEnum.FAILURE.code):
+    def fail(cls, msg):
+        """通用失败返回 (默认状态码 1)"""
         result = {
-            'code': code,
+            'code': WebStatusEnum.FAILURE.code,
             'msg': msg,
             'success': False
         }
         return Response(result, status=HTTP_200_OK)
 
     @classmethod
-    def fail_with_data(cls, msg, data, code=WebStatusEnum.FAILURE.code):
+    def fail_with_data(cls, msg, data):
+        """带数据的失败返回 (默认状态码 1)"""
         result = {
-            'code': code,
+            'code': WebStatusEnum.FAILURE.code,
             'msg': msg,
             'success': False,
             'data': data
