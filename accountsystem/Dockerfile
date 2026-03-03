@@ -5,8 +5,15 @@ FROM python:3.9-slim
 WORKDIR /app 
 
 # 配置清华大学 APT 镜像源以加速系统依赖安装
-RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-    sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
+# 兼容旧版 Debian (/etc/apt/sources.list) 和新版 Debian (/etc/apt/sources.list.d/debian.sources)
+RUN if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
+        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
+    fi && \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
+        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
+    fi
 
 # 只装必需的 MySQL 客户端（用于启动时检查状态），并清理缓存以减少体积
 RUN apt-get update && apt-get install -y --no-install-recommends \ 
