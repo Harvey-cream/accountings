@@ -4,8 +4,6 @@ FROM python:3.10-slim
 
 # 设置工作目录
 WORKDIR /app
-
-# 配置清华大学 APT 镜像源以加速系统依赖安装
 RUN if [ -f /etc/apt/sources.list ]; then \
         sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
         sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
@@ -14,8 +12,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
         sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
     fi
-
-# 安装 mysqlclient 所需的系统依赖
+# mysqlclient 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     default-libmysqlclient-dev \

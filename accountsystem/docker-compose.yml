@@ -20,6 +20,8 @@ services:
     image: redis:7.0-alpine
     container_name: redis_db
     restart: always
+    ports:
+      - "6379:6379"
     networks:
       - shared_network
 
@@ -30,8 +32,6 @@ services:
     command: gunicorn accountsystem.asgi:application --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8899
     environment:
       - DJANGO_ENV=${DJANGO_ENV:-production}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - .:/app
     ports:
@@ -120,10 +120,10 @@ services:
     networks:
       - shared_network
   
-# 外部网络配置
+# 网络配置
 networks:
   shared_network:
-    external: true
+    driver: bridge
 
 # volumes:
 #   mysql_data:

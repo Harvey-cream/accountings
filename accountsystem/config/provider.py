@@ -30,6 +30,7 @@ class Settings(object):
 
         # 核心配置加载
         self.mysql_config = self._load_database_config('database') 
+        self.redis_config = self._load_redis_config('redis')
         # 根据环境变量判断是否开启 debug 模式
         self.debug = True if self.env == 'debug' else False
         self.allowed_hosts = self.config.get('allowed_hosts', ['*'])
@@ -64,6 +65,14 @@ class Settings(object):
         conf.db = ret.get("db") 
         conf.password = ret.get("password") 
         return conf 
+
+    @property
+    def redis_url(self):
+        conf = self.redis_config
+        if not conf:
+            return os.environ.get('CELERY_BROKER_URL', 'redis://redis_db:6379/0')
+        auth = f":{conf.password}@" if conf.password else ""
+        return f"redis://{auth}{conf.host}:{conf.port}/{conf.db}"
 
 
 _SETTINGS = Settings() 

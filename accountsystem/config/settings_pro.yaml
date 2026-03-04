@@ -7,3 +7,9 @@ database:
   port: 3307
   'OPTIONS':
     'charset': 'utf8mb4'
+
+redis:
+  host: 47.107.238.136
+  port: 6379
+  db: 0
+  password: null
