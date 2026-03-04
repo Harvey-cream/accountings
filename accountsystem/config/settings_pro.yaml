@@ -3,13 +3,13 @@ database:
   name: account
   user: root
   password: root
-  host: 47.107.238.136
-  port: 3307
+  host: mysql_db
+  port: 3306
   'OPTIONS':
     'charset': 'utf8mb4'
 
 redis:
-  host: 47.107.238.136
+  host: redis_db
   port: 6379
   db: 0
   password: null
