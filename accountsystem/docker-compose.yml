@@ -55,7 +55,7 @@ services:
       - .:/app
     restart: always
     depends_on:
-      - accounting
+      - mini_app
     networks:
       - shared_network
 
@@ -69,7 +69,7 @@ services:
       - .:/app
     restart: always
     depends_on:
-      - accounting
+      - mini_app
     networks:
       - shared_network
   
@@ -83,7 +83,7 @@ services:
       - .:/app
     restart: always
     depends_on:
-      - accounting
+      - mini_app
     networks:
       - shared_network
   
@@ -99,7 +99,7 @@ services:
       - "5050:5050"
     restart: always
     depends_on:
-      - accounting
+      - mini_app
     networks:
       - shared_network
   
@@ -116,7 +116,7 @@ services:
       - "8011:80"
       - "443:443"
     depends_on:
-      - accounting
+      - mini_app
     networks:
       - shared_network
   
