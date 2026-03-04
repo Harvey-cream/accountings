@@ -99,6 +99,18 @@ page {
   background-color: var(--main-color) !important;
 }
 
+/* 通用图标背景色 (适配资产管理、分类等) */
+.bg-green { background-color: #10b981 !important; }
+.bg-yellow { background-color: #f59e0b !important; }
+.bg-orange { background-color: #f97316 !important; }
+.bg-yellow-dark { background-color: #d97706 !important; }
+.bg-orange-dark { background-color: #ea580c !important; }
+.bg-red { background-color: #ef4444 !important; }
+.bg-blue { background-color: #3b82f6 !important; }
+.bg-purple { background-color: #8b5cf6 !important; }
+.bg-green-dark { background-color: #059669 !important; }
+.bg-gray { background-color: #64748b !important; }
+
 .bg-main-light {
   background-color: rgba(var(--main-color-rgb), 0.1) !important;
 }

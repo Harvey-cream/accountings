@@ -137,15 +137,7 @@ const onConfirmAmount = () => {
 	margin-right: 12px;
 }
 
-/* 颜色类 */
-.bg-green { background-color: #10b981; }
-.bg-yellow { background-color: #f59e0b; }
-.bg-orange { background-color: #f97316; }
-.bg-yellow-dark { background-color: #d97706; }
-.bg-orange-dark { background-color: #ea580c; }
-.bg-red { background-color: #ef4444; }
-.bg-blue { background-color: #3b82f6; }
-.bg-purple { background-color: #8b5cf6; }
+/* 颜色类已移动到 common.css */
 
 /* 弹窗输入框 */
 .amount-input-wrap {

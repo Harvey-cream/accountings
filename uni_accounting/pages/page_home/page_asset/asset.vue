@@ -292,8 +292,6 @@ const goToAdd = () => {
     border-radius: 4px;
     transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.bg-green { background-color: #10b981 !important; } /* 使用更深的绿色 */
-.bg-red { background-color: #ef4444; }
 
 
 /* 列表区域 */
@@ -341,11 +339,7 @@ const goToAdd = () => {
 	margin-right: 12px;
 }
 
-/* 图标背景色 */
-.bg-green { background-color: #10b981; }
-.bg-blue { background-color: #3b82f6; }
-.bg-green-dark { background-color: #059669; }
-.bg-red { background-color: #ef4444; }
+/* 图标背景色已移动到 common.css */
 
 .cell-content {
 	display: flex;
