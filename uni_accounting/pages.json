@@ -70,6 +70,13 @@
 			}
 		},
 		{
+			"path": "pages/page_home/page_asset/asset_edit",
+			"style": {
+				"navigationBarTitleText": "添加详情",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/page_home/page_budget/budget",
 			"style": {
 				"navigationBarTitleText": "预算",

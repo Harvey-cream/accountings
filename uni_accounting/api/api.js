@@ -36,3 +36,11 @@ export const getBudgets = (params) => sendRequest("/api/account/budget/get/", 'G
 
 // 保存或更新预算
 export const saveBudget = (params) => sendRequest("/api/account/budget/save/", 'POST', params);
+
+// --- 资产相关接口 ---
+
+// 保存或更新资产账户
+export const saveAssetAccount = (params) => sendRequest("/api/account/asset/save/", 'POST', params);
+
+// 获取资产账户列表
+export const getAssetList = () => sendRequest("/api/account/asset/list/", 'GET');

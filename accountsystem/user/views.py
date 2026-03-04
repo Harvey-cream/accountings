@@ -67,15 +67,15 @@ class UserloginView(APIView):
 class RefreshTokenView(APIView):
     """刷新 Token 接口"""
     def post(self, request, format=None):
-        refresh_token = request.data.get('token')
+        refresh_token = request.data.get('refresh_token')
         if not refresh_token:
             return HttpResult.fail("刷新令牌不能为空")
+            
         # 1. 验证旧的 Token (返回 user_id)
         user_id = verify_token(refresh_token)
         if not user_id:
             return HttpResult.fail("Token 已失效，请重新登录")
-        # 2. 生成Token (10 分钟)
-        token = create_token(user_id, minutes=10)
+            
         try: 
             user = User.objects.get(id=user_id, is_active=True) 
         except User.DoesNotExist: 
@@ -83,12 +83,20 @@ class RefreshTokenView(APIView):
         except Exception as e:
             return HttpResult.fail(f'刷新异常: {str(e)}')
             
-        expires_at = datetime.now() + timedelta(minutes=10)
-        print(f"Token 刷新成功: 用户 ID={user_id}, 新 Token 前缀={token[:10]}...")
-        return HttpResult.success_with_data('刷新token成功', {
-            'token': token, 
-            'expires': int(expires_at.timestamp() * 1000)
-        })
+        # 2. 生成新 Token (10 分钟) 和保持旧的 Refresh Token (或者生成新的)
+        # 这里简单起见，生成新的 Access Token，保持原有的 Refresh Token 或者也更新
+        new_token = create_token(user_id, minutes=10)
+        token_expires = datetime.now() + timedelta(minutes=10)
+        
+        # 为了保持前端 sessionInfo.token_info 的完整性，返回完整对象
+        token_info = {
+            'token': new_token,
+            'refresh': refresh_token, # 继续使用当前的刷新令牌
+            'expires': int(token_expires.timestamp() * 1000),
+        }
+        
+        print(f"Token 刷新成功: 用户 ID={user_id}, 新 Token 前缀={new_token[:10]}...")
+        return HttpResult.success_with_data('刷新token成功', token_info)
 
 
 class UserRegisterView(APIView):

@@ -14,7 +14,7 @@
 		<view class="content-card">
 			<view class="category-grid">
 				<view v-for="cat in currentCategories" :key="cat.id" class="category-item" @click="onSelectCategory(cat)">
-					<view class="icon-circle" :class="{ active: selectedCategoryId === cat.id }" :style="{ backgroundColor: cat.colorBg }">
+					<view class="icon-circle" :class="{ active: isCategoryActive(cat) }" :style="{ backgroundColor: cat.colorBg }">
 						<van-icon :name="cat.icon" :color="cat.colorIcon" size="24" />
 					</view>
 					<text class="category-name">{{ cat.name }}</text>
@@ -157,7 +157,9 @@ const initCategoriesData = (allIcons) => {
 		const rest = sortedList.filter(i => i.name !== '其他');
 		const other = sortedList.find(i => i.name === '其他');
 		const main = rest.slice(0, 7);
-		return other ? [...main, other] : main;
+		// 给“其他”分类打上标记，即使改了名字也能通过这个标记识别
+		const finalOther = other ? { ...other, isOther: true } : null;
+		return finalOther ? [...main, finalOther] : main;
 	};
 
 	// 5. 更新响应式数据
@@ -185,11 +187,28 @@ onMounted(async () => {
 });
 
 const currentMoreIcons = computed(() => {
-	return activeTab.value === 'expense' ? moreIcons.value : moreIncomeIcons.value;
+	const all = activeTab.value === 'expense' ? moreIcons.value : moreIncomeIcons.value;
+	const mainGrid = activeTab.value === 'expense' ? categories.value : incomeCategories.value;
+	
+	// 提取主页面前 7 个固定分类的 ID
+	const mainIds = mainGrid.slice(0, 7).map(c => c.id);
+	
+	// 过滤掉已经在主页面显示的图标，避免重复
+	return all.filter(icon => !mainIds.includes(icon.id));
 });
 
+const isCategoryActive = (cat) => {
+	if (cat.isOther) {
+		// 如果是“其他”槽位，只要选中的 ID 不是前 7 个常用分类，就认为这个槽位处于激活状态
+		const mainIds = currentCategories.value.slice(0, 7).map(c => c.id);
+		return !mainIds.includes(selectedCategoryId.value);
+	}
+	return selectedCategoryId.value === cat.id;
+};
+
 const onSelectCategory = (cat) => {
-	if (cat.name === '其他') {
+	// 如果是“其他”槽位，点击唤起弹窗
+	if (cat.isOther) {
 		showMoreIcons.value = true;
 	} else {
 		selectedCategoryId.value = cat.id;
@@ -197,15 +216,16 @@ const onSelectCategory = (cat) => {
 };
 
 const onSelectMoreIcon = (icon) => {
-	// 查找当前 tab 下的“其他”分类对象并更新它
+	// 查找当前 tab 下带有 isOther 标记的槽位并更新它
 	const categoriesToSearch = activeTab.value === 'expense' ? categories.value : incomeCategories.value;
-	const otherCat = categoriesToSearch.find(c => c.name === '其他');
+	const otherCat = categoriesToSearch.find(c => c.isOther);
 	if (otherCat) {
 		otherCat.icon = icon.icon;
 		otherCat.colorBg = icon.colorBg;
 		otherCat.colorIcon = icon.colorIcon;
-		otherCat.name = icon.name;
-		selectedCategoryId.value = otherCat.id;
+		otherCat.name = icon.name || '其他';
+		// 关键点：保存实际选中的图标 ID
+		selectedCategoryId.value = icon.id;
 	}
 	showMoreIcons.value = false;
 };
@@ -243,7 +263,10 @@ const handleSave = async () => {
 		uni.showToast({ title: '请输入金额', icon: 'none' });
 		return;
 	}
-	const selectedCategory = currentCategories.value.find(c => c.id === selectedCategoryId.value);
+	// 优先从当前显示的 8 个分类里找，找不到说明选的是“更多图标”里的，则去大库里找
+	const allPossible = [...currentCategories.value, ...currentMoreIcons.value];
+	const selectedCategory = allPossible.find(c => c.id === selectedCategoryId.value);
+	
 	if (!selectedCategory) {
 		uni.showToast({ title: '请选择分类', icon: 'none' });
 		return;

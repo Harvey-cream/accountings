@@ -79,3 +79,36 @@ class TransactionBudget(models.Model):
         # 确保同一个用户在同一个周期内，针对同一个分类（或总预算）只有一个预算记录
         unique_together = ('user', 'category', 'budget_type', 'period', 'is_total')
 
+class AssetIcon(models.Model):
+    """资产图标库"""
+    id = models.AutoField(primary_key=True, verbose_name="图标ID")
+    name = models.CharField(max_length=20, verbose_name="图标名称")
+    icon = models.CharField(max_length=50, verbose_name="图标代码") # 对应 vant icon 名称
+    bg_class = models.CharField(max_length=50, verbose_name="背景类名") # 对应前端的 bg-green 等
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+
+    class Meta:
+        verbose_name = "资产图标"
+        db_table = "asset_icon"
+
+class AssetAccount(models.Model):
+    """资产账户表"""
+    ACCOUNT_TYPE_CHOICES = (
+        ('asset', '资产'),
+        ('debt', '负债'),
+    )
+    id = models.AutoField(primary_key=True, verbose_name="账户ID")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="所属用户ID")
+    name = models.CharField(max_length=50, verbose_name="账户名称") # 如：招商银行、我的钱包
+    asset_type = models.ForeignKey(AssetIcon, on_delete=models.PROTECT, verbose_name="资产类型图标")
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="账户余额")
+    type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES, default='asset', verbose_name="账户类型")
+    is_included_in_total = models.BooleanField(default=True, verbose_name="是否计入总资产")
+    remark = models.CharField(max_length=200, null=True, blank=True, verbose_name="备注")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "资产账户"
+        db_table = "asset_account"
+

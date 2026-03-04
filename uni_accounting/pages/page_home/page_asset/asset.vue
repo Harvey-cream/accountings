@@ -98,7 +98,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getAssetList } from '@/api/api.js';
 
 const statusBarHeight = ref(20);
 
@@ -107,67 +109,50 @@ onMounted(() => {
 	statusBarHeight.value = sysInfo.statusBarHeight || 20;
 });
 
-const netAsset = ref('611.00');
-const totalAsset = ref('1111.00');
-const totalLiability = ref('500.00');
+const netAsset = ref('0.00');
+const totalAsset = ref('0.00');
+const totalLiability = ref('0.00');
 
 // Animation Refs
 const displayAssetPercent = ref(0);
 const displayLiabilityPercent = ref(0);
 
-const assetGroups = ref([
-	{
-		name: '储蓄卡',
-		total: '12555.00',
-		items: [
-			{ id: 2, name: '建设银行 (工资)', amount: '8555.00', icon: 'card', iconColor: '#fff', bgClass: 'bg-blue' },
-			{ id: 5, name: '招商银行', amount: '4000.00', icon: 'card', iconColor: '#fff', bgClass: 'bg-red' }
-		]
-	},
-	{
-		name: '虚拟账户',
-		total: '2855.00',
-		items: [
-			{ id: 3, name: '微信钱包', amount: '555.00', icon: 'wechat', iconColor: '#fff', bgClass: 'bg-green-dark' },
-			{ id: 6, name: '支付宝余额', amount: '2300.00', icon: 'alipay', iconColor: '#fff', bgClass: 'bg-blue-dark' }
-		]
-	},
-	{
-		name: '投资理财',
-		total: '50000.00',
-		items: [
-			{ id: 7, name: '天天基金', amount: '30000.00', icon: 'balance-o', iconColor: '#fff', bgClass: 'bg-orange' },
-			{ id: 8, name: '股票账户', amount: '20000.00', icon: 'chart-trending-o', iconColor: '#fff', bgClass: 'bg-purple' }
-		]
-	},
-	{
-		name: '负债',
-		total: '-2500.00',
-		items: [
-			{ id: 4, name: '蚂蚁花呗', amount: '-1500.00', icon: 'info', iconColor: '#fff', bgClass: 'bg-red' },
-			{ id: 9, name: '信用卡', amount: '-1000.00', icon: 'credit-pay', iconColor: '#fff', bgClass: 'bg-slate' }
-		]
-	}
-]);
+const assetGroups = ref([]);
 
-const calculatePercents = () => {
-  const asset = parseFloat(totalAsset.value);
-  const liability = Math.abs(parseFloat(totalLiability.value));
-  const max = Math.max(asset, liability);
-  
-  if (max === 0) return { asset: 0, liability: 0 };
-  return {
-    asset: (asset / max) * 100,
-    liability: (liability / max) * 100
-  };
+const fetchAssetData = async () => {
+	try {
+		const res = await getAssetList();
+		if (res.code === 0) {
+			const { groups, summary } = res.data;
+			assetGroups.value = groups;
+			netAsset.value = summary.net_asset;
+			totalAsset.value = summary.total_asset;
+			totalLiability.value = summary.total_debt;
+			
+			// 更新进度条百分比
+			updatePercents();
+		}
+	} catch (e) {
+		console.error('获取资产列表失败:', e);
+	}
 };
 
-onMounted(() => {
-	setTimeout(() => {
-		const { asset, liability } = calculatePercents();
-		displayAssetPercent.value = asset;
-		displayLiabilityPercent.value = liability;
-	}, 100);
+const updatePercents = () => {
+	const asset = parseFloat(totalAsset.value);
+	const liability = Math.abs(parseFloat(totalLiability.value));
+	const max = Math.max(asset, liability);
+	
+	if (max === 0) {
+		displayAssetPercent.value = 0;
+		displayLiabilityPercent.value = 0;
+	} else {
+		displayAssetPercent.value = (asset / max) * 100;
+		displayLiabilityPercent.value = (liability / max) * 100;
+	}
+};
+
+onShow(() => {
+	fetchAssetData();
 });
 
 const goBack = () => {

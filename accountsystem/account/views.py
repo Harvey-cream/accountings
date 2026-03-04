@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget
+from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount
 from user.models import User
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult
@@ -58,9 +58,13 @@ class SaveBillView(APIView):
                 icon = TransactionIcon.objects.get(id=icon_id)
             except TransactionIcon.DoesNotExist:
                 return HttpResult.fail("所选图标不存在")
+            
+            # 修正：如果图标没有名称（自定义图标），则使用“其他”作为分类名称
+            category_name = icon.name if icon.name else "其他"
+            
             category, created = TransactionCategory.objects.get_or_create(
                 user=user,
-                name=icon.name,
+                name=category_name,
                 type=bill_type,
                 icon=icon
             )
@@ -560,3 +564,144 @@ class GetBudgetView(APIView):
         except Exception as e:
             print(f"获取预算异常: {str(e)}")
             return HttpResult.fail(f"获取预算失败: {str(e)}")
+
+class SaveAssetAccountView(APIView):
+    """保存或更新资产账户"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+            
+        data = request.data
+        account_id = data.get('id') # 如果有 ID 则为更新，没有则为新增
+        name = data.get('name')
+        asset_type_id = data.get('asset_type_id')
+        balance = data.get('balance', 0)
+        account_type = data.get('type', 'asset') # asset 或 debt
+        is_included_in_total = data.get('is_included_in_total', True)
+        remark = data.get('remark', '')
+
+        if not name:
+            return HttpResult.fail("请输入账户名称")
+        if not asset_type_id:
+            return HttpResult.fail("请选择资产类型")
+
+        try:
+            balance = Decimal(str(balance))
+            
+            # 1. 验证资产类型图标是否存在
+            try:
+                asset_icon = AssetIcon.objects.get(id=asset_type_id)
+            except AssetIcon.DoesNotExist:
+                return HttpResult.fail("所选资产类型不存在")
+
+            # 2. 保存或更新
+            if account_id:
+                # 更新逻辑
+                try:
+                    account = AssetAccount.objects.get(id=account_id, user=user)
+                    account.name = name
+                    account.asset_type = asset_icon
+                    account.balance = balance
+                    account.type = account_type
+                    account.is_included_in_total = is_included_in_total
+                    account.remark = remark
+                    account.save()
+                except AssetAccount.DoesNotExist:
+                    return HttpResult.fail("账户不存在或无权修改")
+            else:
+                # 新增逻辑
+                account = AssetAccount.objects.create(
+                    user=user,
+                    name=name,
+                    asset_type=asset_icon,
+                    balance=balance,
+                    type=account_type,
+                    is_included_in_total=is_included_in_total,
+                    remark=remark
+                )
+
+            return HttpResult.success_with_data("保存成功", {"id": account.id})
+
+        except Exception as e:
+            print(f"保存资产账户异常: {str(e)}")
+            return HttpResult.fail(f"保存失败: {str(e)}")
+
+class GetAssetListView(APIView):
+    """获取资产账户列表"""
+    def get(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+
+        try:
+            # 1. 查询用户的所有资产账户
+            accounts = AssetAccount.objects.filter(user=user).select_related('asset_type').order_by('type', 'create_time')
+
+            # 2. 按图标名称（大类）进行分组
+            # 前端需要的格式: [{ name: '储蓄卡', total: '...', items: [...] }]
+            grouped_dict = {}
+            
+            total_asset = Decimal('0')
+            total_debt = Decimal('0')
+
+            for acc in accounts:
+                # 确定分组名称 (使用资产图标的名称作为组名，如：现金、储蓄卡)
+                group_name = acc.asset_type.name
+                if acc.type == 'debt' and group_name != '负债':
+                    group_name = '负债' # 统一将负债类的放入负债组，或者保持原图标名
+
+                if group_name not in grouped_dict:
+                    grouped_dict[group_name] = {
+                        'name': group_name,
+                        'total': Decimal('0'),
+                        'items': []
+                    }
+                
+                # 格式化单条数据
+                amount = acc.balance
+                if acc.type == 'debt':
+                    # 负债显示为负数
+                    display_amount = -abs(amount)
+                    total_debt += abs(amount)
+                else:
+                    display_amount = abs(amount)
+                    total_asset += abs(amount)
+
+                item = {
+                    'id': acc.id,
+                    'name': acc.name,
+                    'amount': f"{display_amount:.2f}",
+                    'icon': acc.asset_type.icon,
+                    'iconColor': '#fff',
+                    'bgClass': acc.asset_type.bg_class,
+                    'remark': acc.remark or '',
+                    'type': acc.type
+                }
+                
+                grouped_dict[group_name]['items'].append(item)
+                grouped_dict[group_name]['total'] += display_amount
+
+            # 3. 转换为列表并格式化金额
+            asset_groups = []
+            for group in grouped_dict.values():
+                group['total'] = f"{group['total']:.2f}"
+                asset_groups.append(group)
+
+            # 计算汇总数据
+            net_asset = total_asset - total_debt
+            
+            data = {
+                'groups': asset_groups,
+                'summary': {
+                    'total_asset': f"{total_asset:.2f}",
+                    'total_debt': f"{total_debt:.2f}",
+                    'net_asset': f"{net_asset:.2f}"
+                }
+            }
+
+            return HttpResult.success_with_data("获取资产列表成功", data)
+
+        except Exception as e:
+            print(f"获取资产列表异常: {str(e)}")
+            return HttpResult.fail(f"获取失败: {str(e)}")

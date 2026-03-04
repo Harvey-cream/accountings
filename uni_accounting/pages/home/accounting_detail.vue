@@ -189,16 +189,19 @@ const onLoad = async () => {
 		});
 
 		if (res.code === 0) {
+			// console.log('账单原始数据:', JSON.stringify(res.data));
 			// 直接使用后端返回的已分组数据
 			const formattedData = res.data.map((group) => {
 				return {
 					...group,
 					items: group.items.map((item) => {
+						// console.log(`账单项 ID: ${item.id}, 标题: ${item.title}, 图标: ${item.icon}, ID: ${item.icon_id}`);
 						// 根据 icon_id 从 color.js 中取色，确保颜色与保存账单时一致
 						const colorIndex = Number(item.icon_id) % colorPairs.length;
 						const colors = colorPairs[colorIndex];
 						return {
 							...item,
+							icon: item.icon || 'notes-o', 
 							iconBgStyle: `background-color: ${colors.bg}`,
 							iconColorStyle: colors.icon
 						};

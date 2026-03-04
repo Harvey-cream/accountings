@@ -1,19 +1,9 @@
-// 环境判断逻辑
-let API_URL = '';
-
-if (process.env.NODE_ENV === 'development') {
-    // 开发环境后端地址
-    // API_URL = 'http://192.168.146.1:8030'; 
-    API_URL = 'http://172.20.10.3:8030'; // 手机热点/局域网访问地址
-} else {
-    // 生产环境部署地址
-    API_URL = 'http://47.107.238.136:8011'; 
-}
+import { API_URL } from '@/config/index.js';
 
 // 请求锁：存储正在进行中的请求，防止重复点击
 const pendingReqs = new Set()
 // 忽略拦截的接口白名单 (比如获取某些不敏感数据)
-const ignoreReqs = ['/api/public/some_data'] 
+const ignoreReqs = ['/api/public/some_data']
 
 // 发送放行接口 (不拦截)
 export const sendReleaseRequest = async (url, method = 'GET', data = {}) => {
@@ -37,6 +27,7 @@ export const sendReleaseRequest = async (url, method = 'GET', data = {}) => {
 				if (res.statusCode === 200) {
 					resolve(res.data)
 				} else {
+					uni.hideLoading(); // 确保在显示 Toast 前关闭 Loading
 					uni.showToast({
 						title: res.data.msg || '请求失败',
 						icon: 'none'
@@ -45,6 +36,7 @@ export const sendReleaseRequest = async (url, method = 'GET', data = {}) => {
 				}
 			},
 			fail(err) {
+				uni.hideLoading(); // 确保在显示 Toast 前关闭 Loading，防止配对警告
 				uni.showToast({
 					title: '网络错误',
 					icon: 'none'
@@ -76,7 +68,7 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 	let token = sessionInfo?.token_info?.token;
 
 	if (!token) {
-		pendingReqs.delete(requestKey) 
+		pendingReqs.delete(requestKey)
 		uni.showModal({
 			title: '提示',
 			content: '您尚未登录，请先登录后再进行操作',
@@ -135,12 +127,14 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 						resolve(sendRequest(url, method, data));
 					}).catch(() => {
 						// 刷新也失败，只能去登录了
+						uni.hideLoading(); // 刷新失败跳转前关闭 Loading
 						uni.reLaunch({
 							url: '/pages/login/login'
 						});
 						reject('登录失效');
 					});
 				} else {
+					uni.hideLoading(); // 报错前关闭 Loading
 					uni.showToast({
 						title: res.data.msg || '请求失败',
 						icon: 'none'
@@ -149,6 +143,7 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 				}
 			},
 			fail(err) {
+				uni.hideLoading(); // 确保在显示 Toast 前关闭 Loading
 				uni.showToast({
 					title: '网络错误',
 					icon: 'none'
@@ -165,7 +160,10 @@ export const sendRequest = async (url, method = 'GET', data = {}) => {
 const refreshToken = () => {
 	const sessionInfo = uni.getStorageSync('session');
 	const refresh = sessionInfo?.token_info?.refresh;
-	if (!refresh) return Promise.reject('无刷新令牌');
+	if (!refresh) {
+		console.warn('刷新 Token 失败：无刷新令牌');
+		return Promise.reject('无刷新令牌');
+	}
 
 	return new Promise((resolve, reject) => {
 		uni.request({
@@ -173,20 +171,27 @@ const refreshToken = () => {
 			method: 'POST',
 			data: {
 				refresh_token: refresh
-			}, // 接口参数名保持不变
+			},
 			success(res) {
 				if (res.statusCode === 200 && res.data.code === 0) {
-					// 更新 session 中的 token_info (后端返回的是完整的 token_info 对象)
-					sessionInfo.token_info = res.data.data;
+					// 更新 session 中的 token_info
+					// 注意：保持原有的 refresh_expires 等其他信息
+					sessionInfo.token_info = {
+						...sessionInfo.token_info,
+						...res.data.data
+					};
 					uni.setStorageSync('session', sessionInfo);
+					console.log('Token 自动刷新成功');
 					resolve(res.data.data.token);
 				} else {
+					console.error('Token 刷新失败 (接口返回):', res.data.msg);
 					// 刷新彻底失败，清除登录状态
 					uni.removeStorageSync('session');
 					reject(res.data.msg || '刷新失败');
 				}
 			},
 			fail(err) {
+				console.error('Token 刷新失败 (网络错误):', err);
 				reject(err);
 			}
 		});

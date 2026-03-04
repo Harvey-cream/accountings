@@ -62,9 +62,10 @@ const goBack = () => {
 };
 
 const onTypeClick = (item) => {
-	currentType.value = item;
-	inputAmount.value = '';
-	showAmountDialog.value = true;
+	// 直接跳转到编辑/添加详情页面，并传递选中的类型
+	uni.navigateTo({
+		url: `/pages/page_home/page_asset/asset_edit?type=${encodeURIComponent(JSON.stringify(item))}`
+	});
 };
 
 const onConfirmAmount = () => {
