@@ -1,35 +1,23 @@
-# 使用 Python slim 镜像以减少内存占用 
-FROM python:3.9-slim 
+# 使用自定义基础镜像
+# FROM 47.115.79.247:5000/pyenv:v4
+FROM python:3.10-slim
 
-# 设置工作目录 
-WORKDIR /app 
+# 设置工作目录
+WORKDIR /app
 
-# 配置清华大学 APT 镜像源以加速系统依赖安装
-# 兼容旧版 Debian (/etc/apt/sources.list) 和新版 Debian (/etc/apt/sources.list.d/debian.sources)
-RUN if [ -f /etc/apt/sources.list ]; then \
-        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
-    fi && \
-    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
-        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
-    fi
-
-# 只装必需的 MySQL 客户端（用于启动时检查状态），并清理缓存以减少体积
-RUN apt-get update && apt-get install -y --no-install-recommends \ 
-    default-mysql-client \ 
-    && rm -rf /var/lib/apt/lists/* 
-
-# 配置清华大学 PyPI 镜像源并安装依赖
+# 配置 PyPI 镜像源以加速安装（如果基础镜像未配置）
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-COPY requirements.txt /app/ 
-RUN pip install --no-cache-dir -r requirements.txt 
 
-# 复制项目代码 
-COPY . /app/ 
+# 复制 requirements.txt 并安装依赖
+COPY requirements.txt /app/
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 设置生产环境标识
-ENV DJANGO_ENV=production 
+# 复制整个项目代码
+COPY . /app/
 
-# 暴露端口 
+# 设置生产环境标识（由 docker-compose 覆盖或此处指定默认）
+ENV DJANGO_ENV=production
+
+# 暴露端口
 EXPOSE 8899

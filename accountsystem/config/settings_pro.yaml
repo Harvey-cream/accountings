@@ -1,0 +1,9 @@
+database:
+  engine: django.db.backends.mysql
+  name: account
+  user: root
+  password: root
+  host: 47.107.238.136
+  port: 3307
+  'OPTIONS':
+    'charset': 'utf8mb4'

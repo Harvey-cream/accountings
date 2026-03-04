@@ -1,104 +1,110 @@
+version: '3'
+
 services:
   db:
     image: mysql:8.0
+    container_name: mysql_db
     command: --default-authentication-plugin=mysql_native_password --authentication-policy=mysql_native_password
     restart: always
     environment:
       MYSQL_DATABASE: account
       MYSQL_ROOT_PASSWORD: root
     volumes:
-      - mysql_data:/var/lib/mysql
+      - /wwwroot/accounting/mysql_data:/var/lib/mysql
     ports:
       - "3307:3306"
-    # 健康检查
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    # 内存限制
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
+    networks:
+      - shared_network
 
-  web:
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis_db
+    restart: always
+    networks:
+      - shared_network
+
+  mini_app:
+    container_name: accounting
     build: .
-    # 自动化流程：等待数据库就绪 -> 执行迁移 -> 启动后端服务
-    command: >
-      sh -c "
-        until mysqladmin ping -h db -u root -proot --silent; do
-          echo '正在等待 MySQL 数据库完全就绪...';
-          sleep 2;
-        done;
-        echo 'MySQL 已就绪，开始检查并执行数据库迁移...';
-        python manage.py makemigrations --noinput && 
-        python manage.py migrate --noinput && 
-        echo '数据库迁移任务执行成功！' || echo '警告：数据库迁移执行异常，请检查日志。';
-        echo '正在拉起后端服务...';
-        uvicorn accountsystem.asgi:application --host 0.0.0.0 --port 8899;
-      "
+    # 按照您的要求，移除了迁移命令，直接启动服务
+    command: gunicorn accountsystem.asgi:application --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8899
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-production}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - .:/app
     ports:
       - "8010:8899"
     expose:
       - 8899
+    restart: always
+    networks:
+      - shared_network
     depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_NAME=account
-      - DB_USER=root
-      - DB_PASSWORD=root
-      - DEBUG=1
-    # 内存限制（核心：给 Web 服务更多内存以确保构建和运行稳定）
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
+      - db
+      - redis
 
   celery:
+    container_name: celery
     build: .
-    command: celery -A accountsystem worker --loglevel=info
+    command: celery -A accountsystem worker --pool=prefork --concurrency=8 --loglevel=info -Q default
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-production}
     volumes:
       - .:/app
+    restart: always
     depends_on:
-      web:
-        condition: service_started
-      db:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
+      - accounting
+    networks:
+      - shared_network
 
+  celery-compute:
+    container_name: celery-compute
+    build: .
+    command: celery -A accountsystem worker --pool=prefork --concurrency=8 --loglevel=info -Q compute
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-production}
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - accounting
+    networks:
+      - shared_network
+  
   celery-beat:
+    container_name: celery-beat
     build: .
     command: celery -A accountsystem beat --loglevel=info
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-production}
     volumes:
       - .:/app
+    restart: always
     depends_on:
-      web:
-        condition: service_started
-      db:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
-
+      - accounting
+    networks:
+      - shared_network
+  
+  celery-flower:
+    container_name: celery-flower
+    build: .
+    command: celery -A accountsystem flower --port=5050 --basic_auth=admin:password
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-production}
+    volumes:
+      - .:/app
+    ports:
+      - "5050:5050"
+    restart: always
+    depends_on:
+      - accounting
+    networks:
+      - shared_network
+  
   nginx:
+    container_name: account_nginx
     image: nginx:latest
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
@@ -110,13 +116,14 @@ services:
       - "8011:80"
       - "443:443"
     depends_on:
-      - web
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
+      - accounting
+    networks:
+      - shared_network
+  
+# 外部网络配置
+networks:
+  shared_network:
+    external: true
 
-volumes:
-  mysql_data:
+# volumes:
+#   mysql_data:

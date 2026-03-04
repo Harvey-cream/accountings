@@ -11,23 +11,22 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from config.provider import settings_conf
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# 环境配置加载
+SETTINGS_PROVIDER = settings_conf()
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-#_@aw_7z#%4rj@3e0i@_k@7-jui!xly8l$a8_5%le99#e=rug!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = SETTINGS_PROVIDER.debug
 
-ALLOWED_HOSTS = ['*']
-
-
+ALLOWED_HOSTS = SETTINGS_PROVIDER.allowed_hosts
 # Application definition
 
 INSTALLED_APPS = [
@@ -104,19 +103,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'accountsystem.wsgi.application'
 
 
-import os
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+_db_config = SETTINGS_PROVIDER.mysql_config
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'account'),
-        'USER': os.environ.get('DB_USER', 'root'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'root'),
-        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-        'PORT': os.environ.get('DB_PORT', '3306'),
+        'ENGINE': _db_config.get('engine', 'django.db.backends.mysql'),
+        'NAME': _db_config.get('name', 'account'),
+        'USER': _db_config.get('user', 'root'),
+        'PASSWORD': _db_config.get('password', 'root'),
+        'HOST': _db_config.get('host', '127.0.0.1'),
+        'PORT': str(_db_config.get('port', '3306')),
     }
 }
 
@@ -161,3 +159,11 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Celery Configuration
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
