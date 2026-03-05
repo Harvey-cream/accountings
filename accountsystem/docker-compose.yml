@@ -29,7 +29,7 @@ services:
     container_name: accounting
     build: .
     # 按照您的要求，移除了迁移命令，直接启动服务
-    command: gunicorn accountsystem.asgi:application --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8899
+    command: gunicorn accountsystem.asgi:application --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8899 --access-logfile - --log-level info
     environment:
       - DJANGO_ENV=${DJANGO_ENV:-production}
     volumes:

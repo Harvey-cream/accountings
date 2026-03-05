@@ -34,7 +34,7 @@
 							</view>
 							<view class="progress-bar-track">
 								<view 
-									class="progress-bar-fill bg-green" 
+									class="progress-bar-fill bg-success" 
 									:style="{ width: displayAssetPercent + '%' }"
 								></view>
 							</view>
@@ -48,7 +48,7 @@
 							</view>
 							<view class="progress-bar-track">
 								<view 
-									class="progress-bar-fill bg-red" 
+									class="progress-bar-fill bg-danger" 
 									:style="{ width: displayLiabilityPercent + '%' }"
 								></view>
 							</view>

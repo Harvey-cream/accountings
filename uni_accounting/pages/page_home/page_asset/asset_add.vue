@@ -47,14 +47,14 @@ const inputAmount = ref('');
 const currentType = ref(null);
 
 const accountTypes = [
-	{ id: 1, name: '现金', desc: '', icon: 'gold-coin', bgClass: 'bg-green' },
-	{ id: 2, name: '储蓄卡', desc: '', icon: 'card', bgClass: 'bg-yellow' },
-	{ id: 3, name: '信用卡', desc: '信用卡/蚂蚁花呗/京东白条', icon: 'credit-pay', bgClass: 'bg-orange' },
-	{ id: 4, name: '虚拟账户', desc: '支付宝/微信', icon: 'gold-coin-o', bgClass: 'bg-yellow-dark' },
-	{ id: 5, name: '投资账户', desc: '股票/基金/P2P', icon: 'chart-trending-o', bgClass: 'bg-orange-dark' },
-	{ id: 6, name: '负债', desc: '贷款/借入', icon: 'info', bgClass: 'bg-red' },
-	{ id: 7, name: '债权', desc: '应收/借出', icon: 'manager', bgClass: 'bg-blue' },
-	{ id: 8, name: '自定义资产', desc: '', icon: 'points', bgClass: 'bg-purple' }
+	{ id: 1, name: '现金', desc: '', icon: 'gold-coin', bgClass: 'icon-bg-green' },
+	{ id: 2, name: '储蓄卡', desc: '', icon: 'card', bgClass: 'icon-bg-yellow' },
+	{ id: 3, name: '信用卡', desc: '信用卡/蚂蚁花呗/京东白条', icon: 'credit-pay', bgClass: 'icon-bg-orange' },
+	{ id: 4, name: '虚拟账户', desc: '支付宝/微信', icon: 'gold-coin-o', bgClass: 'icon-bg-yellow-dark' },
+	{ id: 5, name: '投资账户', desc: '股票/基金/P2P', icon: 'chart-trending-o', bgClass: 'icon-bg-orange-dark' },
+	{ id: 6, name: '负债', desc: '贷款/借入', icon: 'info', bgClass: 'icon-bg-red' },
+	{ id: 7, name: '债权', desc: '应收/借出', icon: 'manager', bgClass: 'icon-bg-blue' },
+	{ id: 8, name: '自定义资产', desc: '', icon: 'points', bgClass: 'icon-bg-purple' }
 ];
 
 const goBack = () => {

@@ -14,14 +14,14 @@ def init_asset_icons():
     print('开始导入资产图标数据...')
     
     asset_icons = [
-        {'id': 1, 'name': '现金', 'icon': 'gold-coin', 'bg_class': 'bg-green'},
-        {'id': 2, 'name': '储蓄卡', 'icon': 'card', 'bg_class': 'bg-yellow'},
-        {'id': 3, 'name': '信用卡', 'icon': 'credit-pay', 'bg_class': 'bg-orange'},
-        {'id': 4, 'name': '虚拟账户', 'icon': 'gold-coin-o', 'bg_class': 'bg-yellow-dark'},
-        {'id': 5, 'name': '投资账户', 'icon': 'chart-trending-o', 'bg_class': 'bg-orange-dark'},
-        {'id': 6, 'name': '负债', 'icon': 'info', 'bg_class': 'bg-red'},
-        {'id': 7, 'name': '债权', 'icon': 'manager', 'bg_class': 'bg-blue'},
-        {'id': 8, 'name': '自定义资产', 'icon': 'points', 'bg_class': 'bg-purple'}
+        {'id': 1, 'name': '现金', 'icon': 'gold-coin', 'bg_class': 'icon-bg-green'},
+        {'id': 2, 'name': '储蓄卡', 'icon': 'card', 'bg_class': 'icon-bg-yellow'},
+        {'id': 3, 'name': '信用卡', 'icon': 'credit-pay', 'bg_class': 'icon-bg-orange'},
+        {'id': 4, 'name': '虚拟账户', 'icon': 'gold-coin-o', 'bg_class': 'icon-bg-yellow-dark'},
+        {'id': 5, 'name': '投资账户', 'icon': 'chart-trending-o', 'bg_class': 'icon-bg-orange-dark'},
+        {'id': 6, 'name': '负债', 'icon': 'info', 'bg_class': 'icon-bg-red'},
+        {'id': 7, 'name': '债权', 'icon': 'manager', 'bg_class': 'icon-bg-blue'},
+        {'id': 8, 'name': '自定义资产', 'icon': 'points', 'bg_class': 'icon-bg-purple'}
     ]
 
     count = 0

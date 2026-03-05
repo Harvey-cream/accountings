@@ -99,21 +99,26 @@ page {
   background-color: var(--main-color) !important;
 }
 
-/* 通用图标背景色 (适配资产管理、分类等) */
-.bg-green { background-color: #10b981 !important; }
-.bg-yellow { background-color: #f59e0b !important; }
-.bg-orange { background-color: #f97316 !important; }
-.bg-yellow-dark { background-color: #d97706 !important; }
-.bg-orange-dark { background-color: #ea580c !important; }
-.bg-red { background-color: #ef4444 !important; }
-.bg-blue { background-color: #3b82f6 !important; }
-.bg-purple { background-color: #8b5cf6 !important; }
-.bg-green-dark { background-color: #059669 !important; }
-.bg-gray { background-color: #64748b !important; }
+/* 通用图标背景色 (适配资产管理、分类等) - 使用专用前缀避免冲突 */
+.icon-bg-green { background-color: #10b981 !important; }
+.icon-bg-yellow { background-color: #f59e0b !important; }
+.icon-bg-orange { background-color: #f97316 !important; }
+.icon-bg-yellow-dark { background-color: #d97706 !important; }
+.icon-bg-orange-dark { background-color: #ea580c !important; }
+.icon-bg-red { background-color: #ef4444 !important; }
+.icon-bg-blue { background-color: #3b82f6 !important; }
+.icon-bg-purple { background-color: #8b5cf6 !important; }
+.icon-bg-green-dark { background-color: #059669 !important; }
+.icon-bg-gray { background-color: #64748b !important; }
 
-.bg-main-light {
-  background-color: rgba(var(--main-color-rgb), 0.1) !important;
-}
+/* 专用背景色（带前缀，防止污染全局） */
+.bg-main-light { background-color: rgba(var(--main-color-rgb), 0.1) !important; }
+.bg-success-light { background-color: rgba(16, 185, 129, 0.1) !important; }
+.bg-danger-light { background-color: rgba(239, 68, 68, 0.1) !important; }
+
+/* 基础背景色 - 保持简单定义，不加 !important 以便局部覆盖 */
+.bg-success { background-color: #10b981; }
+.bg-danger { background-color: #ef4444; }
 
 .bg-white {
   background-color: #ffffff;
