@@ -18,7 +18,10 @@ __pycache__/
 node_modules/
 package-lock.json
 yarn.lock
-
+node_modules
+.DS_Store
+dist
+*.local
 # 环境变量/敏感配置
 .env
 .local
