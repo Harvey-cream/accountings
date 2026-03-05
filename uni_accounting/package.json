@@ -4,6 +4,10 @@
   "description": "uni_accounting",
   "main": "main.js",
   "scripts": {
+    "dev:h5": "uni",
+    "build:h5": "uni build",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -14,8 +18,22 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/uni-app-plus": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5000120260211001",
     "echarts": "^6.0.0",
+    "pinia": "^2.0.36",
     "sm-crypto": "^0.4.0",
-    "vant": "^4.9.22"
+    "vant": "^3.6.16",
+    "vue": "^3.3.4"
+  },
+  "devDependencies": {
+    "@dcloudio/uni-cli-shared": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5000120260211001",
+    "cross-env": "^10.1.0",
+    "sass": "^1.63.6",
+    "vite": "^4.4.11"
   }
 }
