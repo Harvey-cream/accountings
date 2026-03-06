@@ -113,7 +113,7 @@ services:
       - ./static:/app/static
       - ./media:/app/media
     ports:
-      - "8011:80"
+      - "80:80"
       - "443:443"
     depends_on:
       - mini_app
