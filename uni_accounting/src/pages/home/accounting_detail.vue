@@ -28,7 +28,7 @@
 				</view>
 			</view>
 			<view class="quick-actions">
-				<van-grid :column-num="5" :border="false" :gutter="10">
+				<van-grid :column-num="5" :border="false" :gutter="8">
 					<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
 						<template #icon>
 							<view :class="['action-icon-wrap', action.bgColor]">
@@ -50,8 +50,8 @@
 						</view>
 
 						<view class="list-container">
-							<van-swipe-cell v-for="item in group.items" :key="item.id" right-width="65">
-								<van-cell center class="custom-cell flat-cell">
+							<van-swipe-cell v-for="(item, index) in group.items" :key="item.id" right-width="65">
+								<van-cell center :class="['custom-cell', 'flat-cell', { 'last-item': index === group.items.length - 1 }]">
 									<template #icon>
 										<view class="list-icon-wrap" :style="item.iconBgStyle">
 											<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
@@ -60,11 +60,9 @@
 									<template #title>
 										<view class="cell-content">
 											<view class="cell-main">
-												<text class="cell-title text-style-title">{{ item.title }}</text>
+												<text class="cell-title text-style-title">{{ item.remark || item.title }}</text>
 												<view class="cell-sub-info">
-													<text class="cell-time text-style-desc">{{ item.time }}</text>
-													<text v-if="item.location" class="cell-location text-style-desc">· {{ item.location }}</text>
-													<text v-if="item.remark" class="cell-remark text-style-desc">· {{ item.remark }}</text>
+													<text v-if="item.location" class="cell-location text-style-desc">{{ item.location }}</text>
 												</view>
 											</view>
 											<view class="cell-right">
@@ -346,8 +344,8 @@ const onMonthConfirm = (value) => {
 }
 
 .divider {
-	width: 1px;
-	background-color: rgba(0, 0, 0, 0.1);
+	width: 0.5px;
+	background-color: rgba(0, 0, 0, 0.15);
 	margin: 0 20px;
 }
 
@@ -355,7 +353,7 @@ const onMonthConfirm = (value) => {
 	flex: 1;
 	display: flex;
 	justify-content: flex-start;
-	gap: 60px;
+	gap: 40px;
 	min-width: 0;
 }
 
@@ -366,12 +364,12 @@ const onMonthConfirm = (value) => {
 }
 
 .stat-label {
-	font-size: 12px;
+	font-size: 11px;
 	color: var(--secondary-text-color);
 }
 
 .stat-value {
-	font-size: 20px;
+	font-size: 18px;
 	font-weight: 300;
 	white-space: nowrap;
 	overflow: hidden;
@@ -380,7 +378,7 @@ const onMonthConfirm = (value) => {
 
 :deep(.van-grid-item__content) {
 	background-color: transparent;
-	padding: 8px 0;
+	padding: 4px 0;
 }
 
 .action-item {
@@ -390,17 +388,17 @@ const onMonthConfirm = (value) => {
 }
 
 .action-icon-wrap {
-	width: 48px;
-	height: 48px;
-	border-radius: 16px;
+	width: 44px;
+	height: 44px;
+	border-radius: 12px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-bottom: 6px;
+	margin-bottom: 4px;
 }
 
 .action-name {
-	font-size: 11px;
+	font-size: 10px;
 	font-weight: 500;
 	color: var(--secondary-text-color);
 }
@@ -440,11 +438,21 @@ const onMonthConfirm = (value) => {
 	border-radius: 0;
 	margin-bottom: 0;
 	padding: 16px 20px !important;
-	border-bottom: 1px solid #f1f5f9;
+	position: relative;
 }
 
-.custom-cell:last-child {
-	border-bottom: none;
+.custom-cell::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 72px;
+	right: 0px;
+	height: 1px;
+	background-color: #f1f5f9;
+}
+
+.custom-cell.last-item::after {
+	left: 0;
 }
 
 .flat-cell {

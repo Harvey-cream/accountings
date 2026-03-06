@@ -94,8 +94,16 @@
 						<template #title>
 							<view class="cell-content">
 								<view class="cell-main">
-									<text class="text-style-title">{{ item.name }}</text>
-									<text class="cell-time text-style-desc">{{ item.percent }}%</text>
+									<view class="title-row">
+										<text class="text-style-title">{{ item.name }}</text>
+										<text class="cell-percent text-style-desc">{{ item.percent }}%</text>
+									</view>
+									<view class="progress-bar-track">
+										<view 
+											class="progress-bar-fill" 
+											:style="{ width: (item.displayPercent || 0) + '%', backgroundColor: getIconColors(item.icon_id).icon }"
+										></view>
+									</view>
 								</view>
 								<view class="cell-right">
 									<text class="text-style-number">{{ item.amount }}</text>
@@ -170,7 +178,19 @@ const fetchChartData = async () => {
 		const res = await getBillSummary(params);
 		if (res.code === 0) {
 			chartData.value = res.data.chartData;
-			expenseList.value = res.data.categoryStats;
+			// 1. 初始化列表，将 displayPercent 设为 0
+			expenseList.value = res.data.categoryStats.map(item => ({
+				...item,
+				displayPercent: 0
+			}));
+			
+			// 2. 延迟触发动画效果
+			setTimeout(() => {
+				expenseList.value = expenseList.value.map(item => ({
+					...item,
+					displayPercent: item.percent
+				}));
+			}, 100);
 		}
 	} catch (e) {
 		console.error('Failed to fetch chart data:', e);
@@ -564,18 +584,43 @@ const shouldShowLabel = (index) => {
 }
 
 .cell-main {
+	flex: 1;
 	display: flex;
 	flex-direction: column;
+	margin-right: 16px;
 }
 
-.cell-time {
-	margin-top: 2px;
+.title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.cell-percent {
+	font-size: var(--font-size-desc);
+	color: var(--light-text-color);
+}
+
+.progress-bar-track {
+	height: 6px;
+	background-color: #f1f5f9;
+	border-radius: 3px;
+	overflow: hidden;
+	width: 100%;
+}
+
+.progress-bar-fill {
+	height: 100%;
+	border-radius: 3px;
+	transition: width 0.6s ease;
 }
 
 .cell-right {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
+	min-width: 80px;
 }
 /* 颜色类 */
 .bg-orange-light, .bg-blue-light, .bg-green-light, .bg-red-light, .bg-indigo-light, .bg-yellow-light, .bg-cyan-light {
