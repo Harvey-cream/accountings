@@ -12,11 +12,6 @@ echo "======= 开始部署 uni_accounting ======="
 
 # 1. 进入项目目录
 cd $PROJECT_DIR || { echo "错误: 找不到目录 $PROJECT_DIR"; exit 1; }
-
-# 2. 拉取最新代码
-echo ">>> 正在拉取最新代码..."
-git pull origin master || { echo "错误: git pull 失败"; exit 1; }
-
 # 3. 安装依赖
 echo ">>> 正在安装依赖..."
 # 使用 npm install，如果服务器网络慢建议使用 npm install --registry=https://registry.npmmirror.com
