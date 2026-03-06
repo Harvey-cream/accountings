@@ -4,7 +4,7 @@
 # 服务器前端项目的根目录 (源码位置)
 PROJECT_DIR="/www/wwwroot/accounting/uni_accounting"
 # 构建产物存放目录 (uni-app H5 默认路径)
-BUILD_DIST="$PROJECT_DIR/unpackage/dist/build/h5"
+BUILD_DIST="$PROJECT_DIR/dist/build/h5"
 # Nginx 实际托管的宿主机静态文件目录 (映射到容器内的 /app/static)
 WEB_ROOT="/www/wwwroot/accounting/accountsystem/static"
 
