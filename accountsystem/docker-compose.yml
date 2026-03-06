@@ -108,7 +108,7 @@ services:
     image: nginx:latest
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/conf/cert:/etc/nginx/certs
+      - ./nginx/certs:/etc/nginx/certs
       - ./nginx/conf/wx-sercret:/etc/nginx/wx-sercret
       - ./static:/app/static
       - ./media:/app/media
