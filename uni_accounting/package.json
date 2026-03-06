@@ -8,6 +8,7 @@
 		"build:h5": "uni build",
 		"dev:mp-weixin": "uni -p mp-weixin",
 		"build:mp-weixin": "uni build -p mp-weixin",
+		"deploy": "sh build_fronted.sh",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"repository": {
