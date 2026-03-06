@@ -84,12 +84,12 @@
 				</van-list>
 			</view>
 			<van-popup v-model:show="showMonthPicker" position="bottom">
-				<van-date-picker
-					v-model="currentDateArray"
+				<van-datetime-picker
+					v-model="currentDate"
+					type="year-month"
 					title="选择月份"
 					:min-date="minDate"
 					:max-date="maxDate"
-					:columns-type="['year', 'month']"
 					@confirm="onMonthConfirm"
 					@cancel="showMonthPicker = false"
 				/>
@@ -107,7 +107,7 @@ import { getBills, deleteBill, getBillSummary } from '@/api/api.js';
 import { colorPairs } from '@/utils/color.js';
 
 const showMonthPicker = ref(false);
-const currentDateArray = ref([new Date().getFullYear().toString(), (new Date().getMonth() + 1).toString().padStart(2, '0')]);
+const currentDate = ref(new Date());
 const minDate = new Date(2020, 0, 1);
 const maxDate = new Date(2030, 11, 31);
 const activeNav = ref(0);
@@ -123,11 +123,11 @@ const summary = ref({
 });
 
 const quickActions = ref([
-	{ id: 1, name: '账单', icon: 'notes-o', bgColor: 'bg-amber', iconColor: '#f59e0b' },
-	{ id: 2, name: '预算', icon: 'balance-o', bgColor: 'bg-blue', iconColor: '#3b82f6' },
-	{ id: 3, name: '资产', icon: 'gold-coin-o', bgColor: 'bg-emerald', iconColor: '#10b981' },
-	{ id: 4, name: '发票', icon: 'records', bgColor: 'bg-rose', iconColor: '#f43f5e' },
-	{ id: 5, name: '更多', icon: 'apps-o', bgColor: 'bg-slate', iconColor: '#64748b' }
+	{ id: 1, name: '账单', icon: 'notes-o', bgColor: 'bg-action-amber', iconColor: '#f59e0b' },
+	{ id: 2, name: '预算', icon: 'balance-o', bgColor: 'bg-action-blue', iconColor: '#3b82f6' },
+	{ id: 3, name: '资产', icon: 'gold-coin-o', bgColor: 'bg-action-emerald', iconColor: '#10b981' },
+	{ id: 4, name: '发票', icon: 'records', bgColor: 'bg-action-rose', iconColor: '#f43f5e' },
+	{ id: 5, name: '更多', icon: 'apps-o', bgColor: 'bg-action-slate', iconColor: '#64748b' }
 ]);
 
 const onActionClick = (action) => {
@@ -262,9 +262,10 @@ const onDelete = (groupId, itemId) => {
 	});
 };
 
-const onMonthConfirm = ({ selectedValues }) => {
-	summary.value.year = selectedValues[0];
-	summary.value.month = selectedValues[1];
+const onMonthConfirm = (value) => {
+	const date = new Date(value);
+	summary.value.year = date.getFullYear().toString();
+	summary.value.month = (date.getMonth() + 1).toString().padStart(2, '0');
 	showMonthPicker.value = false;
 	// 切换月份后立即刷新数据
 	onLoad();
@@ -405,11 +406,11 @@ const onMonthConfirm = ({ selectedValues }) => {
 }
 
 /* Action Colors */
-.bg-amber,
-.bg-blue,
-.bg-emerald,
-.bg-rose,
-.bg-slate {
+.bg-action-amber,
+.bg-action-blue,
+.bg-action-emerald,
+.bg-action-rose,
+.bg-action-slate {
 	background-color: var(--secondary-bg-color);
 }
 

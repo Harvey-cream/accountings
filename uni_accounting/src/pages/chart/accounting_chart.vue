@@ -129,6 +129,19 @@ import { colorPairs } from '@/utils/color.js';
 const periods = ['周', '月', '年'];
 const currentPeriod = ref(0);
 
+// 类型选择逻辑
+const currentType = ref('支出');
+const showTypeSheet = ref(false);
+const typeActions = [
+	{ name: '支出' },
+	{ name: '收入' }
+];
+
+const onTypeSelect = (event) => {
+	currentType.value = event.name;
+	showTypeSheet.value = false;
+};
+
 // 图表数据
 const chartData = ref({
 	labels: [],
@@ -333,19 +346,6 @@ const shouldShowLabel = (index) => {
 		return [0, 3, 6].includes(index);
 	}
 	return false;
-};
-
-// 类型选择逻辑
-const currentType = ref('支出');
-const showTypeSheet = ref(false);
-const typeActions = [
-	{ name: '支出' },
-	{ name: '收入' }
-];
-
-const onTypeSelect = (event) => {
-	currentType.value = event.name;
-	showTypeSheet.value = false;
 };
 </script>
 
