@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount
+from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice
 from user.models import User
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult
@@ -704,4 +704,114 @@ class GetAssetListView(APIView):
 
         except Exception as e:
             print(f"获取资产列表异常: {str(e)}")
+            return HttpResult.fail(f"获取失败: {str(e)}")
+
+class SaveInvoiceView(APIView):
+    """保存或更新发票"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+        data = request.data
+        invoice_id = data.get('id')
+        name = data.get('name')
+        tax_id = data.get('taxId') # 对应前端字段名
+        amount = data.get('amount', 0)
+        address = data.get('address', '')
+        phone = data.get('phone', '')
+        bank = data.get('bank', '')
+        account = data.get('account', '')
+        remark = data.get('remark', '')
+
+        if not name:
+            return HttpResult.fail("请输入发票抬头名称")
+        if not tax_id:
+            return HttpResult.fail("请输入税号")
+
+        try:
+            amount = Decimal(str(amount))
+            
+            if invoice_id:
+                # 更新
+                try:
+                    invoice = TransactionInvoice.objects.get(id=invoice_id, user=user)
+                    invoice.name = name
+                    invoice.tax_id = tax_id
+                    invoice.amount = amount
+                    invoice.address = address
+                    invoice.phone = phone
+                    invoice.bank = bank
+                    invoice.account = account
+                    invoice.remark = remark
+                    invoice.save()
+                except TransactionInvoice.DoesNotExist:
+                    return HttpResult.fail("发票信息不存在或无权修改")
+            else:
+                # 新增
+                invoice = TransactionInvoice.objects.create(
+                    user=user,
+                    name=name,
+                    tax_id=tax_id,
+                    amount=amount,
+                    address=address,
+                    phone=phone,
+                    bank=bank,
+                    account=account,
+                    remark=remark
+                )
+
+            return HttpResult.success_with_data("保存成功", {"id": invoice.id})
+
+        except Exception as e:
+            print(f"保存发票异常: {str(e)}")
+            return HttpResult.fail(f"保存失败: {str(e)}")
+
+class DeleteInvoiceView(APIView):
+    """删除发票"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+        
+        invoice_id = request.data.get('id')
+        if not invoice_id:
+            return HttpResult.fail("发票 ID 不能为空")
+            
+        try:
+            invoice = TransactionInvoice.objects.get(id=invoice_id, user=user)
+            invoice.delete()
+            return HttpResult.success("删除成功")
+        except TransactionInvoice.DoesNotExist:
+            return HttpResult.fail("发票不存在或无权删除")
+        except Exception as e:
+            return HttpResult.fail(f"删除失败: {str(e)}")
+
+class GetInvoiceListView(APIView):
+    """获取发票列表"""
+    def get(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+
+        try:
+            invoices = TransactionInvoice.objects.filter(user=user).order_by('-create_time')
+            
+            data_list = []
+            for item in invoices:
+                data_list.append({
+                    'id': item.id,
+                    'name': item.name,
+                    'taxId': item.tax_id,
+                    'amount': f"{float(item.amount):,.2f}",
+                    'address': item.address or '',
+                    'phone': item.phone or '',
+                    'bank': item.bank or '',
+                    'account': item.account or '',
+                    'remark': item.remark or ''
+                })
+
+            return HttpResult.success_with_data("获取发票列表成功", data_list)
+
+        except Exception as e:
+            print(f"获取发票列表异常: {str(e)}")
             return HttpResult.fail(f"获取失败: {str(e)}")

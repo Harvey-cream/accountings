@@ -24,6 +24,14 @@
 						:border="true"
 					/>
 					<van-field
+						v-model="form.amount"
+						label="金额"
+						placeholder="0.00"
+						input-align="right"
+						type="digit"
+						:border="true"
+					/>
+					<van-field
 						v-model="form.taxId"
 						label="税号"
 						placeholder="15-20位 (企业报销时必填)"
@@ -83,12 +91,15 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import { saveInvoice, deleteInvoice, getInvoiceList } from '@/api/api.js';
 
 const statusBarHeight = ref(20);
 const isEdit = ref(false);
 const form = ref({
 	id: '',
 	name: '',
+	amount: '',
 	taxId: '',
 	address: '',
 	phone: '',
@@ -99,16 +110,7 @@ const form = ref({
 onMounted(() => {
 	const sysInfo = uni.getSystemInfoSync();
 	statusBarHeight.value = sysInfo.statusBarHeight || 20;
-
-	// 获取页面参数
-	const pages = getCurrentPages();
-	const currentPage = pages[pages.length - 1];
-	// 简单模拟获取参数，实际应从 onLoad options 获取
-	// 由于 setup 语法糖中直接获取 options 较麻烦，这里简化处理，假设是通过全局变量或 storage 传递，或者直接在 onLoad 中处理
-	// 在 uni-app Vue3 setup 中，可以使用 onLoad 钩子
 });
-
-import { onLoad } from '@dcloudio/uni-app';
 
 onLoad((options) => {
 	if (options.id) {
@@ -117,14 +119,21 @@ onLoad((options) => {
 	}
 });
 
-const loadInvoiceDetail = (id) => {
-	const stored = uni.getStorageSync('invoice_list');
-	if (stored) {
-		const list = JSON.parse(stored);
-		const item = list.find(i => i.id == id);
-		if (item) {
-			form.value = { ...item };
+const loadInvoiceDetail = async (id) => {
+	try {
+		const res = await getInvoiceList();
+		if (res.code === 0) {
+			const item = res.data.find(i => i.id == id);
+			if (item) {
+				form.value = { 
+					...item,
+					// 后端返回的金额带千分位，保存时需要去掉
+					amount: item.amount.replace(/,/g, '')
+				};
+			}
 		}
+	} catch (e) {
+		console.error('获取发票详情失败:', e);
 	}
 };
 
@@ -132,46 +141,46 @@ const onBack = () => {
 	uni.navigateBack();
 };
 
-const onSave = () => {
+const onSave = async () => {
 	if (!form.value.name) return;
 
-	let list = [];
-	const stored = uni.getStorageSync('invoice_list');
-	if (stored) {
-		list = JSON.parse(stored);
-	}
-
-	if (isEdit.value) {
-		const index = list.findIndex(i => i.id == form.value.id);
-		if (index > -1) {
-			list[index] = { ...form.value };
+	try {
+		const params = { ...form.value };
+		const res = await saveInvoice(params);
+		
+		if (res.code === 0) {
+			uni.showToast({ title: '保存成功', icon: 'success' });
+			setTimeout(() => {
+				uni.navigateBack();
+			}, 1500);
+		} else {
+			uni.showToast({ title: res.msg || '保存失败', icon: 'none' });
 		}
-	} else {
-		form.value.id = Date.now();
-		list.push({ ...form.value });
+	} catch (e) {
+		console.error('保存发票异常:', e);
+		uni.showToast({ title: '网络异常，请稍后重试', icon: 'none' });
 	}
-
-	uni.setStorageSync('invoice_list', JSON.stringify(list));
-	uni.showToast({ title: '保存成功', icon: 'success' });
-	
-	setTimeout(() => {
-		uni.navigateBack();
-	}, 1500);
 };
 
 const onDelete = () => {
 	uni.showModal({
 		title: '提示',
 		content: '确定要删除这条发票信息吗？',
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
-				let list = [];
-				const stored = uni.getStorageSync('invoice_list');
-				if (stored) {
-					list = JSON.parse(stored);
-					list = list.filter(i => i.id != form.value.id);
-					uni.setStorageSync('invoice_list', JSON.stringify(list));
-					uni.navigateBack();
+				try {
+					const result = await deleteInvoice(form.value.id);
+					if (result.code === 0) {
+						uni.showToast({ title: '删除成功', icon: 'success' });
+						setTimeout(() => {
+							uni.navigateBack();
+						}, 1500);
+					} else {
+						uni.showToast({ title: result.msg || '删除失败', icon: 'none' });
+					}
+				} catch (e) {
+					console.error('删除发票异常:', e);
+					uni.showToast({ title: '网络异常，请稍后重试', icon: 'none' });
 				}
 			}
 		}
@@ -182,7 +191,7 @@ const onDelete = () => {
 <style scoped>
 .page-container {
 	min-height: 100vh;
-	background-color: #f8fafc;
+	background-color: #ffffff;
 	display: flex;
 	flex-direction: column;
 }

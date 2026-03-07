@@ -1,6 +1,5 @@
 <template>
 	<view class="page-container" :class="currentThemeClass">
-		<!-- 顶部导航栏 -->
 		<view class="nav-header" :style="{ paddingTop: statusBarHeight + 'px' }">
 			<view class="nav-content">
 				<view class="nav-left"></view>
@@ -10,8 +9,6 @@
 				</view>
 			</view>
 		</view>
-
-		<!-- 主要内容区 -->
 		<scroll-view scroll-y class="main-content" >
 			<view class="content-wrapper">
 				<!-- 空状态 -->
@@ -30,6 +27,10 @@
 							<van-icon name="edit" color="#94a3b8" size="18" @click="onEditInvoice(item)" />
 						</view>
 						<view class="card-body">
+							<view class="info-row">
+								<text class="label">金额</text>
+								<text class="value text-style-number" style="font-weight: 600; color: #0f172a;">¥ {{ item.amount || '0.00' }}</text>
+							</view>
 							<view class="info-row">
 								<text class="label">税号</text>
 								<text class="value">{{ item.taxId }}</text>
@@ -51,8 +52,6 @@
 				</view>
 			</view>
 		</scroll-view>
-
-		<!-- 底部按钮 -->
 		<view class="bottom-bar">
 			<view class="add-button" @click="onAddInvoice">
 				<van-icon name="plus" size="18" color="#0f172a" />
@@ -64,7 +63,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getInvoiceList } from '@/api/api.js';
 
 const statusBarHeight = ref(20);
 const invoices = ref([]);
@@ -72,59 +73,22 @@ const invoices = ref([]);
 onMounted(() => {
 	const sysInfo = uni.getSystemInfoSync();
 	statusBarHeight.value = sysInfo.statusBarHeight || 20;
-	
-	// 加载模拟数据或从本地存储加载
+});
+
+onShow(() => {
 	loadInvoices();
 });
 
-const loadInvoices = () => {
-		const stored = uni.getStorageSync('invoice_list');
-		if (stored) {
-			const parsedInvoices = JSON.parse(stored);
-			if (parsedInvoices && parsedInvoices.length > 0) {
-				invoices.value = parsedInvoices;
-			} else {
-				// 如果本地存储是空的或无效的，加载模拟数据
-				loadMockInvoices();
-			}
-		} else {
-			// 如果本地没有数据，加载模拟数据
-			loadMockInvoices();
+const loadInvoices = async () => {
+	try {
+		const res = await getInvoiceList();
+		if (res.code === 0) {
+			invoices.value = res.data;
 		}
-	};
-
-	const loadMockInvoices = () => {
-		invoices.value = [
-			{
-				id: 1,
-				name: '深圳市腾讯计算机系统有限公司',
-				taxId: '91440300708461136T',
-				address: '深圳市南山区高新区科技中一路腾讯大厦35层',
-				phone: '0755-86013388',
-				bank: '招商银行深圳威盛大厦支行',
-				account: '817282292910201'
-			},
-			{
-				id: 2,
-				name: '北京字节跳动科技有限公司',
-				taxId: '911101085923662400',
-				address: '北京市海淀区北三环西路43号院2号楼',
-				phone: '010-58341888',
-				bank: '中国银行北京中关村支行',
-				account: '340256025688'
-			},
-			{
-				id: 3,
-				name: '阿里巴巴（中国）网络技术有限公司',
-				taxId: '91330100799655058B',
-				address: '杭州市滨江区网商路699号',
-				phone: '0571-85022088',
-				bank: '招商银行杭州分行',
-				account: '571906688810601'
-			}
-		];
-		uni.setStorageSync('invoice_list', JSON.stringify(invoices.value));
-	};
+	} catch (e) {
+		console.error('获取发票列表失败:', e);
+	}
+};
 
 const onAddInvoice = () => {
 	uni.navigateTo({
@@ -142,12 +106,10 @@ const onEditInvoice = (item) => {
 <style scoped>
 .page-container {
 	min-height: 100vh;
-	background-color: #f8fafc;
+	background-color: #ffffff;
 	display: flex;
 	flex-direction: column;
 }
-
-/* 导航栏 */
 .nav-header {
 	z-index: 100;
 	background-color: #fcd34d; 
@@ -189,8 +151,6 @@ const onEditInvoice = (item) => {
 	padding: 6px;
 	padding-bottom: 40px; 
 }
-
-/* 空状态 */
 .empty-state {
 	margin-top: 100px;
 	display: flex;
@@ -215,8 +175,6 @@ const onEditInvoice = (item) => {
 	font-size: 15px;
 	color: #94a3b8;
 }
-
-/* 发票列表 */
 .invoice-card {
 	background: #fff;
 	border-radius: 16px;

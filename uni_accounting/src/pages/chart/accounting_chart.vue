@@ -31,7 +31,6 @@
 
 			<view class="content-body">
 				<view class="trend-section">
-					<!-- 简易 SVG 曲线图 -->
 				<view class="line-chart-container" @touchstart="onTouchStart" @touchmove.stop.prevent="onTouchMove">
 					<svg viewBox="0 0 300 150" class="line-chart-svg">
 						<!-- 顶部封顶线 (动态贴合最高点) -->
@@ -39,14 +38,14 @@
 						<text :x="290" :y="maxPointY - 5" text-anchor="end" font-size="8" fill="#94a3b8" class="font-number">{{ maxValue.toFixed(2) }}</text>
 						
 						<!-- 底部基准线 -->
-						<line x1="10" y1="130" x2="290" :y2="130" stroke="#e2e8f0" stroke-width="0.5" />
+						<line x1="10" :y1="CHART_CONFIG.BASE_Y" x2="290" :y2="CHART_CONFIG.BASE_Y" stroke="#e2e8f0" stroke-width="0.5" />
 						
 						<!-- 中间均分线 (极细虚线) -->
 						<line x1="10" :y1="midLineY" x2="290" :y2="midLineY" stroke="#e2e8f0" stroke-width="0.5" stroke-dasharray="2,2" />
 						
 						<!-- 起伏线（垂线） -->
 						<g v-for="(point, index) in chartPoints" :key="'line-' + index">
-							<line :x1="point.x" :y1="point.y" :x2="point.x" :y2="130" stroke="#f1f5f9" stroke-width="0.5" />
+							<line :x1="point.x" :y1="point.y" :x2="point.x" :y2="CHART_CONFIG.BASE_Y" stroke="#f1f5f9" stroke-width="0.5" />
 						</g>
 						
 						<path :d="chartPath" fill="none" stroke="#0f172a" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" />
@@ -61,9 +60,12 @@
 							<circle v-else :cx="point.x" :cy="point.y" r="2" fill="#fff" stroke="#0f172a" stroke-width="0.5" />
 						</g>
 
-						<!-- 浮动标签 (增加边界检测) -->
-						<foreignObject v-if="selectedPoint" :x="tagX" :y="selectedPoint.y - 35" width="80" height="30">
-							<div class="float-tag font-number" xmlns="http://www.w3.org/1999/xhtml">¥ {{ selectedPoint.value }}</div>
+						<!-- 浮动标签 (白色卡片风格) -->
+						<foreignObject v-if="selectedPoint" :x="tagX" :y="tagY" width="60" height="40">
+							<div class="float-tag" xmlns="http://www.w3.org/1999/xhtml">
+								<div class="tag-label">{{ selectedPoint.label }}{{ currentPeriod === 2 ? '' : (currentPeriod === 1 ? '日' : '') }}</div>
+								<div class="tag-value font-number">¥{{ selectedPoint.value }}</div>
+							</div>
 						</foreignObject>
 					</svg>
 					<view class="x-axis">
@@ -81,7 +83,6 @@
 			<view class="detail-section">
 				<view class="section-header">
 					<text class="section-title">{{ currentType }}排行榜</text>
-					<text class="view-all">查看全部</text>
 				</view>
 
 				<view class="list-container">
@@ -216,26 +217,110 @@ watch([currentPeriod, () => currentType.value], () => {
 	fetchChartData();
 });
 
-// 图表常量与工具函数
-const CHART = { width: 300, height: 150, paddingTop: 40, paddingBottom: 20, paddingX: 10 };
+// 图表常量配置
+const CHART_CONFIG = {
+	WIDTH: 300,
+	HEIGHT: 150,
+	PADDING_X: 13,
+	PADDING_TOP: 40,
+	PADDING_BOTTOM: 20,
+	BASE_Y: 130, // 底部基准线 Y 坐标
+	TOOLTIP: {
+		WIDTH: 70,
+		HEIGHT: 40,
+		OFFSET: 5,
+		SAFE_MARGIN: 8 // 适中的安全边距
+	}
+};
 
-// 计算当前视图的最大值
+// --- 图表计算逻辑 ---
+
+// 计算当前视图的最大值 (带 5% 缓冲区)
 const maxValue = computed(() => {
 	const values = currentValues.value;
-	if (!values || values.length === 0) return 0;
-	return Math.max(...values);
+	return values.length ? Math.max(...values) : 0;
 });
+
+const chartRange = computed(() => (maxValue.value * 1.05) || 1);
 
 // 计算中间均分线的高度
 const midLineY = computed(() => {
-	const availableHeight = CHART.height - CHART.paddingTop - CHART.paddingBottom;
-	return CHART.height - CHART.paddingBottom - availableHeight / 2;
+	const availableHeight = CHART_CONFIG.HEIGHT - CHART_CONFIG.PADDING_TOP - CHART_CONFIG.PADDING_BOTTOM;
+	return CHART_CONFIG.HEIGHT - CHART_CONFIG.PADDING_BOTTOM - availableHeight / 2;
 });
 
-const selectedIndex = ref(-1); // 当前选中的索引，-1 表示未选中
-let hideTimer = null; // 隐藏标签的定时器
+// 计算所有点的坐标
+const chartPoints = computed(() => {
+	const values = currentValues.value;
+	if (!values.length) return [];
+	
+	const availableWidth = CHART_CONFIG.WIDTH - CHART_CONFIG.PADDING_X * 2;
+	const availableHeight = CHART_CONFIG.HEIGHT - CHART_CONFIG.PADDING_TOP - CHART_CONFIG.PADDING_BOTTOM;
+	
+	return values.map((val, index) => ({
+		x: CHART_CONFIG.PADDING_X + (index / (values.length - 1)) * availableWidth,
+		y: CHART_CONFIG.HEIGHT - CHART_CONFIG.PADDING_BOTTOM - (val / chartRange.value) * availableHeight,
+		value: val,
+		label: currentLabels.value[index]
+	}));
+});
 
-// 自动隐藏逻辑
+// 当前选中的点
+const selectedIndex = ref(-1); 
+const selectedPoint = computed(() => {
+	return selectedIndex.value !== -1 ? chartPoints.value[selectedIndex.value] : null;
+});
+
+// 计算浮动标签坐标 (边界感知的定位逻辑)
+const tagX = computed(() => {
+	if (!selectedPoint.value) return 0;
+	const { WIDTH, TOOLTIP, SAFE_MARGIN } = CHART_CONFIG;
+	const pointX = selectedPoint.value.x;
+	let x;
+	// 如果点在右侧边缘 (最后两个点左右)，将标签显示在点左侧
+	if (pointX > WIDTH - 30) {
+		x = pointX - 50
+	} 
+	// 如果点在左侧边缘 (最前两个点左右)，将标签显示在点右侧
+	else if (pointX < 30) {
+		x = pointX - 10;
+	} 
+	else {
+		x = pointX - TOOLTIP.WIDTH / 2;
+	}
+	// 最终边界锁定，确保不超出屏幕
+	const minX = SAFE_MARGIN;
+	const maxX = WIDTH - TOOLTIP.WIDTH - SAFE_MARGIN;
+	
+	if (x < minX) x = minX;
+	if (x > maxX) x = maxX;
+	
+	return x;
+});
+
+const tagY = computed(() => {
+	if (!selectedPoint.value) return 0;
+	const { TOOLTIP } = CHART_CONFIG;
+	
+	// 默认显示在点上方
+	const offset = TOOLTIP.HEIGHT + TOOLTIP.OFFSET;
+	let y = selectedPoint.value.y - offset;
+	// 如果触顶 (y < 10)，则翻转到点的下方显示
+	if (y < 10) {
+		y = selectedPoint.value.y + 10;
+	}
+	return y;
+});
+
+// 计算最高点的 Y 坐标，用于顶部封顶线
+const maxPointY = computed(() => {
+	return chartPoints.value.length 
+		? Math.min(...chartPoints.value.map(p => p.y)) 
+		: 15;
+});
+
+// --- 交互与定时器逻辑 ---
+let hideTimer = null;
 const startHideTimer = () => {
 	if (hideTimer) clearTimeout(hideTimer);
 	hideTimer = setTimeout(() => {
@@ -244,55 +329,6 @@ const startHideTimer = () => {
 	}, 3000);
 };
 
-// 计算所有点的坐标
-const chartPoints = computed(() => {
-	const values = currentValues.value;
-	if (!values || values.length === 0) return [];
-	
-	const width = 300;
-	const height = 150; 
-	const paddingX = 13; 
-	const paddingTop = 40; // 为顶部标签留足空间
-	const paddingBottom = 20; // 调整为 20，使得 150 - 20 = 130，与基准线完美重合
-	const availableWidth = width - paddingX * 2;
-	const availableHeight = height - paddingTop - paddingBottom;
-	
-	const min = 0; 
-	const max = Math.max(...values) * 1.05;
-	const range = max - min || 1; 
-	
-	return values.map((val, index) => {
-		const x = paddingX + (index / (values.length - 1)) * availableWidth;
-		const y = height - paddingBottom - ((val - min) / range) * availableHeight;
-		return { x, y, value: val };
-	});
-});
-
-// 当前选中的点
-const selectedPoint = computed(() => {
-	if (selectedIndex.value === -1 || !chartPoints.value[selectedIndex.value]) return null;
-	return chartPoints.value[selectedIndex.value];
-});
-
-// 计算浮动标签的 X 坐标，防止超出屏幕
-const tagX = computed(() => {
-	if (!selectedPoint.value) return 0;
-	let x = selectedPoint.value.x - 40; // 默认居中 (标签宽80)
-	const minX = 5; // 左边距
-	const maxX = 300 - 80 - 5; // 右边距 (容器宽300 - 标签宽80 - 边距5)
-	
-	if (x < minX) x = minX;
-	if (x > maxX) x = maxX;
-	return x;
-});
-
-// 计算最高点的 Y 坐标，用于顶部封顶线
-const maxPointY = computed(() => {
-	if (!chartPoints.value.length) return 15;
-	return Math.min(...chartPoints.value.map(p => p.y));
-});
-
-// 点击选择点
 const selectPoint = (index) => {
 	selectedIndex.value = index;
 	startHideTimer();
@@ -511,16 +547,33 @@ const shouldShowLabel = (index) => {
 .line-chart-svg {
 	width: 100%;
 	height: 100%;
+	overflow: visible; /* 允许 Tooltip 稍微溢出 SVG 视口而不被切断 */
 }
 
 .float-tag {
-	background-color: var(--primary-text-color);
-	color: #fff;
-	border-radius: 12px;
-	font-size: var(--font-size-xs);
-	text-align: center;
-	line-height: 24px;
-	padding: 0 8px;
+	background-color: #ffffff;
+	color: #0f172a;
+	border-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 0;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	border: 0.5px solid #f1f5f9;
+}
+
+.tag-label {
+	font-size: 9px;
+	color: #94a3b8;
+	margin-bottom: 2px;
+	line-height: 1;
+}
+
+.tag-value {
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 1;
 }
 
 .x-axis {
@@ -551,7 +604,7 @@ const shouldShowLabel = (index) => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 16px;
+	margin-bottom: 5px;
 	padding: 0 20px;
 }
 

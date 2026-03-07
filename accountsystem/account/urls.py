@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     GetIconsView, SaveBillView, GetBillListView, DeleteBillView, 
     GetBillSummaryView, SaveBudgetView, GetBudgetView, SaveAssetAccountView,
-    GetAssetListView
+    GetAssetListView, SaveInvoiceView, DeleteInvoiceView, GetInvoiceListView
 )
 
 urlpatterns = [
@@ -15,4 +15,7 @@ urlpatterns = [
     path('budget/get/', GetBudgetView.as_view(), name='get_budget'),
     path('asset/save/', SaveAssetAccountView.as_view(), name='save_asset_account'),
     path('asset/list/', GetAssetListView.as_view(), name='get_asset_list'),
+    path('invoice/save/', SaveInvoiceView.as_view(), name='save_invoice'),
+    path('invoice/delete/', DeleteInvoiceView.as_view(), name='delete_invoice'),
+    path('invoice/list/', GetInvoiceListView.as_view(), name='get_invoice_list'),
 ]

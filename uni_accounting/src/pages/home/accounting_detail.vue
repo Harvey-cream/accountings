@@ -353,7 +353,7 @@ const onMonthConfirm = (value) => {
 	flex: 1;
 	display: flex;
 	justify-content: flex-start;
-	gap: 40px;
+	gap: 55px;
 	min-width: 0;
 }
 

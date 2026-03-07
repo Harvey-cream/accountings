@@ -44,3 +44,14 @@ export const saveAssetAccount = (params) => sendRequest("/api/account/asset/save
 
 // 获取资产账户列表
 export const getAssetList = () => sendRequest("/api/account/asset/list/", 'GET');
+
+// --- 发票相关接口 ---
+
+// 获取发票列表
+export const getInvoiceList = () => sendRequest("/api/account/invoice/list/", 'GET');
+
+// 保存或更新发票
+export const saveInvoice = (params) => sendRequest("/api/account/invoice/save/", 'POST', params);
+
+// 删除发票
+export const deleteInvoice = (id) => sendRequest("/api/account/invoice/delete/", 'POST', { id });
