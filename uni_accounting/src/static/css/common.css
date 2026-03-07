@@ -57,7 +57,8 @@
 
 /* 3. 小号描述样式：包含字号、颜色 */
 .text-style-desc {
-  font-size: var(--font-size-xs) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
   color: var(--light-text-color) !important;
 }
 

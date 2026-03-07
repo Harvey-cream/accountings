@@ -45,7 +45,7 @@
 				<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
 					<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
 						<view class="day-header">
-							<text class="day-date">{{ group.date }}</text>
+							<text class="text-style-desc">{{ group.date }}</text>
 							<text class="text-style-desc">支出: {{ group.totalExpense }}</text>
 						</view>
 
@@ -414,24 +414,18 @@ const onMonthConfirm = (value) => {
 
 /* Transactions */
 .transactions-section {
-	margin-top: 22px;
+	margin-top: 15px;
 }
 
 .day-group {
-	margin-bottom: 24px;
+	margin-bottom: 15px;
 }
 
 .day-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 12px;
-	padding: 0 20px;
-}
-
-.day-date {
-	font-size: 14px;
-	font-weight: 700;
+	padding: 0 15px;
 }
 .custom-cell {
 	background-color: transparent;
