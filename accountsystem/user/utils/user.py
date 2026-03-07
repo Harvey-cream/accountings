@@ -1,5 +1,5 @@
-from user.models import User
-from user.utils.jwt_token import verify_token
+from ..models import User
+from .jwt_token import verify_token
 
 def get_current_user(request):
     """
