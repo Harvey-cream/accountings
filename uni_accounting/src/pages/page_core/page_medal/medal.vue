@@ -40,7 +40,7 @@
 							<van-icon :name="medal.icon" size="28" :color="medal.unlocked ? '#fff' : '#94a3b8'" />
 						</view>
 						<text class="medal-name">{{ medal.name }}</text>
-						<text class="medal-desc" v-if="medal.unlocked">{{ medal.desc }}</text>
+						<text class="medal-desc" v-if="medal.unlocked">{{ medal.description }}</text>
 						<text class="medal-desc locked-text" v-else>未获得</text>
 					</view>
 				</view>
@@ -53,39 +53,29 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { getMedalList } from '@/api/api.js';
 
 const goBack = () => {
 	uni.navigateBack();
 };
 
-// 模拟勋章数据
-const medalCategories = ref([
-	{
-		title: '坚持打卡',
-		items: [
-			{ name: '初露锋芒', desc: '连续打卡3天', icon: 'fire', unlocked: true },
-			{ name: '持之以恒', desc: '连续打卡7天', icon: 'fire', unlocked: true },
-			{ name: '习惯养成', desc: '连续打卡21天', icon: 'fire', unlocked: false },
-			{ name: '打卡达人', desc: '连续打卡100天', icon: 'fire', unlocked: false },
-		]
-	},
-	{
-		title: '记账成就',
-		items: [
-			{ name: '记账新手', desc: '累计记账10笔', icon: 'records', unlocked: true },
-			{ name: '记账能手', desc: '累计记账100笔', icon: 'records', unlocked: false },
-			{ name: '记账大师', desc: '累计记账1000笔', icon: 'records', unlocked: false },
-		]
-	},
-	{
-		title: '资产管理',
-		items: [
-			{ name: '精打细算', desc: '设置月度预算', icon: 'balance-list', unlocked: true },
-			{ name: '财富管家', desc: '添加3个资产账户', icon: 'gold-coin', unlocked: false },
-		]
+const medalCategories = ref([]);
+
+const fetchMedals = async () => {
+	try {
+		const res = await getMedalList();
+		if (res.code === 0) {
+			medalCategories.value = res.data;
+		}
+	} catch (e) {
+		console.error('获取勋章失败:', e);
 	}
-]);
+};
+
+onMounted(() => {
+	fetchMedals();
+});
 
 // 计算已解锁总数
 const unlockedCount = computed(() => {
@@ -98,7 +88,12 @@ const unlockedCount = computed(() => {
 
 const showMedalDetail = (medal) => {
 	const title = medal.unlocked ? `恭喜获得【${medal.name}】` : `未获得【${medal.name}】`;
-	const content = medal.unlocked ? medal.desc : `解锁条件：${medal.desc}`;
+	let content = medal.unlocked ? medal.description : `解锁条件：${medal.description}`;
+	
+	// 如果未解锁且有进度数据，显示具体进度
+	if (!medal.unlocked && medal.progress) {
+		content += `\n当前进度：${medal.progress.current}/${medal.progress.total}`;
+	}
 	
 	uni.showModal({
 		title: title,
@@ -128,12 +123,21 @@ const showMedalDetail = (medal) => {
 	top: 0;
 	z-index: 100;
 }
+.nav-left {
+	width: 60px;
+	display: flex;
+	align-items: center;
+}
 .nav-title {
+	flex: 1;
+	text-align: center;
 	font-size: 17px;
 	font-weight: 600;
 	color: #333;
 }
-.nav-right { width: 20px; }
+.nav-right { 
+	width: 60px; 
+}
 
 /* 统计卡片 */
 .summary-card {

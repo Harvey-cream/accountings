@@ -1,12 +1,18 @@
 <script>
 import { initRouterInterceptor, checkInitialPath } from '@/utils/navigate.js';
+import { useIconStore } from '@/store/icon.js';
 
 export default {
 	onLaunch: function () {
 		console.log('App Launch');
 		// 1. 初始化路由拦截器
 		initRouterInterceptor();
-		// 2. 针对首次加载的 H5/APP 初始页面进行拦截
+		
+		// 2. 初始化全局图标数据
+		const iconStore = useIconStore();
+		iconStore.fetchIcons();
+
+		// 3. 针对首次加载的 H5/APP 初始页面进行拦截
 		let currentPath = '';
 		currentPath = window.location.hash || window.location.pathname;
 		currentPath = this.$scope?.route || '';
@@ -20,7 +26,7 @@ export default {
 			{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/chart/accounting_chart' },
 			{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_saved/save_accouting', isFab: true },
 			{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/discover/community' },
-			{ text: '我的', icon: 'user-o', selectedIcon: 'user', path: '/pages/setting/center' }
+			{ text: '我的', icon: 'user-o', selectedIcon: 'manager', path: '/pages/setting/center' }
 		];
 
 		// 将配置存入本地缓存

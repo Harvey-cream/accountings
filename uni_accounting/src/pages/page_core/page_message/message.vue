@@ -12,20 +12,22 @@
 
     <!-- Message List -->
     <view class="message-list">
-      <view v-for="(msg, index) in messages" :key="index" class="message-item">
+      <view v-for="(msg, index) in messages" :key="index" class="message-item" @click="handleItemClick(msg)">
         <view class="avatar-section">
-          <view class="system-avatar">
-            <van-icon name="gold-coin" size="24" color="#333" />
-          </view>
+          <van-badge :dot="!msg.is_read" position="top-right">
+            <view class="system-avatar">
+              <van-icon name="gold-coin" size="24" color="#333" />
+            </view>
+          </van-badge>
         </view>
         <view class="content-section">
           <view class="msg-header">
-            <text class="sender-name">小龙记账</text>
+            <text class="sender-name">{{ msg.title }}</text>
             <text class="msg-time">{{ msg.time }}</text>
           </view>
           <view class="msg-body">
-            <text>{{ msg.text }}</text>
-            <text v-if="msg.linkText" class="link-text" @click="handleLink(msg)">{{ msg.linkText }}</text>
+            <text>{{ msg.content }}</text>
+            <text v-if="msg.link_text" class="link-text">{{ msg.link_text }}</text>
           </view>
         </view>
       </view>
@@ -34,35 +36,55 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { getSystemMessages, markMessageRead } from '@/api/api.js';
 
-const messages = ref([
-  {
-    time: '01-03 14:18',
-    text: '2025年账单来啦，',
-    linkText: '快来看看吧>>'
-  },
-  {
-    time: '2025-12-31 11:17',
-    text: '参与小龙记账小调研即可获得50积分，',
-    linkText: '猛戳参与>>'
-  },
-   {
-    time: '2025-12-25 09:00',
-    text: '圣诞快乐！送您一张记账VIP体验卡，',
-    linkText: '点击领取>>'
+const messages = ref([]);
+
+const fetchMessages = async () => {
+  try {
+    const res = await getSystemMessages();
+    if (res.code === 0) {
+      messages.value = res.data;
+    }
+  } catch (e) {
+    console.error('获取消息失败:', e);
   }
-]);
+};
+
+onMounted(() => {
+  fetchMessages();
+});
 
 const goBack = () => {
   uni.navigateBack();
 };
 
-const handleLink = (msg) => {
-  uni.showToast({
-    title: '点击了链接',
-    icon: 'none'
-  });
+const handleItemClick = async (msg) => {
+  // 如果未读，标记为已读
+  if (!msg.is_read) {
+    try {
+      const res = await markMessageRead(msg.id);
+      if (res.code === 0) {
+        msg.is_read = true; // 前端立即反馈
+      }
+    } catch (e) {
+      console.error('标记已读失败:', e);
+    }
+  }
+  
+  // 如果有跳转链接，进行跳转
+  if (msg.link_url) {
+    uni.navigateTo({
+      url: msg.link_url,
+      fail: () => {
+        // 如果 navigateTo 失败（可能是非页面路径），尝试 switchTab
+        uni.switchTab({
+          url: msg.link_url
+        });
+      }
+    });
+  }
 };
 </script>
 

@@ -55,3 +55,25 @@ export const saveInvoice = (params) => sendRequest("/api/account/invoice/save/",
 
 // 删除发票
 export const deleteInvoice = (id) => sendRequest("/api/account/invoice/delete/", 'POST', { id });
+
+// --- 用户统计与打卡相关接口 ---
+
+// 用户打卡
+export const userCheckIn = () => sendRequest("/api/user/checkin/", 'POST');
+
+// 获取用户统计数据
+export const getUserStats = () => sendRequest("/api/user/stats/", 'GET');
+
+// 获取勋章列表
+export const getMedalList = () => sendRequest("/api/user/medal/list/", 'GET');
+
+// --- 系统消息接口 ---
+
+// 获取系统消息列表
+export const getSystemMessages = () => sendRequest("/api/system/message/list/", 'GET');
+
+// 标记消息为已读
+export const markMessageRead = (id) => sendRequest("/api/system/message/read/", 'POST', { id });
+
+// 获取未读消息数量
+export const getUnreadMessageCount = () => sendRequest("/api/system/message/unread/count/", 'GET');

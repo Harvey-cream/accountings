@@ -99,13 +99,16 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { getAllIcons, saveBill } from '@/api/api.js';
+import { saveBill } from '@/api/api.js';
 import { assignDefaultColors } from '@/utils/color.js';
 import { goBack } from '@/utils/common.js';
+import { useIconStore } from '@/store/icon.js';
 
 const amount = ref('');
 const selectedCategoryId = ref(null); // 初始设为 null
 const activeTab = ref('expense'); 
+
+const iconStore = useIconStore();
 
 const now = new Date();
 // 监听 tab 切换，自动选中该 tab 下的第一个分类
@@ -177,9 +180,9 @@ const initCategoriesData = (allIcons) => {
 
 onMounted(async () => {
 	try {
-		const res = await getAllIcons();
-		if (res.code === 0) {
-			initCategoriesData(res.data);
+		const icons = await iconStore.fetchIcons();
+		if (icons && icons.length > 0) {
+			initCategoriesData(icons);
 		}
 	} catch (e) {
 		console.error('Failed to load icons:', e);

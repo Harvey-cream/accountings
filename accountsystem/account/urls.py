@@ -1,7 +1,5 @@
 from django.urls import path
-from .views import (
-    GetIconsView, SaveBillView, GetBillListView, DeleteBillView, 
-    GetBillSummaryView, SaveBudgetView, GetBudgetView, SaveAssetAccountView,
+from .views import ( GetIconsView, SaveBillView, GetBillListView, DeleteBillView,GetBillSummaryView, SaveBudgetView, GetBudgetView, SaveAssetAccountView,
     GetAssetListView, SaveInvoiceView, DeleteInvoiceView, GetInvoiceListView
 )
 

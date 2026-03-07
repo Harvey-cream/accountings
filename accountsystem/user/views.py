@@ -2,9 +2,12 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import User
+from .models import User, UserCheckIn, Medal, UserMedal
+from .serializers import MedalSerializer
 from django.utils import timezone
+from account.models import TransactionRecord
 from datetime import datetime, timedelta
+from django.db.models import Count, Q
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
 from user.utils.user import get_current_user
@@ -148,3 +151,179 @@ class GetUserInfoView(APIView):
             'isVerified': user.is_verified,
         }
         return HttpResult.success_with_data("获取成功", user_info)
+
+class GetMedalListView(APIView):
+    """获取勋章列表（包含解锁状态和进度）"""
+    def get(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        medals = Medal.objects.all().order_by('sort_order')
+        serializer = MedalSerializer(medals, many=True, context={'request': request})
+        
+        # 勋章列表
+        medal_list = serializer.data
+        print(medal_list)
+        # 获取当前进度数据
+        # 1. 打卡进度
+        continuous_checkin = UserCheckIn.objects.filter(user=user).count()
+        
+        # 2. 记账进度
+        total_records = TransactionRecord.objects.filter(user=user).count()
+        
+        # 3. 资产进度
+        from account.models import AssetAccount
+        total_assets = AssetAccount.objects.filter(user=user).count()
+        
+        # 4. 预算进度
+        from account.models import TransactionBudget
+        has_budget = TransactionBudget.objects.filter(user=user).exists()
+        
+        # 动态添加进度信息
+        for i, medal_data in enumerate(medal_list):
+            medal_obj = medals[i]
+            req_type = medal_obj.requirement_type
+            req_val = medal_obj.requirement_value
+            
+            current_val = 0
+            if req_type == 'checkin':
+                current_val = continuous_checkin
+            elif req_type == 'bill':
+                current_val = total_records
+            elif req_type == 'budget':
+                current_val = 1 if has_budget else 0
+            elif req_type == 'asset':
+                current_val = total_assets
+                
+            medal_data['progress'] = {'current': current_val, 'total': req_val}
+            
+            # 被动解锁逻辑：如果进度已达标且尚未解锁，则自动创建解锁记录
+            if current_val >= req_val and not medal_data['unlocked']:
+                UserMedal.objects.get_or_create(user=user, medal=medal_obj)
+                medal_data['unlocked'] = True
+                from django.utils import timezone
+                medal_data['unlock_time'] = timezone.now().strftime('%Y-%m-%d %H:%M')
+        
+        # 将结果按分类分组，适配前端展示
+        categories = {}
+        for medal in medal_list:
+            cat_name = medal['category']
+            if cat_name not in categories:
+                categories[cat_name] = []
+            categories[cat_name].append(medal)
+            
+        formatted_data = []
+        for cat_name, items in categories.items():
+            formatted_data.append({
+                'title': cat_name,
+                'items': items
+            })
+            
+        return HttpResult.success_with_data("获取勋章成功", formatted_data)
+
+class UserCheckInView(APIView):
+    """用户打卡接口"""
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败")
+        
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # 1. 检查今日是否已打卡
+        if UserCheckIn.objects.filter(user=user, date=today).exists():
+            return HttpResult.fail("今日已打卡")
+            
+        last_checkin = UserCheckIn.objects.filter(user=user).order_by('-date').first()
+        
+        # 2. 检查连续性：如果上一条记录不是昨天，则清空之前的所有打卡记录重新开始
+        if last_checkin and last_checkin.date != yesterday:
+            UserCheckIn.objects.filter(user=user).delete()
+            continuous_days = 1
+        else:
+            # 获取当前连续天数并+1
+            continuous_days = UserCheckIn.objects.filter(user=user).count() + 1
+            
+        UserCheckIn.objects.create(user=user, date=today)
+        
+        # 3. 自动解锁勋章逻辑：从数据库获取所有打卡类勋章
+        checkin_medals = Medal.objects.filter(requirement_type='checkin').order_by('requirement_value')
+        
+        new_unlocked_medals = []
+        for medal in checkin_medals:
+            if continuous_days >= medal.requirement_value:
+                # 尝试解锁该勋章
+                _, created = UserMedal.objects.get_or_create(user=user, medal=medal)
+                if created:
+                    new_unlocked_medals.append({
+                        'id': medal.id,
+                        'name': medal.name,
+                        'icon': medal.icon,
+                        'description': medal.description
+                    })
+        
+        # 4. 获取下一个勋章的进度
+        next_medal = None
+        for medal in checkin_medals:
+            if continuous_days < medal.requirement_value:
+                next_medal = {
+                    'required_days': medal.requirement_value,
+                    'current_days': continuous_days
+                }
+                break
+                
+        return HttpResult.success_with_data("打卡成功", {
+            'continuous_days': continuous_days,
+            'new_unlocked_medals': new_unlocked_medals,
+            'next_progress': next_medal
+        })
+
+class GetUserStatsView(APIView):
+    """获取用户统计数据（连续打卡、连续记账、总笔数）"""
+    def get(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败")
+            
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+
+        # 1. 连续打卡天数 (直接查表总数，因为断了就会清空)
+        # 先做一次过期检查
+        last_checkin = UserCheckIn.objects.filter(user=user).order_by('-date').first()
+        if last_checkin and last_checkin.date not in [today, yesterday]:
+            UserCheckIn.objects.filter(user=user).delete()
+            continuous_checkin = 0
+        else:
+            continuous_checkin = UserCheckIn.objects.filter(user=user).count()
+
+        # 2. 记账总笔数
+        total_records = TransactionRecord.objects.filter(user=user).count()
+        
+        # 3. 连续记账天数
+        # 获取用户所有不重复的记账日期，按倒序排
+        record_dates = TransactionRecord.objects.filter(user=user).values_list('date', flat=True).distinct().order_by('-date')
+        
+        continuous_accounting = 0
+        if record_dates:
+            # 必须从今天或昨天开始算连续
+            if record_dates[0] in [today, yesterday]:
+                continuous_accounting = 1
+                for i in range(len(record_dates) - 1):
+                    # 判断是否连续
+                    if (record_dates[i] - record_dates[i+1]).days == 1:
+                        continuous_accounting += 1
+                    else:
+                        break
+            else:
+                # 即使有记录，但如果不包含今天或昨天，连续记账也清0
+                continuous_accounting = 0
+                
+        return HttpResult.success_with_data("获取统计成功", {
+            "continuousCheckIn": continuous_checkin,
+            "continuousAccounting": continuous_accounting,
+            "totalRecords": total_records,
+            "isCheckedIn": UserCheckIn.objects.filter(user=user, date=today).exists()
+        })

@@ -29,7 +29,17 @@ const getTabList = () => {
 			{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/chart/accounting_chart' },
 			{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_saved/save_accouting', isFab: true },
 			{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/discover/community' },
-			{ text: '我的', icon: 'user-o', selectedIcon: 'user', path: '/pages/setting/center' }
+			{ text: '我的', icon: 'user-o', selectedIcon: 'manager', path: '/pages/setting/center' }
+		];
+		uni.setStorageSync('tabList', list);
+	} else if (list.length > 0 && !list[0].selectedIcon) {
+		// 如果缓存中是旧版列表（没有 selectedIcon 属性），强制更新
+		list = [
+			{ text: '明细', icon: 'balance-list-o', selectedIcon: 'balance-list', path: '/pages/home/accounting_detail' },
+			{ text: '图表', icon: 'chart-trending-o', selectedIcon: 'chart-trending-o', path: '/pages/chart/accounting_chart' },
+			{ text: '记账', icon: 'plus', selectedIcon: 'plus', path: '/pages/page_saved/save_accouting', isFab: true },
+			{ text: '发现', icon: 'eye-o', selectedIcon: 'eye', path: '/pages/discover/community' },
+			{ text: '我的', icon: 'user-o', selectedIcon: 'manager', path: '/pages/setting/center' }
 		];
 		uni.setStorageSync('tabList', list);
 	}
@@ -37,6 +47,11 @@ const getTabList = () => {
 };
 
 const tabList = ref(getTabList());
+
+// 监听全局事件，动态更新 Tabbar 配置
+uni.$on('updateTabbar', () => {
+	tabList.value = getTabList();
+});
 
 // 初始化当前页面索引的逻辑封装
 const getActiveIndex = () => {

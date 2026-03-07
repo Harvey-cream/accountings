@@ -8,7 +8,7 @@
 					<view class="user-detail">
 						<text class="user-name">{{ userInfo.username || '未登录' }}</text>
 					</view>
-					<view class="check-in-btn" @click="toggleCheckIn">
+					<view class="check-in-btn" @click="handleCheckIn">
 						<van-icon :name="isChecked ? 'passed' : 'todo-list-o'" size="14" />
 						<text class="check-in-text">{{ isChecked ? '已打卡' : '打卡' }}</text>
 					</view>
@@ -17,22 +17,22 @@
 				<!-- 数据统计 -->
 				<view class="stats-row">
 					<view class="stat-item">
-						<text class="stat-num">1</text>
+						<text class="stat-num">{{ userStats.continuousCheckIn }}</text>
 						<text class="stat-label">已连续打卡</text>
 					</view>
 					<view class="stat-item">
-						<text class="stat-num">32</text>
+						<text class="stat-num">{{ userStats.continuousAccounting }}</text>
 						<text class="stat-label">记账总天数</text>
 					</view>
 					<view class="stat-item">
-						<text class="stat-num">16</text>
+						<text class="stat-num">{{ userStats.totalRecords }}</text>
 						<text class="stat-label">记账总笔数</text>
 					</view>
 				</view>
 			</view>
 
 			<!-- VIP 升级入口 -->
-			<view class="menu-card vip-card">
+			<view class="menu-card vip-card" @click="handleVIPClick">
 				<view class="menu-left">
 					<van-icon name="gold-coin" color="#f59e0b" size="24" />
 					<view class="menu-text">
@@ -47,7 +47,9 @@
 		<!-- 快捷功能图标栏 -->
 		<view class="quick-actions-card">
 			<view class="action-item" @click="goToMessage">
-				<van-icon name="bell" color="#facc15" size="24" />
+				<van-badge :dot="unreadCount > 0" position="top-right">
+					<van-icon name="bell" color="#facc15" size="24" />
+				</van-badge>
 				<text class="action-label">消息</text>
 			</view>
 			<view class="action-item" @click="goToMedal">
@@ -208,7 +210,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+import { userCheckIn, getUserStats, getUnreadMessageCount } from '@/api/api.js';
 
 // 登录用户信息
 const userInfo = ref({
@@ -216,11 +220,98 @@ const userInfo = ref({
 	avatarUrl: ''
 });
 
+// 未读消息数量
+const unreadCount = ref(0);
+
+const fetchUnreadCount = async () => {
+	try {
+		const res = await getUnreadMessageCount();
+		if (res.code === 0) {
+			unreadCount.value = res.data.unread_count;
+		}
+	} catch (e) {
+		console.error('获取未读消息数量失败:', e);
+	}
+};
+
+const userStats = ref({
+	continuousCheckIn: 0,
+	continuousAccounting: 0,
+	totalRecords: 0,
+	isCheckedIn: false
+});
+
+const fetchUserStats = async () => {
+	try {
+		const res = await getUserStats();
+		if (res.code === 0) {
+			userStats.value = res.data;
+			isChecked.value = res.data.isCheckedIn;
+		}
+	} catch (e) {
+		console.error('获取统计数据失败:', e);
+	}
+};
+
+const handleCheckIn = async () => {
+	if (isChecked.value) return;
+	try {
+		const res = await userCheckIn();
+		if (res.code === 0) {
+			const { continuous_days, new_unlocked_medals, next_progress } = res.data;
+			
+			// 1. 打卡成功基础提示
+			let toastMsg = `打卡成功！已连续打卡${continuous_days}天`;
+			if (next_progress) {
+				toastMsg += `\n距离下一勋章还差${next_progress.required_days - next_progress.current_days}天`;
+			}
+			
+			uni.showToast({ 
+				title: toastMsg, 
+				icon: 'none',
+				duration: 2500
+			});
+			
+			// 2. 如果解锁了新勋章，弹出成就弹窗
+			if (new_unlocked_medals && new_unlocked_medals.length > 0) {
+				setTimeout(() => {
+					const medal = new_unlocked_medals[0];
+					uni.showModal({
+						title: '🎉 恭喜获得新勋章！',
+						content: `解锁勋章：【${medal.name}】\n${medal.description}`,
+						showCancel: false,
+						confirmText: '太棒了',
+						confirmColor: '#facc15'
+					});
+				}, 1500);
+			}
+			
+			fetchUserStats();
+		} else {
+			uni.showToast({ title: res.msg || '打卡失败', icon: 'none' });
+		}
+	} catch (e) {
+		uni.showToast({ title: '打卡异常', icon: 'none' });
+	}
+};
+
+const handleVIPClick = () => {
+	uni.showToast({
+		title: 'VIP功能敬请期待！',
+		icon: 'none'
+	});
+};
+
 onMounted(() => {
 	const session = uni.getStorageSync('session');
 	if (session && session.user_info) {
 		userInfo.value = session.user_info;
 	}
+});
+
+onShow(() => {
+	fetchUserStats();
+	fetchUnreadCount();
 });
 
 // 打卡状态
@@ -380,16 +471,7 @@ const goToFeedback = () => {
 	});
 };
 
-// 切换打卡状态
-const toggleCheckIn = () => {
-	isChecked.value = !isChecked.value;
-	if (isChecked.value) {
-		uni.showToast({
-			title: '打卡成功',
-			icon: 'success'
-		});
-	}
-};
+// 跳转到消息页面
 </script>
 
 <style scoped>

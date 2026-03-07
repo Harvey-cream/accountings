@@ -25,3 +25,52 @@ class User(models.Model):
     def __str__(self):
         return self.username or self.mobile or str(self.id)
 
+class UserCheckIn(models.Model):
+    """用户打卡记录"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="用户")
+    date = models.DateField(verbose_name="打卡日期")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+
+    class Meta:
+        verbose_name = "用户打卡"
+        db_table = "user_check_in"
+        unique_together = ('user', 'date')
+
+class Medal(models.Model):
+    """所有的勋章表"""
+    REQUIREMENT_TYPE_CHOICES = (
+        ('checkin', '打卡天数'),
+        ('bill', '记账笔数'),
+        ('budget', '预算设置'),
+        ('asset', '资产账户'),
+    )
+    id = models.AutoField(primary_key=True, verbose_name="勋章ID")
+    category = models.CharField(max_length=50, default="成就", verbose_name="分类名称")
+    name = models.CharField(max_length=50, verbose_name="勋章名称")
+    description = models.TextField(verbose_name="达成条件描述")
+    icon = models.CharField(max_length=50, default="medal-o", verbose_name="图标名称")
+    requirement_type = models.CharField(max_length=20, choices=REQUIREMENT_TYPE_CHOICES, default='checkin', verbose_name="解锁条件类型")
+    requirement_value = models.IntegerField(default=1, verbose_name="解锁条件数值")
+    sort_order = models.IntegerField(default=0, verbose_name="排序")
+
+    class Meta:
+        verbose_name = "勋章"
+        verbose_name_plural = verbose_name
+        db_table = "transaction_medal"
+        ordering = ['sort_order']
+
+    def __str__(self):
+        return self.name
+
+class UserMedal(models.Model):
+    """用户解锁勋章的表"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="用户")
+    medal = models.ForeignKey(Medal, on_delete=models.CASCADE, verbose_name="勋章")
+    unlock_time = models.DateTimeField(auto_now_add=True, verbose_name="解锁时间")
+
+    class Meta:
+        verbose_name = "用户已解锁勋章"
+        verbose_name_plural = verbose_name
+        db_table = "user_medal"
+        unique_together = ('user', 'medal')
+
