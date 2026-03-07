@@ -130,6 +130,7 @@ class GetBillListView(APIView):
                     'date': display_date,
                     'date_raw': date_str,
                     'totalExpense': Decimal('0'),
+                    'totalIncome': Decimal('0'),
                     'items': []
                 }
                 date_map[date_str] = len(grouped_data)
@@ -154,10 +155,13 @@ class GetBillListView(APIView):
             grouped_data[idx]['items'].append(item)
             if record.type == 'expense':
                 grouped_data[idx]['totalExpense'] += Decimal(str(record.amount))
+            else:
+                grouped_data[idx]['totalIncome'] += Decimal(str(record.amount))
 
-        # 格式化总支出金额
+        # 格式化金额
         for group in grouped_data:
             group['totalExpense'] = f"{float(group['totalExpense']):.2f}"
+            group['totalIncome'] = f"{float(group['totalIncome']):.2f}"
 
         return HttpResult.success_with_data("获取账单成功", grouped_data)
 

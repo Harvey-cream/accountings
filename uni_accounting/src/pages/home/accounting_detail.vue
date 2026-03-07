@@ -46,7 +46,7 @@
 					<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
 						<view class="day-header">
 							<text class="text-style-desc">{{ group.date }}</text>
-							<text class="text-style-desc">支出: {{ group.totalExpense }}</text>
+							<text class="text-style-desc">{{ getDaySummary(group) }}</text>
 						</view>
 
 						<view class="list-container">
@@ -267,6 +267,16 @@ const onMonthConfirm = (value) => {
 	showMonthPicker.value = false;
 	// 切换月份后立即刷新数据
 	onLoad();
+};
+
+const getDaySummary = (group) => {
+	const income = parseFloat(group.totalIncome || 0);
+	const expense = parseFloat(group.totalExpense || 0);
+	if (income > expense) {
+		return `收入: ${(income - expense).toFixed(2)}`;
+	} else {
+		return `支出: ${(expense - income).toFixed(2)}`;
+	}
 };
 </script>
 
