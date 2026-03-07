@@ -215,9 +215,9 @@ class GetBillSummaryView(APIView):
         year_income = TransactionRecord.objects.filter(user=user, type='income', date__year=year_param).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
         year_expense = TransactionRecord.objects.filter(user=user, type='expense', date__year=year_param).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
         year_summary = {
-            'balance': f"{float(year_income - year_expense):.2f}",
-            'income': f"{float(year_income):.2f}",
-            'expense': f"{float(year_expense):.2f}"
+            'balance': f"{float(year_income - year_expense):,.2f}",
+            'income': f"{float(year_income):,.2f}",
+            'expense': f"{float(year_expense):,.2f}"
         }
         
         # 2. 分类统计 (用于排行榜)
@@ -304,9 +304,9 @@ class GetBillSummaryView(APIView):
             m_str = str(m)
             if m_str in month_bills_dict:
                 item = month_bills_dict[m_str]
-                item['balance'] = f"{float(item['income'] - item['expense']):.2f}"
-                item['income'] = f"{float(item['income']):.2f}"
-                item['expense'] = f"{float(item['expense']):.2f}"
+                item['balance'] = f"{float(item['income'] - item['expense']):,.2f}"
+                item['income'] = f"{float(item['income']):,.2f}"
+                item['expense'] = f"{float(item['expense']):,.2f}"
                 month_bills.append(item)
         
         # 获取年度明细
@@ -329,9 +329,9 @@ class GetBillSummaryView(APIView):
         year_bills = []
         for y in sorted(year_bills_dict.keys(), key=int, reverse=True):
             item = year_bills_dict[y]
-            item['balance'] = f"{float(item['income'] - item['expense']):.2f}"
-            item['income'] = f"{float(item['income']):.2f}"
-            item['expense'] = f"{float(item['expense']):.2f}"
+            item['balance'] = f"{float(item['income'] - item['expense']):,.2f}"
+            item['income'] = f"{float(item['income']):,.2f}"
+            item['expense'] = f"{float(item['expense']):,.2f}"
             year_bills.append(item)
             
         data = {

@@ -64,7 +64,7 @@
 					</view>
 					
 					<view class="group-list">
-						<van-cell v-for="item in group.items" :key="item.id" center class="custom-cell flat-cell">
+						<van-cell v-for="(item, itemIndex) in group.items" :key="item.id" center :class="['custom-cell', 'flat-cell', { 'last-item': itemIndex === group.items.length - 1 }]">
 							<template #icon>
 								<view :class="['list-icon-wrap', item.bgClass]">
 									<van-icon :name="item.icon" :color="item.iconColor" size="20" />
@@ -208,7 +208,7 @@ const goToAdd = () => {
 
 /* 顶部 Header */
 .asset-header {
-	padding: 10px 10px 10px;
+	padding: 10px 10px 0px;
 	display: flex;
 	flex-direction: column;
 }
@@ -220,8 +220,6 @@ const goToAdd = () => {
 	overflow: hidden;
 	box-shadow: 1px 1px 3px 2px rgba(0, 0, 0, 0.1); 
 }
-
-
 
 /* 背景装饰图标 */
 .card-bg-icon {
@@ -301,7 +299,7 @@ const goToAdd = () => {
 }
 
 .list-content {
-	padding: 15px 0 80px; /* 底部留出按钮空间 */
+	padding: 5px 0 80px; /* 底部留出按钮空间 */
 }
 
 .asset-group {
@@ -309,10 +307,20 @@ const goToAdd = () => {
 }
 
 .group-header {
-	padding: 0 20px 5px;
+	padding: 15px 20px 5px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	position: relative;
+}
+.asset-group:not(:first-child) .group-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background-color: #f1f5f9;
 }
 
 .group-title {
@@ -327,6 +335,21 @@ const goToAdd = () => {
 
 .custom-cell {
 	padding: 15px 25px !important;
+	position: relative;
+}
+
+.custom-cell::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 65px;
+	right: 0px;
+	height: 1px;
+	background-color: #f1f5f9;
+}
+
+.custom-cell.last-item::after {
+	display: none;
 }
 
 .list-icon-wrap {

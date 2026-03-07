@@ -136,6 +136,7 @@ import { colorPairs } from '@/utils/color.js';
 
 const periods = ['周', '月', '年'];
 const currentPeriod = ref(0);
+const isFirstLoad = ref(true); // 标记是否为首次加载页面
 
 // 类型选择逻辑
 const currentType = ref('支出');
@@ -178,19 +179,28 @@ const fetchChartData = async () => {
 		const res = await getBillSummary(params);
 		if (res.code === 0) {
 			chartData.value = res.data.chartData;
-			// 1. 初始化列表，将 displayPercent 设为 0
-			expenseList.value = res.data.categoryStats.map(item => ({
-				...item,
-				displayPercent: 0
-			}));
 			
-			// 2. 延迟触发动画效果
-			setTimeout(() => {
-				expenseList.value = expenseList.value.map(item => ({
+			// 只有在首次进入页面时，才进行从 0 到百分比的“生长”动画
+			if (isFirstLoad.value) {
+				expenseList.value = res.data.categoryStats.map(item => ({
+					...item,
+					displayPercent: 0
+				}));
+				
+				setTimeout(() => {
+					expenseList.value = res.data.categoryStats.map(item => ({
+						...item,
+						displayPercent: item.percent
+					}));
+					isFirstLoad.value = false;
+				}, 100);
+			} else {
+				// 非首次加载（切换周/月/年），直接更新百分比，不再重复“生长”动画
+				expenseList.value = res.data.categoryStats.map(item => ({
 					...item,
 					displayPercent: item.percent
 				}));
-			}, 100);
+			}
 		}
 	} catch (e) {
 		console.error('Failed to fetch chart data:', e);
