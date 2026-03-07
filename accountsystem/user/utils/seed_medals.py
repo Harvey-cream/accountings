@@ -2,14 +2,28 @@ import os
 import django
 import sys
 
-# 将项目根目录添加到 python 路径
+# 1. 获取项目根目录 (D:\code\code\accounting\accountsystem)
+# __file__ 是 d:\code\code\accounting\accountsystem\user\utils\seed_medals.py
+# 向上跳三级到达根目录
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(project_root)
 
-# 设置环境变量
+# 2. 关键点：将根目录插入到 sys.path 的最前面 (index 0)
+# 这样导入 user 时会优先找到 accountsystem/user 包，
+# 而不是被当前目录下的某个 user.py 模块遮蔽。
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 强制移除当前目录，防止同名模块遮蔽
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir in sys.path:
+    sys.path.remove(current_dir)
+sys.path.append(current_dir) # 放到最后以防万一需要导入本目录其他非冲突模块
+
+# 3. 设置 Django 环境
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'accountsystem.settings')
 django.setup()
 
+# 4. 现在可以安全地进行绝对导入了
 from user.models import Medal
 
 def seed_medals():

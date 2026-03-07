@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from common.response_web import HttpResult
-from user.utils.user import get_current_user
+from user.utils.user_utils import get_current_user
 from .models import SystemMessage, MessageReadState
 from .serializers import SystemMessageSerializer
 from django.db.models import Q

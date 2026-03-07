@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Medal, UserMedal
-from .utils.user import get_current_user
+from .utils.user_utils import get_current_user
 
 class MedalSerializer(serializers.ModelSerializer):
     """勋章序列化器"""

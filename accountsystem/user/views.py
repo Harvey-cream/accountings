@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from django.db.models import Count, Q
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
-from user.utils.user import get_current_user
+from user.utils.user_utils import get_current_user
 from common.response_web import HttpResult, WebStatusEnum
 
 class UserloginView(APIView):

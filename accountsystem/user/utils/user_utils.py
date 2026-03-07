@@ -1,4 +1,7 @@
-from ..models import User
+try:
+    from ..models import User
+except (ImportError, ValueError):
+    from user.models import User
 from .jwt_token import verify_token
 
 def get_current_user(request):

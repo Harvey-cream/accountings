@@ -5,7 +5,8 @@ from datetime import datetime
 
 # 将项目根目录添加到 python 路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(project_root)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # 设置环境变量
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'accountsystem.settings')

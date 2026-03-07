@@ -21,7 +21,7 @@ class GetIconsView(APIView):
         
         return HttpResult.success_with_data("获取图标成功", icon_list)
 
-from user.utils.user import get_current_user
+from user.utils.user_utils import get_current_user
 
 class SaveBillView(APIView):
     """保存账单"""

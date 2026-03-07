@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import SystemMessage, MessageReadState
-from user.utils.user import get_current_user
+from user.utils.user_utils import get_current_user
 
 class SystemMessageSerializer(serializers.ModelSerializer):
     # 自定义字段，用于返回格式化后的时间
