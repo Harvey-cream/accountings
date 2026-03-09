@@ -69,6 +69,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { login } from '../../api/api.js';
 import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
 import { useUserStore } from '../../store/user.js';
@@ -78,6 +79,14 @@ const mobile = ref('');
 const password = ref('');
 const agreed = ref(true);
 const showPassword = ref(false);
+const referCode = ref('');
+
+onLoad((options) => {
+	if (options.refer_code) {
+		referCode.value = options.refer_code;
+		console.log('检测到推荐码:', referCode.value);
+	}
+});
 
 onMounted(() => {
 	// 如果已经登录且 session 有效，直接跳转首页
@@ -89,7 +98,7 @@ onMounted(() => {
 
 const goToRegister = () => {
 	uni.navigateTo({
-		url: '/pages/login/register'
+		url: `/pages/login/register${referCode.value ? '?refer_code=' + referCode.value : ''}`
 	});
 };
 

@@ -2,16 +2,38 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import User, UserCheckIn, Medal, UserMedal
+from .models import User, UserCheckIn, Medal, UserMedal, UserPointRecord
 from .serializers import MedalSerializer
 from django.utils import timezone
 from account.models import TransactionRecord
 from datetime import datetime, timedelta
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum, Min, Max
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
 from user.utils.user_utils import get_current_user
 from common.response_web import HttpResult, WebStatusEnum
+from django.db import transaction
+from user.utils.tools import generate_account_id, generate_qr_base64
+
+class GetInviteQRView(APIView):
+    """获取邀请二维码（Base64格式）"""
+    def get(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        # 1. 构造邀请链接 (线上正式地址)
+        # 携带用户自身的邀请码 self_code
+        invite_url = f"https://draccounting.xin/?refer_code={user.self_code}#/"
+        
+        # 2. 调用工具函数生成二维码 Base64
+        qr_base64 = generate_qr_base64(invite_url)
+        
+        return HttpResult.success_with_data("生成二维码成功", {
+            "qr_base64": qr_base64,
+            "invite_url": invite_url,
+            "refer_code": user.self_code
+        })
 
 class UserloginView(APIView):
     def get(self, request, format=None):
@@ -43,10 +65,19 @@ class UserloginView(APIView):
                     'refresh_expires': int(refresh_expires.timestamp() * 1000),
                 }
                 
-                # 构造详细用户信息
+                # 4. 如果 account_id 为空（兼容老用户），则自动生成
+                if not user.account_id:
+                    user.account_id = generate_account_id(User)
+                    user.save()
+
+                # 5. 构造详细用户信息
                 user_info = {
                     'userId': user.id,
                     'username': user.username if user.username else user.mobile,
+                    'nickname': user.nickname if user.nickname else (user.username if user.username else user.mobile),
+                    'accountId': user.account_id,
+                    'signature': user.signature,
+                    'gender': user.gender,
                     'mobile': user.mobile,
                     'loginType': user.login_type,
                     'selfCode': user.self_code,
@@ -106,10 +137,14 @@ class UserRegisterView(APIView):
     def post(self, request, format=None):
         mobile = request.data.get('mobile')
         password = request.data.get('password')
+        nickname = request.data.get('nickname')
         refer_code = request.data.get('refer_code') # 前端传来的推荐码
         
         if not mobile or not password:
             return HttpResult.fail("手机号和密码不能为空")
+        
+        if not nickname:
+            return HttpResult.fail("昵称不能为空")
         
         if User.objects.filter(mobile=mobile).exists():
             return HttpResult.fail("该手机号已注册")
@@ -119,11 +154,15 @@ class UserRegisterView(APIView):
             decrypted_password = request_handler.decrypt(password)
             # 2. 生成用户自身的邀请码
             self_code = get_refer_code()
+            # 3. 生成唯一的账号 ID
+            account_id = generate_account_id(User)
             
-            # 3. 创建用户，存入 SM3 哈希后的密码 (加盐处理)
+            # 4. 创建用户，存入 SM3 哈希后的密码 (加盐处理)
             user = User.objects.create(
                 mobile=mobile,
-                username=mobile,
+                username=nickname, # 默认真实姓名也先存昵称
+                nickname=nickname,
+                account_id=account_id,
                 refer_code=refer_code,
                 self_code=self_code,
                 password=sm3_hash(decrypted_password)
@@ -141,9 +180,18 @@ class GetUserInfoView(APIView):
         if not user:
             return HttpResult.fail("用户未登录")
         
+        # 如果 account_id 为空（兼容老用户），则自动生成
+        if not user.account_id:
+            user.account_id = generate_account_id(User)
+            user.save()
+
         user_info = {
             'userId': user.id,
             'username': user.username if user.username else user.mobile,
+            'nickname': user.nickname if user.nickname else (user.username if user.username else user.mobile),
+            'accountId': user.account_id,
+            'signature': user.signature,
+            'gender': user.gender,
             'mobile': user.mobile,
             'loginType': user.login_type,
             'selfCode': user.self_code,
@@ -151,6 +199,48 @@ class GetUserInfoView(APIView):
             'isVerified': user.is_verified,
         }
         return HttpResult.success_with_data("获取成功", user_info)
+
+class UpdateUserInfoView(APIView):
+    """修改用户信息接口"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        nickname = request.data.get('nickname')
+        signature = request.data.get('signature')
+        gender = request.data.get('gender')
+        
+        # 账号 ID 不允许修改，这里不处理 account_id
+        
+        if nickname is not None:
+            if not nickname.strip():
+                return HttpResult.fail("昵称不能为空")
+            user.nickname = nickname
+            
+        if signature is not None:
+            user.signature = signature
+            
+        if gender is not None:
+            if gender not in ['men', 'women']:
+                return HttpResult.fail("性别格式错误")
+            user.gender = gender
+            
+        user.save()
+        
+        # 返回更新后的信息
+        user_info = {
+            'userId': user.id,
+            'username': user.username,
+            'nickname': user.nickname,
+            'accountId': user.account_id,
+            'signature': user.signature,
+            'gender': user.gender,
+            'mobile': user.mobile,
+            'avatarUrl': user.avatar_url,
+        }
+        
+        return HttpResult.success_with_data("修改成功", user_info)
 
 class GetMedalListView(APIView):
     """获取勋章列表（包含解锁状态和进度）"""
@@ -166,8 +256,27 @@ class GetMedalListView(APIView):
         medal_list = serializer.data
         print(medal_list)
         # 获取当前进度数据
-        # 1. 打卡进度
-        continuous_checkin = UserCheckIn.objects.filter(user=user).count()
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # 1. 打卡进度 (改用日期比对逻辑计算真实连续天数)
+        checkin_dates = UserCheckIn.objects.filter(
+            user=user, 
+            date__lte=today
+        ).order_by('-date').values_list('date', flat=True)
+        
+        continuous_checkin = 0
+        if checkin_dates:
+            # 判断最后一次打卡是否是今天或昨天
+            if checkin_dates[0] == today or checkin_dates[0] == yesterday:
+                continuous_checkin = 1
+                current_date = checkin_dates[0]
+                for i in range(1, len(checkin_dates)):
+                    if (current_date - checkin_dates[i]).days == 1:
+                        continuous_checkin += 1
+                        current_date = checkin_dates[i]
+                    else:
+                        break
         
         # 2. 记账进度
         total_records = TransactionRecord.objects.filter(user=user).count()
@@ -202,7 +311,6 @@ class GetMedalListView(APIView):
             if current_val >= req_val and not medal_data['unlocked']:
                 UserMedal.objects.get_or_create(user=user, medal=medal_obj)
                 medal_data['unlocked'] = True
-                from django.utils import timezone
                 medal_data['unlock_time'] = timezone.now().strftime('%Y-%m-%d %H:%M')
         
         # 将结果按分类分组，适配前端展示
@@ -223,7 +331,7 @@ class GetMedalListView(APIView):
         return HttpResult.success_with_data("获取勋章成功", formatted_data)
 
 class UserCheckInView(APIView):
-    """用户打卡接口"""
+    """用户打卡接口（仅处理打卡和勋章）"""
     def post(self, request):
         user = get_current_user(request)
         if not user:
@@ -238,23 +346,24 @@ class UserCheckInView(APIView):
             
         last_checkin = UserCheckIn.objects.filter(user=user).order_by('-date').first()
         
-        # 2. 检查连续性：如果上一条记录不是昨天，则清空之前的所有打卡记录重新开始
-        if last_checkin and last_checkin.date != yesterday:
-            UserCheckIn.objects.filter(user=user).delete()
-            continuous_days = 1
-        else:
-            # 获取当前连续天数并+1
-            continuous_days = UserCheckIn.objects.filter(user=user).count() + 1
-            
-        UserCheckIn.objects.create(user=user, date=today)
+        # 2. 检查连续性并计算天数
+        with transaction.atomic():
+            if last_checkin and last_checkin.date != yesterday:
+                # 连续性断掉，清空之前记录并重新开始
+                UserCheckIn.objects.filter(user=user).delete()
+                continuous_days = 1
+            else:
+                # 保持连续，天数+1
+                continuous_days = UserCheckIn.objects.filter(user=user).count() + 1
+                
+            UserCheckIn.objects.create(user=user, date=today)
         
-        # 3. 自动解锁勋章逻辑：从数据库获取所有打卡类勋章
+        # 3. 自动解锁勋章逻辑
         checkin_medals = Medal.objects.filter(requirement_type='checkin').order_by('requirement_value')
         
         new_unlocked_medals = []
         for medal in checkin_medals:
             if continuous_days >= medal.requirement_value:
-                # 尝试解锁该勋章
                 _, created = UserMedal.objects.get_or_create(user=user, medal=medal)
                 if created:
                     new_unlocked_medals.append({
@@ -280,6 +389,132 @@ class UserCheckInView(APIView):
             'next_progress': next_medal
         })
 
+class UserPointSignInView(APIView):
+    """用户签到领积分接口"""
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败")
+        
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # 1. 检查今日是否已领过积分
+        if UserPointRecord.objects.filter(user=user, type='checkin', create_time__date=today).exists():
+            return HttpResult.fail("今日已签到")
+            
+        # 2. 计算连续签到天数（基于积分流水，只统计到昨天）
+        last_record = UserPointRecord.objects.filter(
+            user=user, 
+            type='checkin', 
+            create_time__date__lte=yesterday
+        ).order_by('-create_time').first()
+        
+        streak_days = 1
+        if last_record and last_record.create_time.date() == yesterday:
+            records = UserPointRecord.objects.filter(
+                user=user, 
+                type='checkin', 
+                create_time__date__lt=today
+            ).order_by('-create_time')[:7]
+            current_date = yesterday
+            for rec in records:
+                if rec.create_time.date() == current_date:
+                    streak_days += 1
+                    current_date -= timedelta(days=1)
+                else:
+                    break
+        
+        # 3. 积分计算逻辑
+        points_to_add = min(1 + streak_days, 6)
+        
+        with transaction.atomic():
+            # 记录积分流水
+            UserPointRecord.objects.create(
+                user=user,
+                amount=points_to_add,
+                direction='income',
+                type='checkin',
+                description=f"连续签到{streak_days}天奖励"
+            )
+            
+        # 计算最新总积分
+        points_stats = UserPointRecord.objects.filter(user=user).aggregate(
+            income=Sum('amount', filter=Q(direction='income')),
+            expense=Sum('amount', filter=Q(direction='expense'))
+        )
+        total_points = (points_stats['income'] or 0) - (points_stats['expense'] or 0)
+        
+        return HttpResult.success_with_data("签到成功", {
+            'streak_days': streak_days,
+            'points_earned': points_to_add,
+            'total_points': total_points
+        })
+
+class GetUserPointsView(APIView):
+    """获取用户积分数据（动态计算流水）"""
+    def get(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败")
+        
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # 动态计算总积分：收入 - 支出
+        points_stats = UserPointRecord.objects.filter(user=user).aggregate(
+            income=Sum('amount', filter=Q(direction='income')),
+            expense=Sum('amount', filter=Q(direction='expense'))
+        )
+        
+        income = points_stats['income'] or 0
+        expense = points_stats['expense'] or 0
+        total_points = income - expense
+        
+        # 判断今日是否已领积分
+        is_signed_in = UserPointRecord.objects.filter(user=user, type='checkin', create_time__date=today).exists()
+        
+        # 判断今日是否已完成记账任务
+        is_bill_task_done = UserPointRecord.objects.filter(
+            user=user, 
+            type='task', 
+            description='每日记账奖励',
+            create_time__date=today
+        ).exists()
+        
+        # 计算基于积分流水的连续签到天数（只统计到今天）
+        streak_days = 0
+        last_record = UserPointRecord.objects.filter(
+            user=user, 
+            type='checkin', 
+            create_time__date__lte=today
+        ).order_by('-create_time').first()
+        
+        if last_record:
+            last_date = last_record.create_time.date()
+            if last_date == today or last_date == yesterday:
+                streak_days = 1
+                # 往前推算，排除今天的数据，只看今天之前的记录
+                records = UserPointRecord.objects.filter(
+                    user=user, 
+                    type='checkin', 
+                    create_time__date__lt=last_date
+                ).order_by('-create_time')[:10]
+                current_date = last_date - timedelta(days=1)
+                for rec in records:
+                    if rec.create_time.date() == current_date:
+                        streak_days += 1
+                        current_date -= timedelta(days=1)
+                    else:
+                        break
+        
+        return HttpResult.success_with_data("获取积分成功", {
+            "totalPoints": total_points,
+            "continuousCheckIn": streak_days, # 这里返回基于积分流水的连续天数
+            "isSignedToday": is_signed_in,
+            "isBillTaskDone": is_bill_task_done
+        })
+
 class GetUserStatsView(APIView):
     """获取用户统计数据（连续打卡、连续记账、总笔数）"""
     def get(self, request):
@@ -289,41 +524,41 @@ class GetUserStatsView(APIView):
             
         today = timezone.now().date()
         yesterday = today - timedelta(days=1)
-
-        # 1. 连续打卡天数 (直接查表总数，因为断了就会清空)
-        # 先做一次过期检查
-        last_checkin = UserCheckIn.objects.filter(user=user).order_by('-date').first()
-        if last_checkin and last_checkin.date not in [today, yesterday]:
-            UserCheckIn.objects.filter(user=user).delete()
-            continuous_checkin = 0
-        else:
-            continuous_checkin = UserCheckIn.objects.filter(user=user).count()
-
-        # 2. 记账总笔数
-        total_records = TransactionRecord.objects.filter(user=user).count()
         
-        # 3. 连续记账天数
-        # 获取用户所有不重复的记账日期，按倒序排
-        record_dates = TransactionRecord.objects.filter(user=user).values_list('date', flat=True).distinct().order_by('-date')
+        checkin_dates = UserCheckIn.objects.filter(
+            user=user, 
+            date__lte=today
+        ).order_by('-date').values_list('date', flat=True)
         
-        continuous_accounting = 0
-        if record_dates:
-            # 必须从今天或昨天开始算连续
-            if record_dates[0] in [today, yesterday]:
-                continuous_accounting = 1
-                for i in range(len(record_dates) - 1):
-                    # 判断是否连续
-                    if (record_dates[i] - record_dates[i+1]).days == 1:
-                        continuous_accounting += 1
+        continuous_checkin = 0
+        if checkin_dates:
+            # 判断最后一次打卡是否是今天或昨天
+            if checkin_dates[0] == today or checkin_dates[0] == yesterday:
+                continuous_checkin = 1
+                current_date = checkin_dates[0]
+                for i in range(1, len(checkin_dates)):
+                    if (current_date - checkin_dates[i]).days == 1:
+                        continuous_checkin += 1
+                        current_date = checkin_dates[i]
                     else:
                         break
-            else:
-                # 即使有记录，但如果不包含今天或昨天，连续记账也清0
-                continuous_accounting = 0
+        # 2. 记账总笔数
+        total_records = TransactionRecord.objects.filter(user=user).count()
+        # 3. 记账总天数 (第一笔账到最后一笔账的天数差)
+        # 获取用户最早和最晚的记账日期
+        accounting_range = TransactionRecord.objects.filter(user=user).aggregate(
+            first_day=Min('date'),
+            last_day=Max('date')
+        )
+        
+        total_accounting_days = 0
+        if accounting_range['first_day'] and accounting_range['last_day']:
+            # 天数差 + 1 (包含头尾)
+            total_accounting_days = (accounting_range['last_day'] - accounting_range['first_day']).days + 1
                 
         return HttpResult.success_with_data("获取统计成功", {
             "continuousCheckIn": continuous_checkin,
-            "continuousAccounting": continuous_accounting,
+            "totalAccountingDays": total_accounting_days,
             "totalRecords": total_records,
             "isCheckedIn": UserCheckIn.objects.filter(user=user, date=today).exists()
         })

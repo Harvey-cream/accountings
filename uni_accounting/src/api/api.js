@@ -17,6 +17,9 @@ export const getAllIcons = () => sendReleaseRequest("/api/account/icons/", 'GET'
 // 用户信息 
 export const getUserInfo = () => sendRequest("/api/user/info/", 'GET');
 
+// 修改用户信息
+export const updateUserInfo = (data) => sendRequest("/api/user/info/update/", 'POST', data);
+
 // 获取账单列表
 export const getBills = (data) => sendRequest("/api/account/bill/list/", 'GET', data);
 
@@ -64,6 +67,12 @@ export const userCheckIn = () => sendRequest("/api/user/checkin/", 'POST');
 // 获取用户统计数据
 export const getUserStats = () => sendRequest("/api/user/stats/", 'GET');
 
+// 获取用户积分数据
+export const getUserPoints = () => sendRequest("/api/user/points/", 'GET');
+
+// 用户签到领积分
+export const userPointSignIn = () => sendRequest("/api/user/points/signin/", 'POST');
+
 // 获取勋章列表
 export const getMedalList = () => sendRequest("/api/user/medal/list/", 'GET');
 
@@ -77,3 +86,6 @@ export const markMessageRead = (id) => sendRequest("/api/system/message/read/", 
 
 // 获取未读消息数量
 export const getUnreadMessageCount = () => sendRequest("/api/system/message/unread/count/", 'GET');
+
+// 获取邀请二维码
+export const getInviteQR = () => sendRequest("/api/user/invite/qr/", 'GET');

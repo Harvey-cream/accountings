@@ -106,30 +106,77 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import { userPointSignIn, getUserPoints } from '@/api/api.js';
 
 const goBack = () => uni.navigateBack();
 
 // 状态数据
-const totalPoints = ref(1280);
-const consecutiveDays = ref(2);
+const totalPoints = ref(0);
+const consecutiveDays = ref(0);
 const isCheckedToday = ref(false);
+const isBillTaskDone = ref(false);
 
-// 签到配置
+// 获取初始数据
+const fetchUserPoints = async () => {
+	try {
+		const res = await getUserPoints();
+		if (res.code === 0) {
+			totalPoints.value = res.data.totalPoints;
+			consecutiveDays.value = res.data.continuousCheckIn;
+			isCheckedToday.value = res.data.isSignedToday;
+			isBillTaskDone.value = res.data.isBillTaskDone;
+		}
+	} catch (e) {
+		console.error('获取积分失败:', e);
+	}
+};
+
+onShow(() => {
+	fetchUserPoints();
+});
+
+// 签到配置 (显示接下来7天的奖励预览)
 const weekDays = computed(() => {
-	const now = new Date();
 	return Array.from({ length: 7 }, (_, i) => {
-		const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2 + i); // 模拟从前两天开始显示
-		const month = d.getMonth() + 1;
-		const date = d.getDate();
+		// 计算每一天如果连续签到能拿到的积分
+		// 规则：min(1 + day_count, 6)
+		const dayNum = i + 1;
+		const points = Math.min(1 + dayNum, 6);
 		return {
-			label: `${month}.${date < 10 ? '0' + date : date}`,
-			points: i === 6 ? 10 : i + 1
+			label: `第${dayNum}天`,
+			points: points
 		};
 	});
 });
 
+// 交互逻辑
+const handleCheckIn = async () => {
+	if (isCheckedToday.value) return;
+	
+	try {
+		const res = await userPointSignIn();
+		if (res.code === 0) {
+			const { streak_days, points_earned, total_points } = res.data;
+			
+			isCheckedToday.value = true;
+			totalPoints.value = total_points;
+			consecutiveDays.value = streak_days;
+			
+			uni.showToast({ 
+				title: `签到成功，获得${points_earned}积分`, 
+				icon: 'success' 
+			});
+		} else {
+			uni.showToast({ title: res.msg || '签到失败', icon: 'none' });
+		}
+	} catch (e) {
+		uni.showToast({ title: '系统异常', icon: 'none' });
+	}
+};
+
 // 任务列表
-const taskList = ref([
+const taskList = computed(() => [
 	{ 
 		id: 1, 
 		name: '每日记账', 
@@ -138,7 +185,7 @@ const taskList = ref([
 		bgColor: '#e0f2fe', 
 		iconColor: '#0ea5e9',
 		btnText: '去记账',
-		completed: false 
+		completed: isBillTaskDone.value 
 	},
 	{ 
 		id: 2, 
@@ -164,20 +211,11 @@ const taskList = ref([
 
 // 兑换商品
 const exchangeItems = ref([
-	{ name: 'VIP月卡', points: 500, image: '/static/vip-card.png' }, // 这里的图片路径仅为示例
+	{ name: 'VIP月卡', points: 500, image: '/static/vip-card.png' },
 	{ name: '记账本皮肤', points: 300, image: '/static/skin.png' },
 	{ name: '导出功能', points: 200, image: '/static/export.png' },
 	{ name: '补签卡', points: 100, image: '/static/card.png' },
 ]);
-
-// 交互逻辑
-const handleCheckIn = () => {
-	if (isCheckedToday.value) return;
-	isCheckedToday.value = true;
-	consecutiveDays.value++;
-	totalPoints.value += weekDays.value[consecutiveDays.value - 1]?.points || 1;
-	uni.showToast({ title: '签到成功', icon: 'success' });
-};
 
 const handleTask = (task) => {
 	if (task.completed) return;
@@ -212,7 +250,7 @@ const goToHistory = () => {
 /* 头部样式 */
 .points-header {
 	background-color: var(--main-color);
-	padding: calc(var(--status-bar-height) + 14px) 16px 60px; /* 底部留白给悬浮卡片 */
+	padding: calc(var(--status-bar-height) ) 16px 40px; /* 底部留白给悬浮卡片 */
 	color: var(--main-text-color);
 	position: relative;
 }
@@ -221,7 +259,7 @@ const goToHistory = () => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 24px;
+	margin-bottom: 18px;
 }
 
 .nav-title {
@@ -245,6 +283,7 @@ const goToHistory = () => {
 	flex-direction: column;
 	align-items: center;
 	position: relative;
+	margin-bottom: 8px;
 }
 
 .points-value {
@@ -254,10 +293,10 @@ const goToHistory = () => {
 }
 
 .points-value .number {
-	font-size: 48px;
+	font-size: 44px;
 	font-weight: bold;
 	line-height: 1;
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .points-value .label {

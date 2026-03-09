@@ -22,29 +22,29 @@
           </view>
         </view>   
         <view class="settings-item">
-          <text class="item-title">ID</text>
+          <text class="item-title">账号</text>
           <view class="item-right">
-            <text class="item-value id-value">{{ userInfo.id }}</text>
+            <text class="item-value id-value">{{ userInfo.accountId }}</text>
           </view>
         </view>
         <view class="settings-item" @click="handleEdit('nickname')">
           <text class="item-title">昵称</text>
           <view class="item-right">
-            <text class="item-value">{{ userInfo.nickname }}</text>
+            <text class="item-value">{{ userInfo.nickname || '未设置' }}</text>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>
         <view class="settings-item" @click="handleEdit('gender')">
           <text class="item-title">性别</text>
           <view class="item-right">
-            <text class="item-value">{{ userInfo.gender || '未填写' }}</text>
+            <text class="item-value">{{ userInfo.gender === 'men' ? '男' : (userInfo.gender === 'women' ? '女' : '未填写') }}</text>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>
         <view class="settings-item" @click="handleEdit('bio')">
           <text class="item-title">个性签名</text>
           <view class="item-right">
-            <text class="item-value bio-text">{{ userInfo.bio || '未填写' }}</text>
+            <text class="item-value bio-text">{{ userInfo.signature || '未填写' }}</text>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>
@@ -52,11 +52,10 @@
 
       <!-- 账号绑定 -->
       <view class="settings-group">
-        <view class="settings-item" @click="handleEdit('phone')">
+        <view class="settings-item">
           <text class="item-title">手机号</text>
           <view class="item-right">
-            <text class="item-value" :class="{ 'not-set': !userInfo.phone }">{{ userInfo.phone ? userInfo.phone : '去绑定' }}</text>
-            <van-icon name="arrow" color="#cbd5e1" size="16" />
+            <text class="item-value">{{ userInfo.mobile }}</text>
           </view>
         </view>
         <view class="settings-item" @click="handleEdit('wechat')">
@@ -165,30 +164,35 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/store/user.js';
+import { updateUserInfo } from '@/api/api.js';
+
+const userStore = useUserStore();
 
 // 初始用户信息
 const userInfo = ref({
-  avatar: '/static/4.jpg',
-  id: '',
+  avatarUrl: '',
+  accountId: '',
   nickname: '',
-  bio: '保持热爱，奔赴山海。✨',
+  signature: '',
   gender: '',
-  phone: '',
+  mobile: '',
   wechat: '',
-  apple: '',
   emergency: ''
 });
 
-onMounted(() => {
-  // 从 session 中获取真实用户信息
+const loadUserInfo = () => {
   const session = uni.getStorageSync('session');
   if (session && session.user_info) {
     const data = session.user_info;
-    userInfo.value.id = data.userId || '';
-    userInfo.value.nickname = data.username || '';
-    userInfo.value.phone = data.mobile || '';
-    userInfo.value.avatar = data.avatarUrl || '/static/4.jpg';
+    userInfo.value = {
+      ...userInfo.value,
+      ...data
+    };
   }
+};
+
+onMounted(() => {
+  loadUserInfo();
 });
 
 const goBack = () => {
@@ -197,104 +201,10 @@ const goBack = () => {
   });
 };
 
-const userStore = useUserStore();
 const showNicknamePopup = ref(false);
 const nicknameDraft = ref('');
 const showBioPopup = ref(false);
 const bioDraft = ref('');
-
-const confirmNickname = () => {
-  const val = nicknameDraft.value.trim();
-  if (!val) {
-    uni.showToast({ title: '昵称不能为空', icon: 'none' });
-    return;
-  }
-  userInfo.value.nickname = val;
-  showNicknamePopup.value = false;
-  uni.showToast({ title: '已更新', icon: 'success' });
-};
-
-const confirmBio = () => {
-  userInfo.value.bio = bioDraft.value.trim();
-  showBioPopup.value = false;
-  uni.showToast({ title: '签名已更新', icon: 'success' });
-};
-
-const confirmPhone = () => {
-  const val = phoneDraft.value.trim();
-  if (!/^1[3-9]\d{9}$/.test(val)) {
-    uni.showToast({ title: '请输入有效的手机号', icon: 'none' });
-    return;
-  }
-  if (!verifyCode.value.trim()) {
-    uni.showToast({ title: '请输入验证码', icon: 'none' });
-    return;
-  }
-  
-  userInfo.value.phone = val;
-  showPhoneSheet.value = false;
-  uni.showToast({ title: '绑定成功', icon: 'success' });
-};
-
-const confirmEmergency = () => {
-  const phone = emergencyPhone.value.trim();
-  const email = emergencyEmail.value.trim();
-  
-  if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
-    uni.showToast({ title: '请输入有效的应急手机号', icon: 'none' });
-    return;
-  }
-  if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-    uni.showToast({ title: '请输入有效的邮箱地址', icon: 'none' });
-    return;
-  }
-  
-  if (!phone && !email) {
-    uni.showToast({ title: '请至少填写一项', icon: 'none' });
-    return;
-  }
-
-  userInfo.value.emergency = phone || email;
-  showEmergencySheet.value = false;
-  uni.showToast({ title: '保存成功', icon: 'success' });
-};
-
-// 修改头像
-const changeAvatar = () => {
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
-    success: (res) => {
-      const tempFile = res.tempFiles[0];
-      const tempFilePath = res.tempFilePaths[0];
-      if (tempFile.type && !tempFile.type.startsWith('image/')) {
-        uni.showToast({ title: '请选择图片格式文件', icon: 'none' });
-        return;
-      }
-      
-      // 2. 如果没有 type，检查文件路径后缀 (处理带有参数或 Blob 的情况)
-      if (!tempFile.type) {
-        const pathWithoutQuery = tempFilePath.split('?')[0];
-        const ext = pathWithoutQuery.split('.').pop().toLowerCase();
-        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'].includes(ext);
-        
-        // 注意：在某些 H5 环境下，blob 链接可能没有后缀，此时我们信任 uni.chooseImage 的选择结果
-        if (ext && !isImage && !tempFilePath.startsWith('blob:')) {
-          uni.showToast({ title: '请选择图片格式文件', icon: 'none' });
-          return;
-        }
-      }
-
-      // 模拟上传成功
-      userInfo.value.avatar = tempFilePath;
-      uni.showToast({
-        title: '更换成功',
-        icon: 'success'
-      });
-    }
-  });
-};
 
 const handleEdit = (type) => {
   if (type === 'nickname') {
@@ -303,12 +213,39 @@ const handleEdit = (type) => {
     return;
   }
   if (type === 'bio') {
-    bioDraft.value = userInfo.value.bio || '';
+    bioDraft.value = userInfo.value.signature || '';
     showBioPopup.value = true;
     return;
   }
+  if (type === 'gender') {
+    uni.showActionSheet({
+      itemList: ['男', '女'],
+      success: async (res) => {
+        const newGender = res.tapIndex === 0 ? 'men' : 'women';
+        uni.showLoading({ title: '正在保存...' });
+        try {
+          const apiRes = await updateUserInfo({ gender: newGender });
+          uni.hideLoading();
+          if (apiRes.code === 0) {
+            userInfo.value.gender = newGender;
+            // 更新本地缓存
+            const session = uni.getStorageSync('session');
+            if (session) {
+              session.user_info.gender = newGender;
+              uni.setStorageSync('session', session);
+            }
+            uni.showToast({ title: '修改成功', icon: 'success' });
+          }
+        } catch (e) {
+          uni.hideLoading();
+          uni.showToast({ title: '修改失败', icon: 'none' });
+        }
+      }
+    });
+    return;
+  }
   if (type === 'phone') {
-    const phoneVal = userInfo.value.phone || '';
+    const phoneVal = userInfo.value.mobile || '';
     uni.navigateTo({
       url: '/pages/page_setting/setting_function/account_setting/page_account/phone?phone=' + phoneVal
     });
@@ -321,17 +258,80 @@ const handleEdit = (type) => {
     });
     return;
   }
-  if (type === 'gender') {
-    uni.showActionSheet({
-      itemList: ['男', '女'],
-      success: (res) => {
-        userInfo.value.gender = res.tapIndex === 0 ? '男' : '女';
-        uni.showToast({ title: '已更新', icon: 'success' });
-      }
-    });
+  uni.showToast({ title: '功能开发中', icon: 'none' });
+};
+
+const confirmNickname = async () => {
+  const val = nicknameDraft.value.trim();
+  if (!val) {
+    uni.showToast({ title: '昵称不能为空', icon: 'none' });
     return;
   }
-  uni.showToast({ title: '功能开发中', icon: 'none' });
+  
+  uni.showLoading({ title: '正在保存...' });
+  try {
+    const res = await updateUserInfo({ nickname: val });
+    uni.hideLoading();
+    if (res.code === 0) {
+      userInfo.value.nickname = val;
+      showNicknamePopup.value = false;
+      // 更新本地缓存中的用户信息
+      const session = uni.getStorageSync('session');
+      if (session) {
+        session.user_info.nickname = val;
+        uni.setStorageSync('session', session);
+      }
+      uni.showToast({ title: '修改成功', icon: 'success' });
+    } else {
+      uni.showToast({ title: res.msg || '修改失败', icon: 'none' });
+    }
+  } catch (e) {
+    uni.hideLoading();
+    uni.showToast({ title: '网络异常', icon: 'none' });
+  }
+};
+
+const confirmBio = async () => {
+  const val = bioDraft.value.trim();
+  uni.showLoading({ title: '正在保存...' });
+  try {
+    const res = await updateUserInfo({ signature: val });
+    uni.hideLoading();
+    if (res.code === 0) {
+      userInfo.value.signature = val;
+      showBioPopup.value = false;
+      // 更新本地缓存中的用户信息
+      const session = uni.getStorageSync('session');
+      if (session) {
+        session.user_info.signature = val;
+        uni.setStorageSync('session', session);
+      }
+      uni.showToast({ title: '修改成功', icon: 'success' });
+    } else {
+      uni.showToast({ title: res.msg || '修改失败', icon: 'none' });
+    }
+  } catch (e) {
+    uni.hideLoading();
+    uni.showToast({ title: '网络异常', icon: 'none' });
+  }
+};
+
+// 修改头像
+const changeAvatar = () => {
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (res) => {
+      const tempFilePath = res.tempFilePaths[0];
+      // 模拟上传成功
+      userInfo.value.avatarUrl = tempFilePath;
+      uni.showToast({
+        title: '更换成功',
+        icon: 'success'
+      });
+    }
+  });
 };
 
 const handleItemClick = (type) => {
@@ -354,6 +354,9 @@ const handleLogout = () => {
     success: (res) => {
       if (res.confirm) {
         userStore.logout();
+        uni.reLaunch({
+          url: '/pages/login/login'
+        });
       }
     }
   });

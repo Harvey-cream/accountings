@@ -291,10 +291,26 @@ const handleSave = async () => {
 		console.log('后端返回结果:', JSON.stringify(res));
 
 		if (res.code === 0) {
-			uni.showToast({ title: '保存成功', icon: 'success' });
-			setTimeout(() => {
-				uni.navigateBack();
-			}, 1000);
+			const pointsEarned = res.data.points_earned;
+			
+			if (pointsEarned > 0) {
+				// 弹出积分奖励弹窗
+				uni.showModal({
+					title: '🎉 记账成功',
+					content: `恭喜获得每日首笔记账奖励：+${pointsEarned} 积分！`,
+					showCancel: false,
+					confirmText: '太棒了',
+					confirmColor: '#ffd541',
+					success: () => {
+						uni.navigateBack();
+					}
+				});
+			} else {
+				uni.showToast({ title: '保存成功', icon: 'success' });
+				setTimeout(() => {
+					uni.navigateBack();
+				}, 1000);
+			}
 		} else {
 			console.error('业务逻辑报错:', res.msg);
 			uni.showToast({ title: res.msg || '保存失败', icon: 'none' });

@@ -6,7 +6,7 @@
 				<view class="user-info">
 					<image class="avatar" :src="userInfo.avatarUrl || '/static/4.jpg'" mode="aspectFill"></image>
 					<view class="user-detail">
-						<text class="user-name">{{ userInfo.username || '未登录' }}</text>
+						<text class="user-name">{{ userInfo.nickname || userInfo.username || '未登录' }}</text>
 					</view>
 					<view class="check-in-btn" @click="handleCheckIn">
 						<van-icon :name="isChecked ? 'passed' : 'todo-list-o'" size="14" />
@@ -21,7 +21,7 @@
 						<text class="stat-label">已连续打卡</text>
 					</view>
 					<view class="stat-item">
-						<text class="stat-num">{{ userStats.continuousAccounting }}</text>
+						<text class="stat-num">{{ userStats.totalAccountingDays }}</text>
 						<text class="stat-label">记账总天数</text>
 					</view>
 					<view class="stat-item">
@@ -236,7 +236,7 @@ const fetchUnreadCount = async () => {
 
 const userStats = ref({
 	continuousCheckIn: 0,
-	continuousAccounting: 0,
+	totalAccountingDays: 0,
 	totalRecords: 0,
 	isCheckedIn: false
 });

@@ -15,6 +15,10 @@
       <!-- 输入区域 -->
       <view class="input-group">
         <view class="input-item">
+          <input type="text" v-model="nickname" placeholder="请设置您的昵称" maxlength="20" />
+        </view>
+
+        <view class="input-item">
           <input type="number" v-model="mobile" placeholder="请输入手机号" maxlength="11" />
         </view>
         
@@ -54,16 +58,26 @@
 
 <script setup>
 import { ref } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { register } from '../../api/api.js';
 import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
 
 const mobile = ref('');
 const code = ref('');
 const password = ref('');
+const nickname = ref('');
 const agreed = ref(true);
 const showPassword = ref(false);
 const counting = ref(false);
 const count = ref(60);
+const referCode = ref('');
+
+onLoad((options) => {
+  if (options.refer_code) {
+    referCode.value = options.refer_code;
+    console.log('注册页面检测到推荐码:', referCode.value);
+  }
+});
 
 const goBack = () => {
   const pages = getCurrentPages();
@@ -99,7 +113,7 @@ const handleRegister = async () => {
     uni.showToast({ title: '请先同意用户协议', icon: 'none' });
     return;
   }
-  if (!mobile.value || !code.value || !password.value) {
+  if (!mobile.value || !code.value || !password.value || !nickname.value) {
     uni.showToast({ title: '请填写完整注册信息', icon: 'none' });
     return;
   }
@@ -113,7 +127,9 @@ const handleRegister = async () => {
     const res = await register({
       mobile: mobile.value,
       password: SM2Utils.encrypt(password.value, BACK_PUBLIC_KEY),
-      code: code.value 
+      code: code.value,
+      nickname: nickname.value,
+      refer_code: referCode.value
     });
 
     

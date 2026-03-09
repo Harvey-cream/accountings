@@ -3,6 +3,10 @@ import uuid
 
 class User(models.Model):
     username = models.CharField(max_length=50, null=True, blank=True, verbose_name="姓名")
+    nickname = models.CharField(max_length=50, null=True, blank=True, verbose_name="昵称")
+    account_id = models.CharField(max_length=50, null=True, blank=True, verbose_name="账号ID")
+    signature = models.CharField(max_length=200, null=True, blank=True, verbose_name="个性签名")
+    gender = models.CharField(max_length=10, default="men", choices=(("men", "男"), ("women", "女")), verbose_name="性别")
     mobile = models.CharField(max_length=11, unique=True, null=True, verbose_name="手机号")
     password = models.CharField(max_length=128, verbose_name="密码")
     login_type = models.SmallIntegerField(default=1, verbose_name="登录类型")
@@ -73,4 +77,36 @@ class UserMedal(models.Model):
         verbose_name_plural = verbose_name
         db_table = "user_medal"
         unique_together = ('user', 'medal')
+
+class UserPointRecord(models.Model):
+    """用户积分流水表"""
+    POINT_TYPE_CHOICES = (
+        ('checkin', '每日签到'),
+        ('task', '完成任务'),
+        ('exchange', '积分兑换'),
+        ('refund', '积分退还'),
+        ('system', '系统赠送'),
+    )
+    
+    DIRECTION_CHOICES = (
+        ('income', '收入'),
+        ('expense', '支出'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="用户")
+    amount = models.IntegerField(verbose_name="变动积分值") 
+    direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES, default='income', verbose_name="变动方向")
+    type = models.CharField(max_length=20, choices=POINT_TYPE_CHOICES, verbose_name="业务类型")
+    description = models.CharField(max_length=255, verbose_name="变动描述")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="记录时间")
+
+    class Meta:
+        verbose_name = "积分流水"
+        verbose_name_plural = verbose_name
+        db_table = "user_point_record"
+        ordering = ['-create_time']
+
+    def __str__(self):
+        sign = '+' if self.direction == 'income' else '-'
+        return f"{self.user.username}: {sign}{self.amount} ({self.type})"
 

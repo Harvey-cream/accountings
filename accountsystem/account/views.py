@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice
-from user.models import User
+from user.models import User, UserPointRecord
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult
 from common.utils import parse_date, format_datetime, format_date
@@ -22,6 +22,8 @@ class GetIconsView(APIView):
         return HttpResult.success_with_data("获取图标成功", icon_list)
 
 from user.utils.user_utils import get_current_user
+
+from django.db import transaction
 
 class SaveBillView(APIView):
     """保存账单"""
@@ -53,39 +55,63 @@ class SaveBillView(APIView):
 
         # 2. 业务逻辑处理
         try:
-            # 验证图标是否存在
-            try:
-                icon = TransactionIcon.objects.get(id=icon_id)
-            except TransactionIcon.DoesNotExist:
-                return HttpResult.fail("所选图标不存在")
-            
-            # 修正：如果图标没有名称（自定义图标），则使用“其他”作为分类名称
-            category_name = icon.name if icon.name else "其他"
-            
-            category, created = TransactionCategory.objects.get_or_create(
-                user=user,
-                name=category_name,
-                type=bill_type,
-                icon=icon
-            )
-            # 更新该分类的账单笔数和更新时间
-            category.count += 1
-            category.save()
-            # 使用公共方法解析日期
-            obs_date = parse_date(date_str)
-            # 创建账单记录 (TransactionRecord)
-            record = TransactionRecord.objects.create(
-                user=user,
-                category=category,
-                amount=amount,
-                type=bill_type,
-                date=obs_date,
-                time=(timezone.now() + timezone.timedelta(hours=8)).time(), # 同样加8小时
-                location=location,
-                remark=remark
-            )
+            with transaction.atomic():
+                # 验证图标是否存在
+                try:
+                    icon = TransactionIcon.objects.get(id=icon_id)
+                except TransactionIcon.DoesNotExist:
+                    return HttpResult.fail("所选图标不存在")
+                
+                # 修正：如果图标没有名称（自定义图标），则使用“其他”作为分类名称
+                category_name = icon.name if icon.name else "其他"
+                
+                category, created = TransactionCategory.objects.get_or_create(
+                    user=user,
+                    name=category_name,
+                    type=bill_type,
+                    icon=icon
+                )
+                # 更新该分类的账单笔数和更新时间
+                category.count += 1
+                category.save()
+                # 使用公共方法解析日期
+                obs_date = parse_date(date_str)
+                # 创建账单记录 (TransactionRecord)
+                record = TransactionRecord.objects.create(
+                    user=user,
+                    category=category,
+                    amount=amount,
+                    type=bill_type,
+                    date=obs_date,
+                    time=(timezone.now() + timezone.timedelta(hours=8)).time(), # 同样加8小时
+                    location=location,
+                    remark=remark
+                )
 
-            return HttpResult.success_with_data("保存成功", {"id": record.id})
+                # 3. 积分逻辑：每天每个用户第一笔账可以+5积分
+                today = timezone.now().date()
+                has_pointed_today = UserPointRecord.objects.filter(
+                    user=user, 
+                    type='task', 
+                    description='每日记账奖励',
+                    create_time__date=today
+                ).exists()
+
+                points_earned = 0
+                if not has_pointed_today:
+                    UserPointRecord.objects.create(
+                        user=user,
+                        amount=5,
+                        direction='income',
+                        type='task',
+                        description='每日记账奖励'
+                    )
+                    points_earned = 5
+
+                return HttpResult.success_with_data("保存成功", {
+                    "id": record.id,
+                    "points_earned": points_earned
+                })
 
         except Exception as e:
             print(f"保存账单异常: {str(e)}")
@@ -230,7 +256,8 @@ class GetBillSummaryView(APIView):
         if period == 'month':
             category_query = category_query.filter(date__year=now.year, date__month=now.month)
         elif period == 'week':
-            week_start = now - timedelta(days=now.weekday())
+            # 最近 7 天 (包含今天)
+            week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
             category_query = category_query.filter(date__gte=week_start)
         elif period == 'year':
             category_query = category_query.filter(date__year=year_param)

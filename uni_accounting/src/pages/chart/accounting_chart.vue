@@ -86,34 +86,41 @@
 				</view>
 
 				<view class="list-container">
-					<van-cell v-for="item in expenseList" :key="item.id" center class="custom-cell flat-cell">
-						<template #icon>
-							<view class="list-icon-wrap" :style="{ backgroundColor: getIconColors(item.icon_id).bg }">
-								<van-icon :name="item.icon" :color="getIconColors(item.icon_id).icon" size="20" />
-							</view>
-						</template>
-						<template #title>
-							<view class="cell-content">
-								<view class="cell-main">
-									<view class="title-row">
-										<text class="text-style-title">{{ item.name }}</text>
-										<text class="cell-percent text-style-desc">{{ item.percent }}%</text>
+					<block v-if="expenseList.length > 0">
+						<van-cell v-for="item in expenseList" :key="item.id" center class="custom-cell flat-cell">
+							<template #icon>
+								<view class="list-icon-wrap" :style="{ backgroundColor: getIconColors(item.icon_id).bg }">
+									<van-icon :name="item.icon" :color="getIconColors(item.icon_id).icon" size="20" />
+								</view>
+							</template>
+							<template #title>
+								<view class="cell-content">
+									<view class="cell-main">
+										<view class="title-row">
+											<text class="text-style-title">{{ item.name }}</text>
+											<text class="cell-percent text-style-desc">{{ item.percent }}%</text>
+										</view>
+										<view class="progress-bar-track">
+											<view 
+												class="progress-bar-fill" 
+												:style="{ width: (item.displayPercent || 0) + '%', backgroundColor: getIconColors(item.icon_id).icon }"
+											></view>
+										</view>
 									</view>
-									<view class="progress-bar-track">
-										<view 
-											class="progress-bar-fill" 
-											:style="{ width: (item.displayPercent || 0) + '%', backgroundColor: getIconColors(item.icon_id).icon }"
-										></view>
+									<view class="cell-right">
+										<text class="text-style-number">{{ item.amount }}</text>
 									</view>
 								</view>
-								<view class="cell-right">
-									<text class="text-style-number">{{ item.amount }}</text>
-								</view>
-							</view>
-						</template>
-					</van-cell>
+							</template>
+						</van-cell>
+					</block>
+					
+					<!-- 空状态提示 -->
+					<view v-else class="empty-state">
+						<van-empty image="search" :description="'暂无' + currentType + '数据'" />
+					</view>
 				</view>
-				</view>
+			</view>
 			</view>
 		</scroll-view>
 
