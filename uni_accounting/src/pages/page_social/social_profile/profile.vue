@@ -11,9 +11,9 @@
             </view>
           </view>
           <view class="header-right">
-            <text class="user-name">{{ user.name }}</text>
+            <text class="user-name">{{ user.nickname || user.name }}</text>
             <view class="user-id-row">
-              <text class="user-id">小龙号: {{ user.id }}</text>
+              <text class="user-id">社交号: {{ user.accountId }}</text>
               <van-icon name="qr-invalid" size="12" color="#94a3b8" />
             </view>
           </view>
@@ -42,8 +42,8 @@
       </view>
 
       <!-- 简介 -->
-      <view class="bio-section">
-        <text class="user-bio">{{ user.bio || '点击这里，填写简介' }}</text>
+      <view class="bio-section" @click="handleBioClick">
+        <text class="user-bio">{{ user.signature || '点击这里，填写简介' }}</text>
       </view>
 
       <view class="action-row" v-if="!isSelf">
@@ -124,7 +124,7 @@
             <view class="comment-user-row">
               <image class="comment-avatar" :src="user.avatar" mode="aspectFill"></image>
               <view class="comment-user-info">
-                <text class="comment-user-name">{{ user.name }}</text>
+                <text class="comment-user-name">{{ user.nickname || user.name }}</text>
                 <text class="comment-time">{{ selectedPost.time }}</text>
               </view>
             </view>
@@ -155,8 +155,9 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getUserInfo } from '@/api/api.js';
 
 const statusBarHeight = ref(0);
 const isSelf = ref(true);
@@ -172,14 +173,15 @@ const tabs = [
 ];
 
 const user = reactive({
-  id: '888888',
-  name: 'oxo',
-  avatar: '/static/4.jpg',
-  bio: '保持热爱，奔赴山海。✨',
-  following: 128,
-  followers: 1024,
-  likesAndCollects: 256,
-  postsCount: 12,
+  accountId: '',
+  name: '',
+  nickname: '',
+  avatar: '',
+  signature: '',
+  following: 0,
+  followers: 0,
+  likesAndCollects: 0,
+  postsCount: 0,
   isFollowed: false
 });
 
@@ -220,6 +222,29 @@ const mockReplies = ref([
   }
 ]);
 
+const fetchProfileData = async () => {
+  if (isSelf.value) {
+    try {
+      const res = await getUserInfo();
+      if (res.code === 0) {
+        const data = res.data;
+        user.accountId = data.accountId;
+        user.name = data.username;
+        user.nickname = data.nickname;
+        user.avatar = data.avatarUrl || '/static/4.jpg';
+        user.signature = data.signature || '';
+        // 统计数据暂由后端其他接口或聚合提供，此处先保持
+      }
+    } catch (e) {
+      console.error('获取个人资料失败:', e);
+    }
+  }
+};
+
+onShow(() => {
+  fetchProfileData();
+});
+
 onLoad((options) => {
   // 获取状态栏高度
   const systemInfo = uni.getSystemInfoSync();
@@ -228,9 +253,9 @@ onLoad((options) => {
   if (options.userId && options.userId !== 'self') {
     isSelf.value = false;
     // 模拟获取他人信息
-    user.name = '省钱达人';
-    user.id = options.userId;
-    user.bio = '一个正在努力攒钱买房的打工人 🏠';
+    user.nickname = '省钱达人';
+    user.accountId = options.userId;
+    user.signature = '一个正在努力攒钱买房的打工人 🏠';
     user.following = 256;
     user.followers = 512;
     user.likesAndCollects = 1024;
@@ -245,6 +270,14 @@ const openCommentDetail = (post) => {
 
 const goBack = () => {
   uni.navigateBack();
+};
+
+const handleBioClick = () => {
+  if (isSelf.value && (!user.signature || user.signature.trim() === '')) {
+    uni.navigateTo({
+      url: '/pages/page_setting/setting_function/account_setting/account'
+    });
+  }
 };
 
 const toggleFollow = () => {

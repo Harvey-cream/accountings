@@ -1,6 +1,6 @@
 <template>
 	<view class="page-container" :class="currentThemeClass">
-		<!-- 顶部导航栏 -->
+		<!-- 顶部固定导航 -->
 		<view class="fixed-nav-container">
 			<view class="nav-header">
 				<!-- 左侧年份选择 -->
@@ -18,7 +18,7 @@
 
 		<!-- 月份预算列表 -->
 		<scroll-view scroll-y class="main-content">
-			<view class="card-list">
+			<view class="card-list" v-if="monthlyBudgets.length > 0">
 				<view 
 					v-for="(monthData, index) in monthlyBudgets" 
 					:key="monthData.month" 
@@ -34,10 +34,10 @@
 						<!-- 左侧图表 -->
 						<view class="chart-box">
 							<van-circle
-								:value="monthData.expenseRate"
+								v-model:current-rate="listCurrentRates[monthData.month]"
 								:rate="monthData.expenseRate"
 								:color="getChartColor(monthData.isOverBudget)"
-								:text="getChartText(monthData)"
+								:text="getListChartText(monthData)"
 								:stroke-width="8"
 								size="80"
 								layer-color="#f1f5f9"
@@ -64,6 +64,15 @@
 						</view>
 					</view>
 				</view>
+			</view>
+
+			<!-- 全年空状态 -->
+			<view class="empty-state-full" v-else>
+				<view class="empty-icon-bg">
+					<van-icon name="balance-list-o" size="64" color="#cbd5e1" />
+				</view>
+				<text class="empty-text">该年份暂无预算记录</text>
+				<text class="empty-sub-text">快去设置预算，开启科学理财吧！</text>
 			</view>
 		</scroll-view>
 
@@ -99,7 +108,7 @@
 							v-model:current-rate="currentDetailRate"
 							:rate="selectedMonth.expenseRate"
 							:color="getChartColor(selectedMonth.isOverBudget)"
-							:text="getChartText(selectedMonth)"
+							:text="detailChartText"
 							:stroke-width="8"
 							size="100"
 							layer-color="#f1f5f9"
@@ -124,13 +133,13 @@
 					</view>
 				</view>
 
-				<!-- 分类预算列表 (Lines 65-96 from reference) -->
+				<!-- 分类预算列表 -->
 				<view class="category-list-section" v-if="selectedMonth && selectedMonth.categories.length > 0">
 					<view class="list-container">
 						<van-cell v-for="item in selectedMonth.categories" :key="item.id" center class="custom-cell flat-cell">
 							<template #icon>
-								<view :class="['list-icon-wrap', item.bgClass]">
-									<van-icon :name="item.icon" :color="item.iconColor" size="24" />
+								<view class="list-icon-wrap" :style="{ backgroundColor: getIconColors(item.icon_id).bg }">
+									<van-icon :name="item.icon" :color="getIconColors(item.icon_id).icon" size="24" />
 								</view>
 							</template>
 							<template #title>
@@ -145,7 +154,7 @@
 										</view>
 										<view class="progress-container">
 											<view class="progress-bar-bg">
-												<view class="progress-bar-fill" :style="{ width: item.percent + '%', backgroundColor: item.iconColor }"></view>
+												<view class="progress-bar-fill" :style="{ width: (showDetailAnimation ? item.percent : 0) + '%', backgroundColor: getIconColors(item.icon_id).icon }"></view>
 											</view>
 											<text class="percent-text text-style-desc">{{ item.percent }}%</text>
 										</view>
@@ -171,13 +180,69 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
+import { getBudgets } from '@/api/api.js';
+import { getIconColors } from '@/utils/color.js';
 
 // --- 状态定义 ---
 const currentYear = ref(new Date().getFullYear());
 const showYearPicker = ref(false);
 const showDetailPopup = ref(false);
+const showDetailAnimation = ref(false);
 const selectedMonth = ref(null);
-const currentDetailRate = ref(0); // 用于详情弹窗动画
+const currentDetailRate = ref(0);
+const detailChartText = computed(() => {
+	if (!selectedMonth.value) return '0%';
+	if (selectedMonth.value.isOverBudget) return '已超支';
+	return currentDetailRate.value.toFixed(0) + '%';
+});
+
+// 月份数据容器
+const monthlyBudgets = ref([]);
+
+// 列表项圆环当前进度
+const listCurrentRates = ref({});
+
+// 异步加载全年的月份数据汇总
+const loadYearData = async () => {
+	uni.showLoading({ title: '加载中...' });
+	
+	const promises = Array.from({ length: 12 }, (_, i) => {
+		const month = i + 1;
+		const period = `${currentYear.value}-${month.toString().padStart(2, '0')}`;
+		return getBudgets({ budget_type: 'month', period })
+			.then(res => {
+				// 只要有预算总额 > 0 或者是该月有分类预算
+				if (res.code === 0 && (res.data.totalAmount > 0 || (res.data.categories && res.data.categories.length > 0))) {
+					const { totalAmount, totalSpent, categories } = res.data;
+					const rate = totalAmount > 0 ? (totalSpent / totalAmount) * 100 : 0;
+					
+					// 初始化列表项进度
+					listCurrentRates.value[month] = 0;
+					
+					return {
+						month,
+						budget: totalAmount,
+						expense: totalSpent,
+						expenseRate: Math.min(rate, 100),
+						isOverBudget: totalSpent > totalAmount,
+						categories: categories || []
+					};
+				}
+				return null;
+			})
+			.catch(() => null);
+	});
+	
+	const results = await Promise.all(promises);
+	uni.hideLoading();
+	
+	// 过滤掉没有预算数据的月份，并按月份排序
+	monthlyBudgets.value = results.filter(item => item !== null).sort((a, b) => a.month - b.month);
+};
+
+onMounted(() => {
+	loadYearData();
+});
 
 // 年份选择数据
 const yearColumns = computed(() => {
@@ -189,65 +254,23 @@ const yearColumns = computed(() => {
 	return years.map(y => ({ text: `${y}年`, value: y }));
 });
 
-// 模拟分类数据生成器
-const generateCategories = () => {
-	const cats = [
-		{ id: 1, name: '餐饮美食', icon: 'fire-o', iconColor: '#d97706', bgClass: 'bg-orange-light' },
-		{ id: 2, name: '房屋租金', icon: 'wap-home-o', iconColor: '#2563eb', bgClass: 'bg-blue-light' },
-		{ id: 3, name: '交通出行', icon: 'logistics', iconColor: '#3b82f6', bgClass: 'bg-blue-light' },
-		{ id: 4, name: '休闲娱乐', icon: 'music-o', iconColor: '#8b5cf6', bgClass: 'bg-purple-light' },
-		{ id: 5, name: '购物消费', icon: 'shopping-cart-o', iconColor: '#ec4899', bgClass: 'bg-pink-light' }
-	];
-	
-	// 随机选取3-5个分类
-	const count = Math.floor(Math.random() * 3) + 3;
-	const selected = cats.slice(0, count);
-	
-	return selected.map(cat => {
-		const amount = Math.floor(Math.random() * 2000) + 500;
-		const spent = Math.random() * amount * 1.2; // 可能超支
-		const percent = Math.min((spent / amount) * 100, 100).toFixed(0);
-		return {
-			...cat,
-			amount,
-			spent,
-			percent: Number(percent)
-		};
-	});
-};
-
-// 模拟月份数据
-const monthlyBudgets = computed(() => {
-	// 这里根据 currentYear 生成虚拟数据
-	const months = [];
-	for (let i = 1; i <= 12; i++) {
-		const categories = generateCategories();
-		const totalBudget = categories.reduce((sum, item) => sum + item.amount, 0);
-		const totalExpense = categories.reduce((sum, item) => sum + item.spent, 0);
-		const expenseRate = totalBudget > 0 ? Math.min((totalExpense / totalBudget) * 100, 100) : 0;
-		
-		months.push({
-			month: i,
-			budget: totalBudget,
-			expense: parseFloat(totalExpense.toFixed(2)),
-			expenseRate: expenseRate,
-			isOverBudget: totalExpense > totalBudget,
-			categories: categories
-		});
-	}
-	return months;
-});
-
 // --- 方法 ---
 const onConfirmYear = ({ selectedOptions }) => {
 	currentYear.value = selectedOptions[0].value;
 	showYearPicker.value = false;
+	loadYearData();
 };
 
 const openMonthDetail = (monthData) => {
 	selectedMonth.value = monthData;
 	currentDetailRate.value = 0; // 重置动画
+	showDetailAnimation.value = false;
 	showDetailPopup.value = true;
+	
+	// 延迟开启进度条动画
+	setTimeout(() => {
+		showDetailAnimation.value = true;
+	}, 100);
 };
 
 const getChartColor = (isOver) => {
@@ -257,8 +280,10 @@ const getChartColor = (isOver) => {
 	return { '0%': '#6ee7b7', '100%': '#10b981' }; // 绿色渐变
 };
 
-const getChartText = (data) => {
-	return data.isOverBudget ? '已超支' : `${data.expenseRate.toFixed(0)}%`;
+const getListChartText = (data) => {
+	if (data.isOverBudget) return '已超支';
+	const current = listCurrentRates.value[data.month] || 0;
+	return current.toFixed(0) + '%';
 };
 </script>
 
@@ -595,5 +620,19 @@ const getChartText = (data) => {
 .empty-text {
 	font-size: 14px;
 	color: #94a3b8;
+}
+
+.empty-state-full {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding-top: 100px;
+}
+
+.empty-sub-text {
+	font-size: 12px;
+	color: #cbd5e1;
+	margin-top: 8px;
 }
 </style>

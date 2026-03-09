@@ -39,7 +39,18 @@ export const assignDefaultColors = (iconData) => {
 	});
 };
 
+/**
+ * 根据图标 ID 获取颜色配对
+ * @param {number|string} iconId 
+ * @returns {object} { bg, icon }
+ */
+export const getIconColors = (iconId) => {
+	const colorIndex = Number(iconId) % colorPairs.length;
+	return colorPairs[colorIndex] || colorPairs[0];
+};
+
 export default {
 	colorPairs,
-	assignDefaultColors
+	assignDefaultColors,
+	getIconColors
 };
