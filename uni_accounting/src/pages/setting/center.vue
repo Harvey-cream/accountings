@@ -161,28 +161,16 @@
 			</view>
 		</view>
 
-		<!-- 时间选择卡片弹窗 -->
-		<view v-if="showTimePicker" class="time-modal-mask" @click="handleCloseTimePicker">
-			<view class="time-modal-card" @click.stop>
-				<view class="modal-header">
-					<text class="modal-title">选择记账时间</text>
-					<van-icon name="cross" size="20" color="#94a3b8" @click="handleCloseTimePicker" />
-				</view>
-				
-				<view class="picker-container">
-					<van-picker
-						v-model="selectedValues"
-						:columns="pickerColumns"
-						:show-toolbar="false"
-					/>
-				</view>
-
-				<view class="modal-actions">
-					<view class="cancel-btn" @click="handleCloseTimePicker">取消</view>
-					<view class="confirm-btn" @click="onConfirmDateClick">确定</view>
-				</view>
-			</view>
-		</view>
+		<!-- 时间选择弹窗 -->
+		<van-popup :show="showTimePicker" position="bottom" round @close="showTimePicker = false">
+			<van-picker
+				title="选择记账时间"
+				show-toolbar
+				:columns="pickerColumns"
+				@confirm="onConfirmDateClick"
+				@cancel="showTimePicker = false"
+			/>
+		</van-popup>
 
 		<CustomTabbar :selected="2" />
 		
@@ -302,6 +290,41 @@ const handleVIPClick = () => {
 	});
 };
 
+// 生成选择器数据（仅显示今天及以后的一年）
+const getPickerColumns = () => {
+	const weekdaysList = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+	const now = new Date();
+	const dateColumn = Array.from({ length: 365 }, (_, i) => {
+		const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+		return {
+			text: `${d.getMonth() + 1}月${d.getDate()}日 ${weekdaysList[d.getDay()]}`,
+			value: `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+		};
+	});
+	const hours = Array.from({ length: 24 }, (_, i) => ({ text: `${i}时`, value: i.toString().padStart(2, '0') }));
+	const minutes = Array.from({ length: 60 }, (_, i) => ({ text: `${i}分`, value: i.toString().padStart(2, '0') }));
+	
+	// Vant Weapp 多列格式
+	return [
+		{ values: dateColumn.map(i => i.text) },
+		{ values: hours.map(i => i.text) },
+		{ values: minutes.map(i => i.text) }
+	];
+};
+
+// 打卡状态
+const isChecked = ref(false);
+// 时间选择
+const showTimePicker = ref(false);
+const selectedValues = ref([]);
+const pickerColumns = getPickerColumns();
+
+const handleOpenTimePicker = () => {
+	showTimePicker.value = true;
+};
+
+const handleCloseTimePicker = () => showTimePicker.value = false;
+
 onMounted(() => {
 	const session = uni.getStorageSync('session');
 	if (session && session.user_info) {
@@ -314,44 +337,11 @@ onShow(() => {
 	fetchUnreadCount();
 });
 
-// 打卡状态
-const isChecked = ref(false);
-// 时间选择
-const showTimePicker = ref(false);
-const selectedValues = ref([]);
-const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-// 生成选择器数据（仅显示今天及以后的一年）
-const pickerColumns = computed(() => {
-	const now = new Date();
-	const dateColumn = Array.from({ length: 365 }, (_, i) => {
-		const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-		return {
-			text: `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`,
-			value: `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
-		};
-	});
-	const hours = Array.from({ length: 24 }, (_, i) => ({ text: `${i}时`, value: i.toString().padStart(2, '0') }));
-	const minutes = Array.from({ length: 60 }, (_, i) => ({ text: `${i}分`, value: i.toString().padStart(2, '0') }));
-	return [dateColumn, hours, minutes];
-});
-
-const handleOpenTimePicker = () => {
-	const now = new Date();
-	selectedValues.value = [
-		`${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`,
-		now.getHours().toString().padStart(2, '0'),
-		now.getMinutes().toString().padStart(2, '0')
-	];
-	showTimePicker.value = true;
-};
-
-const handleCloseTimePicker = () => showTimePicker.value = false;
-
-const onConfirmDateClick = () => {
+const onConfirmDateClick = (event) => {
+	const { value } = event.detail || event;
 	showTimePicker.value = false;
-	const [d, h, m] = selectedValues.value;
-	uni.showToast({ title: `已设置：${d} ${h}:${m}`, icon: 'none' });
+	// value 现在是选中的 text 数组
+	uni.showToast({ title: `已设置：${value.join(' ')}`, icon: 'none' });
 };
 
 // 邀请好友

@@ -9,7 +9,6 @@
       </van-button>
     </view>
 
-    <!-- 内容输入区域 -->
     <view class="content-body">
       <textarea
         v-model="content"
@@ -18,7 +17,6 @@
         placeholder-style="color: #94a3b8; font-size: 15px;"
       ></textarea>
 
-      <!-- 图片上传区域 -->
       <view class="image-uploader">
         <!-- 已选图片预览 -->
         <view
@@ -41,29 +39,6 @@
 
       <!-- 选项列表 -->
       <view class="options-list">
-        <!-- 选择分类 -->
-        <view class="option-item" @click="showCategorySheet = true">
-          <view class="left-icon">
-            <van-icon name="label-o" size="20" color="#64748b" />
-            <text class="option-label">选择分类</text>
-          </view>
-          <view class="right-content">
-             <!-- 简单的分类展示，这里模拟选中状态 -->
-            <view class="category-tags">
-               <text
-                v-for="(cat, idx) in categories"
-                :key="idx"
-                :class="['cat-tag', { active: currentCategory === cat }]"
-                @click.stop="currentCategory = cat"
-               >
-                 {{ cat }}
-               </text>
-            </view>
-            <van-icon name="arrow" size="16" color="#cbd5e1" />
-          </view>
-        </view>
-
-        <!-- 显示位置 -->
         <view class="option-item">
           <view class="left-icon">
             <van-icon name="location-o" size="20" color="#64748b" />
@@ -104,24 +79,12 @@
 
 <script setup>
 import { ref } from 'vue';
+import { publishPost } from '@/api/api.js';
 
-// --- 状态定义 ---
-
-// 动态内容
 const content = ref('');
-
-// 图片列表
 const fileList = ref([]);
-
-// 分类数据
-const categories = ['省钱攻略', '心情分享'];
-const currentCategory = ref('心情分享');
-const showCategorySheet = ref(false);
-
-// 位置开关
 const showLocation = ref(true);
-
-// 可见性选择
+const locationInfo = ref('杭州市 · 滨江区'); // 模拟位置信息
 const visibility = ref('公开');
 const showVisibilitySheet = ref(false);
 const visibilityColumns = [
@@ -129,28 +92,24 @@ const visibilityColumns = [
   { text: '私密', value: '私密' }
 ];
 
-// --- 方法定义 ---
-
-// 确认可见性选择
-const onVisibilityConfirm = ({ selectedOptions }) => {
-  visibility.value = selectedOptions[0].text;
+const onVisibilityConfirm = (event) => {
+  const { value } = event.detail || event;
+  visibility.value = typeof value === 'object' ? value.text : value;
   showVisibilitySheet.value = false;
 };
 
-// 返回上一页
 const onCancel = () => {
   const pages = getCurrentPages();
   if (pages.length > 1) {
     uni.navigateBack();
   } else {
     uni.reLaunch({
-      url: '/pages/page_discover/community'
+      url: '/pages/discover/community'
     });
   }
 };
 
-// 发布动态
-const onPublish = () => {
+const onPublish = async () => {
   if (!content.value.trim() && fileList.value.length === 0) {
     uni.showToast({
       title: '写点什么吧~',
@@ -161,18 +120,41 @@ const onPublish = () => {
 
   uni.showLoading({ title: '发布中...' });
 
-  // 模拟发布请求
-  setTimeout(() => {
+  try {
+    const postData = {
+      content: content.value,
+      location: showLocation.value ? locationInfo.value : '',
+      is_hidden: visibility.value === '公开', // true为公开, false为私密
+      images: fileList.value // 这里暂时传本地路径，实际开发通常需要先上传图片获取 URL
+    };
+
+    const res = await publishPost(postData);
+    
     uni.hideLoading();
+    
+    if (res.code === 0) {
+      uni.showToast({
+        title: '发布成功',
+        icon: 'success'
+      });
+      // 延迟返回
+      setTimeout(() => {
+        uni.navigateBack();
+      }, 1500);
+    } else {
+      uni.showToast({
+        title: res.msg || '发布失败',
+        icon: 'none'
+      });
+    }
+  } catch (err) {
+    uni.hideLoading();
+    console.error('发布失败:', err);
     uni.showToast({
-      title: '发布成功',
-      icon: 'success'
+      title: '网络错误，发布失败',
+      icon: 'none'
     });
-    // 延迟返回
-    setTimeout(() => {
-      uni.navigateBack();
-    }, 1500);
-  }, 1000);
+  }
 };
 
 // 选择图片
@@ -188,7 +170,6 @@ const chooseImage = () => {
   });
 };
 
-// 删除图片
 const deleteImage = (index) => {
   fileList.value.splice(index, 1);
 };

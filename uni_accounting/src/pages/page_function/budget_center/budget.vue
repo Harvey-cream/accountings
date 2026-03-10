@@ -77,13 +77,13 @@
 		</scroll-view>
 
 		<!-- 年份选择弹窗 -->
-		<van-popup v-model:show="showYearPicker" position="bottom" round>
+		<van-popup :show="showYearPicker" position="bottom" round @close="showYearPicker = false">
 			<van-picker
+				title="选择年份"
+				show-toolbar
 				:columns="yearColumns"
 				@confirm="onConfirmYear"
 				@cancel="showYearPicker = false"
-				show-toolbar
-				title="选择年份"
 			/>
 		</van-popup>
 
@@ -183,6 +183,16 @@ import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
 import { getBudgets } from '@/api/api.js';
 import { getIconColors } from '@/utils/color.js';
 
+// 初始化年份选择数据
+const getYearColumns = () => {
+	const years = [];
+	const nowYear = new Date().getFullYear();
+	for (let i = nowYear - 5; i <= nowYear + 1; i++) {
+		years.push(i);
+	}
+	return years.map(y => ({ text: `${y}年`, value: y }));
+};
+
 // --- 状态定义 ---
 const currentYear = ref(new Date().getFullYear());
 const showYearPicker = ref(false);
@@ -195,6 +205,9 @@ const detailChartText = computed(() => {
 	if (selectedMonth.value.isOverBudget) return '已超支';
 	return currentDetailRate.value.toFixed(0) + '%';
 });
+
+// 年份选择数据
+const yearColumns = getYearColumns();
 
 // 月份数据容器
 const monthlyBudgets = ref([]);
@@ -244,19 +257,12 @@ onMounted(() => {
 	loadYearData();
 });
 
-// 年份选择数据
-const yearColumns = computed(() => {
-	const years = [];
-	const nowYear = new Date().getFullYear();
-	for (let i = nowYear - 5; i <= nowYear + 1; i++) {
-		years.push(i);
-	}
-	return years.map(y => ({ text: `${y}年`, value: y }));
-});
-
 // --- 方法 ---
-const onConfirmYear = ({ selectedOptions }) => {
-	currentYear.value = selectedOptions[0].value;
+const onConfirmYear = (event) => {
+	const { value } = event.detail || event;
+	// 如果是单列，value 可能直接是值，也可能是对象
+	const selectedValue = typeof value === 'object' ? value.value : value;
+	currentYear.value = selectedValue;
 	showYearPicker.value = false;
 	loadYearData();
 };

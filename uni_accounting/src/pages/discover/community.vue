@@ -1,12 +1,36 @@
 <template>
-  <view class="community-container" :class="currentThemeClass">
+  <view class="community-container" :class="currentThemeClass" @click="closeDropdown">
     <view class="header-section">
-      <view class = "nav-header">
-        <van-icon name="arrow-left" size="20" color="#0f172a" />
-        <view class ="segment-control">
-              <text v-for="(item,index) in period" :key="index" :class="['segment-item', { active: currentPeriod === index }]" @click="currentPeriod = index">{{ item }}</text>
+      <view class="nav-header">
+        <view class="header-left" @click.stop="toggleDropdown">
+          <van-icon :name="showCustomDropdown ? 'arrow-down' : 'arrow'" size="18" color="#0f172a" />
+          
+          <!-- 自定义下拉框 -->
+          <view v-if="showCustomDropdown" class="custom-dropdown">
+            <view 
+              v-for="(item, index) in period" 
+              :key="index" 
+              class="dropdown-item" 
+              :class="{ active: currentPeriod === index }"
+              @click.stop="selectPeriod(index)"
+            >
+              <view class="item-text-box">
+                <text>{{ item }}</text>
+              </view>
+              <view class="item-icon-box" v-if="currentPeriod === index">
+                <van-icon name="success" size="14" color="#ffd541" />
+              </view>
+            </view>
+          </view>
         </view>
-        <van-icon name="plus" size="20" color="#0f172a" @click="goToPublish" />
+        
+        <view class="dropdown-wrapper">
+          <text class="segment-title">{{ period[currentPeriod] }}</text>
+        </view>
+
+        <view class="header-right">
+          <van-icon name="plus" size="20" color="#0f172a" @click="goToPublish" />
+        </view>
       </view>
     </view>
 
@@ -15,14 +39,19 @@
       <view class="feed">
         <view v-for="post in filteredPosts" :key="post.postId" :id="'post-' + post.postId" :class="['post-card', { 'highlight-post': post.isHighlighted }]">
           <view class="post-left" @click="goToProfile(post.userId)">
-            <view class="avatar"></view>
+            <view class="avatar">
+              <image v-if="post.avatar" :src="post.avatar" mode="aspectFill" class="avatar-img" />
+            </view>
           </view>
 
           <view class="post-right">
             <view class="post-head">
               <view class="post-meta" @click="goToProfile(post.userId)">
                 <text class="post-name">{{ post.name }}</text>
-                <text class="post-time">{{ post.time }}</text>
+                <view class="post-time-box">
+                  <text class="post-time">{{ post.time }}</text>
+                  <text v-if="post.location" class="post-location"> · {{ post.location }}</text>
+                </view>
               </view>
               <view class="head-actions">
                 <view class="action post-comment" @click="showReplyInput(post.postId)">
@@ -51,7 +80,9 @@
                 <!-- 显示评论（最多3条，或全部） -->
                 <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.postId, comment)">
                   <view class="comment-header">
-                    <view class="comment-avatar"></view>
+                    <view class="comment-avatar">
+                      <image v-if="comment.avatar" :src="comment.avatar" mode="aspectFill" class="avatar-img" />
+                    </view>
                     <view class="comment-main">
                       <view class="comment-meta">
                         <text class="comment-author">{{ comment.author }}</text>
@@ -102,10 +133,25 @@
 import { ref, computed, nextTick } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
+import { getPostList } from '@/api/api.js';
 
 onShow(() => {
 	uni.$emit('updateTabbar');
+  fetchPosts();
 });
+
+const posts = ref([]);
+
+const fetchPosts = async () => {
+  try {
+    const res = await getPostList({ type: currentPeriod.value });
+    if (res.code === 0) {
+      posts.value = res.data;
+    }
+  } catch (e) {
+    console.error('获取动态列表失败:', e);
+  }
+};
 
 onLoad((options) => {
   if (options.postId) {
@@ -197,6 +243,21 @@ const toggleLike = (post) => {
 
 const period = ['热门推荐', '最新发布', '我的关注'];
 const currentPeriod = ref(0);
+const showCustomDropdown = ref(false);
+
+const toggleDropdown = () => {
+  showCustomDropdown.value = !showCustomDropdown.value;
+};
+
+const closeDropdown = () => {
+  showCustomDropdown.value = false;
+};
+
+const selectPeriod = (index) => {
+  currentPeriod.value = index;
+  showCustomDropdown.value = false;
+  fetchPosts();
+};
 
 const tips = [
   { id: 1, title: '超市扫货', sub: '省钱攻略', icon: 'cart-o', bg: 'bg-blue' },
@@ -204,49 +265,8 @@ const tips = [
   { id: 3, title: '居家小常识', sub: '省钱日常', icon: 'wap-home-o', bg: 'bg-orange' }
 ];
 
-const posts = ref([
-    {
-      postId: 1,
-      userId: '10001',
-      type: 0,
-      name: '蒜打细算的小王',
-      time: '2小时前',
-      text: '今天在静安区发现一家超划算的咖啡折扣店！很多单品只要会员日1-3折。要买了这一堆才花了不到50块钱，感觉省了一个亿！',
-      hasImages: true,
-      images: ['/static/4.jpg', '/static/4.jpg', '/static/4.jpg'],
-      likes: 128,
-      isLiked: false,
-      comments: 24,
-      showAllComments: false,
-      realComments: [
-        { author: '咖啡爱好者', time: '1小时前', content: '这家店具体在哪里啊？' },
-        { author: '省钱小能手', time: '45分钟前', content: '周末也有折扣吗？' },
-        { author: '住在附近', time: '30分钟前', content: '我也去过，确实很划算！' },
-        { author: '小王回复住在附近', time: '20分钟前', content: '是的是的是的，老板人也很好' }
-      ]
-    },
-    {
-      postId: 2,
-      userId: '10002',
-      type: 1,
-      name: '极简生活理财',
-      time: '5小时前',
-      text: '关于“薅羊毛”的一点心得：每天一杯30元的咖啡，一个月就是900元。坚持自己带咖啡豆手冲，不仅更有仪式感，一年能省下一张出国旅游的机票。',
-      hasImages: false,
-      likes: 86,
-      isLiked: false,
-      comments: 12,
-      showAllComments: false,
-      realComments: [
-        { author: '咖啡控', time: '4小时前', content: '我也想尝试手冲咖啡' },
-        { author: '理财新手', time: '3小时前', content: '这个方法不错，值得借鉴' }
-      ]
-    }
-  ]);
-
 const filteredPosts = computed(() => {
-  const list = posts.value;
-  return currentPeriod.value === 1 ? [...list].reverse() : list;
+  return posts.value;
 });
 </script>
 
@@ -258,34 +278,68 @@ const filteredPosts = computed(() => {
 }
 .header-section {
   background-color: #ffd541;
-  padding: 10px 20px 20px;
+  padding: 10px 20px 10px;
 }
 
 .nav-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
 }
 
-/* 分段按钮 */
-.segment-control {
-  background-color: rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
-  padding: 4px;
+
+
+.dropdown-wrapper {
+  flex: 1;
   display: flex;
+  justify-content: center;
 }
 
-.segment-item {
-  padding: 6px 20px;
-  border-radius: 16px;
-  font-size: 13px;
+.segment-title {
+  font-size: 16px;
+  font-weight: 500;
   color: #0f172a;
-  font-weight: 600;
 }
 
-.segment-item.active {
+/* 自定义下拉菜单 */
+.custom-dropdown {
+  position: absolute;
+  top: 35px;
+  left: -18px;
+  width: 120px;
   background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  overflow: hidden;
+  padding: 4px 0;
 }
+
+.dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #334155;
+  transition: background-color 0.2s;
+}
+
+.item-text-box {
+  margin-right: 10px;
+}
+
+.item-icon-box {
+  display: flex;
+  align-items: center;
+}
+
+:deep(.van-dropdown-menu__title) {
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
 
 /* 内容区 */
 .content-body {
@@ -413,6 +467,12 @@ const filteredPosts = computed(() => {
   height: 38px;
   border-radius: 50%;
   background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
 }
 
 .post-meta {
@@ -426,10 +486,21 @@ const filteredPosts = computed(() => {
   color: #0f172a;
 }
 
+.post-time-box {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
 .post-time {
   font-size: 11px;
   color: #94a3b8;
-  margin-top: 2px;
+}
+
+.post-location {
+  font-size: 11px;
+  color: #64748b;
+  margin-left: 4px;
 }
 
 .post-text {

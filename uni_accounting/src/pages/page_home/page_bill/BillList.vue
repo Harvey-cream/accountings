@@ -4,13 +4,11 @@
       <!-- 状态栏占位 -->
       <view class="status-bar"></view>
       <view class="headerTop">
-        <!-- Year Selector -->
         <view class="yearSelector" @click="showYearPicker = true">
           <text class="yearText">{{ currentYear }}年</text>
           <van-icon name="arrow-down" size="12" color="#333" />
         </view>
 
-        <!-- Segmented Control -->
         <view class="segmentControl">
           <view 
             class="segmentItem" :class="{ active: activeTab === 0 }" @click="activeTab = 0">
@@ -22,7 +20,6 @@
           </view>
         </view>
 
-        <!-- Capsule Home Button -->
         <CapsuleButton />
       </view>
       <view class="chartContainer">
@@ -30,8 +27,6 @@
           <text>{{ activeTab === 0 ? '年结余' : '总结余' }}</text>
           <text class="balanceValue font-number"> ¥ {{ activeTab === 0 ? yearSummary.balance : totalSummary.balance }}</text>
         </view>
-        
-        <!-- Income Bar -->
         <view class="chartRow">
           <view class="chartLabelGroup">
             <text class="text-style-desc">{{ activeTab === 0 ? '年收入' : '总收入' }}</text>
@@ -45,7 +40,6 @@
           </view>
         </view>
 
-        <!-- Expense Bar -->
         <view class="chartRow" style="margin-top: 15px;">
           <view class="chartLabelGroup">
             <text class="text-style-desc">{{ activeTab === 0 ? '年支出' : '总支出' }}</text>
@@ -94,8 +88,10 @@
       </template>
     </view>
 
-    <van-popup v-model:show="showYearPicker" position="bottom">
+    <van-popup :show="showYearPicker" position="bottom" round @close="showYearPicker = false">
       <van-picker
+        title="选择年份"
+        show-toolbar
         :columns="yearColumns"
         @confirm="onYearConfirm"
         @cancel="showYearPicker = false"
@@ -119,7 +115,6 @@ const yearColumns = ref([
   { text: '2024', value: '2024' },
 ]);
 
-// Summary Data
 const yearSummary = ref({
   balance: '0.00',
   income: '0.00',
@@ -135,11 +130,9 @@ const totalSummary = ref({
 const monthBills = ref([]);
 const yearBills = ref([]);
 
-// Animation Refs
 const displayIncomePercent = ref(0);
 const displayExpensePercent = ref(0);
 
-// Helper to calculate percentages
 const calculatePercents = () => {
   const data = activeTab.value === 0 ? yearSummary.value : totalSummary.value;
   const income = parseFloat(data.income.replace(/,/g, ''));
@@ -154,14 +147,11 @@ const calculatePercents = () => {
 };
 
 const animateCharts = async () => {
-  // 1. Reset to 0 first
   displayIncomePercent.value = 0;
   displayExpensePercent.value = 0;
-  
-  // 2. Wait for DOM update to ensure width is 0
+
   await nextTick();
   
-  // 3. Small delay to ensure the browser captures the change for transition
   setTimeout(() => {
     const { income, expense } = calculatePercents();
     displayIncomePercent.value = income;
@@ -178,8 +168,6 @@ const fetchData = async () => {
       totalSummary.value = data.totalSummary;
       monthBills.value = data.monthBills;
       yearBills.value = data.yearBills;
-      
-      // Update year columns based on available years
       if (data.yearBills && data.yearBills.length > 0) {
         yearColumns.value = data.yearBills.map(y => ({ text: y.year, value: y.year }));
       }
@@ -191,16 +179,16 @@ const fetchData = async () => {
   }
 };
 
-// Watch for tab changes to re-trigger animation
 watch(activeTab, animateCharts);
 
-// Initial data fetch
 onMounted(() => {
   fetchData();
 });
 
-const onYearConfirm = ({ selectedOptions }) => {
-  currentYear.value = selectedOptions[0].text;
+const onYearConfirm = (event) => {
+  const { value } = event.detail || event;
+  const selectedValue = typeof value === 'object' ? value.value : value;
+  currentYear.value = selectedValue;
   showYearPicker.value = false;
   fetchData();
 };

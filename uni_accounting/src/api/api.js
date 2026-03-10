@@ -89,3 +89,11 @@ export const getUnreadMessageCount = () => sendRequest("/api/system/message/unre
 
 // 获取邀请二维码
 export const getInviteQR = () => sendRequest("/api/user/invite/qr/", 'GET');
+
+// --- 社区动态接口 ---
+
+// 发布帖子
+export const publishPost = (data) => sendRequest("/api/comment/post/publish/", 'POST', data);
+
+// 获取帖子列表
+export const getPostList = (params) => sendRequest("/api/comment/post/list/", 'GET', params);
