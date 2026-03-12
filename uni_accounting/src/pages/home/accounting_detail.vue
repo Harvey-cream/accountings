@@ -1,83 +1,150 @@
 <template>
 	<view class="page-container" :class="currentThemeClass">
 		<view class="tab-content">
-			<view class="header">
+			<view class="header-section">
 				<view class="status-bar"></view>
-				<view class="summary-row">
-					<view class="month-selector" @click="showMonthPicker = true">
-						<text class="year-text">{{ summary.year }}年</text>
-						<view class="month-display">
-							<text class="month-text font-number">{{ summary.month }}</text>
-							<text class="month-unit">月</text>
-							<van-icon name="arrow-down" size="12" color="#0f172a" class="arrow-icon" />
+			</view>
+
+			<!-- 统计卡片 -->
+			<view class="summary-card-box">
+				<view class="summary-card">
+					<view class="card-top">
+						<view class="date-range" @click="showMonthPicker = true">
+							<van-icon name="calendar-o" size="14" color="#94a3b8" class="calendar-icon" />
+							<text class="date-text">{{ summary.month }}月01日-{{ summary.month }}月{{ getLastDayOfMonth(summary.year, summary.month) }}日</text>
+							<van-icon :name="showMonthPicker ? 'arrow-down' : 'arrow'" size="12" color="#94a3b8" class="arrow-icon" />
+						</view>
+						<view class="ai-section">
+							<view class="ai-bubble">
+								<text>开始今天的记账吧~</text>
+							</view>
+							<view class="ai-avatar">
+								<image src="/static/ai_avatar.png" mode="aspectFill" class="avatar-img" />
+							</view>
 						</view>
 					</view>
 
-					<view class="divider"></view>
+					<view class="card-main">
+						<view class="card-flex-container">
+							<view class="stats-left" @click="currentStatType = currentStatType === 'expense' ? 'income' : 'expense'">
+								<view class="main-stat">
+									<view class="stat-type">
+										<text class="type-text" :class="{ 'income-text': currentStatType === 'income' }">
+											{{ currentStatType === 'expense' ? '支出' : '收入' }}
+										</text>
+										<view class="type-icon" :class="{ 'income-bg': currentStatType === 'income' }">
+											<van-icon v-if="currentStatType === 'income'" name="exchange" size="10" color="#fff" />
+											<van-icon v-else name="exchange" size="10" color="#fff" />
+										</view>
+									</view>
+									<view class="main-amount">
+										<text class="currency">¥</text>
+										<text class="amount-val font-number">
+											{{ currentStatType === 'expense' ? formatAmount(summary.expense) : formatAmount(summary.income) }}
+										</text>
+									</view>
+								</view>
 
-					<view class="stat-group">
-						<view class="stat-item">
-							<text class="stat-label">收入</text>
-							<text class="stat-value">{{ summary.income }}</text>
+								<view class="sub-stats">
+									<view class="sub-item">
+										<text class="sub-label">{{ currentStatType === 'expense' ? '收入' : '支出' }}</text>
+										<text class="sub-value font-number">
+											¥{{ currentStatType === 'expense' ? formatAmount(summary.income) : formatAmount(summary.expense) }}
+										</text>
+									</view>
+									<view class="sub-item">
+										<text class="sub-label">结余</text>
+										<text class="sub-value font-number">¥{{ formatAmount(currentIncomeValue - currentExpenseValue) }}</text>
+									</view>
+								</view>
+							</view>
+
+							<view class="chart-right" v-if="currentBudgetValue > 0">
+								<van-circle
+									v-model:current-rate="currentRate"
+									:rate="expenseRate"
+									:color="chartColor"
+									:stroke-width="8"
+									size="90"
+									layer-color="#f1f5f9"
+									speed="100"
+								>
+									<view class="chart-inner">
+										<text class="chart-percent">{{ chartText }}</text>
+										<text class="chart-label">预算</text>
+									</view>
+								</van-circle>
+							</view>
+							<view class="chart-right empty-chart" v-else>
+								<view class="chart-inner">
+									<text class="chart-percent">未设置</text>
+									<text class="chart-label">预算</text>
+								</view>
+							</view>
 						</view>
-						<view class="stat-item">
-							<text class="stat-label">支出</text>
-							<text class="stat-value">{{ summary.expense }}</text>
+
+						<view class="card-footer">
+							<view class="footer-divider"></view>
+							<van-grid :column-num="5" :border="false" :gutter="0" class="footer-grid">
+								<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
+									<template #icon>
+										<view class="footer-action-icon">
+											<van-icon :name="action.icon" :color="action.iconColor" size="20" />
+										</view>
+									</template>
+									<template #text>
+										<text class="footer-action-name">{{ action.name }}</text>
+									</template>
+								</van-grid-item>
+							</van-grid>
 						</view>
 					</view>
 				</view>
 			</view>
-			<view class="quick-actions">
-				<van-grid :column-num="5" :border="false" :gutter="8">
-					<van-grid-item v-for="action in quickActions" :key="action.id" @click="onActionClick(action)">
-						<template #icon>
-							<view :class="['action-icon-wrap', action.bgColor]">
-								<van-icon :name="action.icon" :color="action.iconColor" size="24" />
-							</view>
-						</template>
-						<template #text>
-							<text class="action-name">{{ action.name }}</text>
-						</template>
-					</van-grid-item>
-				</van-grid>
-			</view>
-			<view class="transactions-section">
-				<van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
-					<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
-						<view class="day-header">
-							<text class="text-style-desc">{{ group.date }}</text>
-							<text class="text-style-desc">{{ getDaySummary(group) }}</text>
-						</view>
 
-						<view class="list-container">
-							<van-swipe-cell v-for="(item, index) in group.items" :key="item.id" right-width="65">
-								<van-cell center :class="['custom-cell', 'flat-cell', { 'last-item': index === group.items.length - 1 }]">
-									<template #icon>
-										<view class="list-icon-wrap" :style="item.iconBgStyle">
-											<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
-										</view>
-									</template>
-									<template #title>
-										<view class="cell-content">
-											<view class="cell-main">
-												<text class="cell-title text-style-title">{{ item.remark || item.title }}</text>
-												<view class="cell-sub-info">
-													<text v-if="item.location" class="cell-location text-style-desc">{{ item.location }}</text>
+			<view class="transactions-section">
+				<van-list v-model:loading="loading" :finished="finished" :finished-text="dailyTransactions.length > 0 ? '没有更多了' : ''" @load="onLoad">
+					<view v-if="dailyTransactions.length > 0">
+						<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
+							<view class="day-header">
+								<text class="text-style-desc">{{ group.date }}</text>
+								<text class="text-style-desc">{{ getDaySummary(group) }}</text>
+							</view>
+
+							<view class="list-container">
+								<van-swipe-cell v-for="(item, index) in group.items" :key="item.id" right-width="65">
+									<van-cell center :class="['custom-cell', 'flat-cell', { 'last-item': index === group.items.length - 1 }]">
+										<template #icon>
+											<view class="list-icon-wrap" :style="item.iconBgStyle">
+												<van-icon :name="item.icon" :color="item.iconColorStyle" size="20" />
+											</view>
+										</template>
+										<template #title>
+											<view class="cell-content">
+												<view class="cell-main">
+													<text class="cell-title text-style-title">{{ item.remark || item.title }}</text>
+													<view class="cell-sub-info">
+														<text v-if="item.location" class="cell-location text-style-desc">{{ item.location }}</text>
+													</view>
+												</view>
+												<view class="cell-right">
+													<text class="cell-amount text-style-number">{{ item.amount }}</text>
 												</view>
 											</view>
-											<view class="cell-right">
-												<text class="cell-amount text-style-number">{{ item.amount }}</text>
-											</view>
+										</template>
+									</van-cell>
+									<template #right>
+										<view class="delete-button" @click="onDelete(group.id, item.id)">
+											<van-icon name="delete-o" size="24" color="#fff" />
 										</view>
 									</template>
-								</van-cell>
-								<template #right>
-									<view class="delete-button" @click="onDelete(group.id, item.id)">
-										<van-icon name="delete-o" size="24" color="#fff" />
-									</view>
-								</template>
-							</van-swipe-cell>
+								</van-swipe-cell>
+							</view>
 						</view>
+					</view>
+					<!-- 空状态提示 -->
+					<view v-else-if="!loading" class="empty-state">
+						<van-empty image="search" description="暂无账单数据" />
 					</view>
 				</van-list>
 			</view>
@@ -98,10 +165,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getBills, deleteBill, getBillSummary } from '@/api/api.js';
+import { getBills, deleteBill, getBillSummary, getBudgets } from '@/api/api.js';
 import { colorPairs } from '@/utils/color.js';
 
 const showMonthPicker = ref(false);
@@ -109,6 +176,7 @@ const currentDate = ref(new Date());
 const minDate = new Date(2020, 0, 1);
 const maxDate = new Date(2030, 11, 31);
 const activeNav = ref(0);
+const currentStatType = ref('expense'); // 'expense' 或 'income'
 
 const loading = ref(false);
 const finished = ref(false);
@@ -119,6 +187,54 @@ const summary = ref({
 	expense: '0.00',
 	income: '0.00'
 });
+
+const monthBudget = ref(0);
+const currentRate = ref(0);
+
+// 辅助函数：将带逗号的字符串转换为数字
+const toNum = (val) => {
+	if (val === undefined || val === null) return 0;
+	const s = val.toString();
+	return parseFloat(s.replace(/,/g, '')) || 0;
+};
+
+// --- 参考 budget.vue 简化逻辑 ---
+const currentBudgetValue = computed(() => toNum(monthBudget.value));
+const currentExpenseValue = computed(() => toNum(summary.value.expense));
+const currentIncomeValue = computed(() => toNum(summary.value.income));
+
+const isOverBudget = computed(() => currentExpenseValue.value > currentBudgetValue.value);
+
+const expenseRate = computed(() => {
+	if (currentBudgetValue.value === 0) return 0;
+	const rate = (currentExpenseValue.value / currentBudgetValue.value) * 100;
+	return Math.min(rate, 100);
+});
+
+const chartText = computed(() => {
+	return isOverBudget.value ? '已超支' : `${expenseRate.value.toFixed(0)}%`;
+});
+
+const chartColor = computed(() => {
+	if (isOverBudget.value) return { '0%': '#fca5a5', '100%': '#ef4444' };
+	if (expenseRate.value >= 80) return '#f59e0b';
+	return { '0%': '#6ee7b7', '100%': '#10b981' };
+});
+
+const fetchBudgetData = async () => {
+	try {
+		const params = {
+			budget_type: 'month',
+			period: `${summary.value.year}-${summary.value.month.padStart(2, '0')}`
+		};
+		const res = await getBudgets(params);
+		if (res.code === 0) {
+			monthBudget.value = res.data.totalAmount || 0;
+		}
+	} catch (e) {
+		console.error('获取预算数据失败:', e);
+	}
+};
 
 const quickActions = ref([
 	{ id: 1, name: '账单', icon: 'notes-o', bgColor: 'bg-action-amber', iconColor: '#f59e0b' },
@@ -154,10 +270,15 @@ const dailyTransactions = ref([]);
 const fetchSummary = async () => {
 	try {
 		const res = await getBillSummary(summary.value.year);
+		console.log('DEBUG: fetchSummary res:', res);
 		if (res.code === 0) {
 			const data = res.data;
-			// 从月度明细中找到当前选中的月份
-			const currentMonthData = data.monthBills.find(m => m.month === parseInt(summary.value.month).toString());
+			// 更加鲁棒的月份匹配：统一转换为数字进行比较
+			const currentMonthInt = parseInt(summary.value.month);
+			const currentMonthData = data.monthBills.find(m => parseInt(m.month) === currentMonthInt);
+			
+			console.log('DEBUG: currentMonthInt:', currentMonthInt, 'found data:', currentMonthData);
+			
 			if (currentMonthData) {
 				summary.value.expense = currentMonthData.expense;
 				summary.value.income = currentMonthData.income;
@@ -177,8 +298,11 @@ const onLoad = async () => {
 
 	loading.value = true;
 	try {
-		// 1. 获取汇总统计
-		fetchSummary();
+		// 1. 并发获取汇总统计和预算数据，并等待完成
+		await Promise.all([
+			fetchSummary(),
+			fetchBudgetData()
+		]);
 
 		// 2. 获取当前年月的账单明细
 		const res = await getBills({
@@ -270,13 +394,23 @@ const onMonthConfirm = (value) => {
 };
 
 const getDaySummary = (group) => {
-	const income = parseFloat(group.totalIncome || 0);
-	const expense = parseFloat(group.totalExpense || 0);
+	const income = toNum(group.totalIncome || 0);
+	const expense = toNum(group.totalExpense || 0);
 	if (income > expense) {
 		return `收入: ${(income - expense).toFixed(2)}`;
 	} else {
 		return `支出: ${(expense - income).toFixed(2)}`;
 	}
+};
+
+const getLastDayOfMonth = (year, month) => {
+	return new Date(year, month, 0).getDate();
+};
+
+const formatAmount = (val) => {
+	if (val === undefined || val === null) return '0.00';
+	const num = toNum(val);
+	return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 </script>
 
@@ -284,182 +418,304 @@ const getDaySummary = (group) => {
 .page-container {
 	min-height: 100vh;
 	padding-bottom: 70px;
+	background-color: #FFFEF2;
 }
 
-/* Header Styles */
-.header {
+/* Header Section Styles */
+.header-section {
 	background-color: #ffd541;
-	padding: 20px 20px 0px;
+	border-radius: 0 0 20px 20px;
+	padding: 10px 16px 120px;
 	position: relative;
 }
 
 .status-bar {
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
+	height: var(--status-bar-height);
 }
 
-.status-icons {
+/* Summary Card Box - 独立盒子，用于承载统计卡片并处理层级 */
+.summary-card-box {
+	position: relative;
+	margin: -110px 16px 15px;
+	z-index: 20;
+}
+
+.summary-card {
+	background-color: #fffef2;
+	border-radius: 16px;
+	padding: 10px 12px 12px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+	z-index: 20;
+	border: 2.5px solid #DCCEA9;
+	border-bottom-width: 6px; /* 底部边框加粗，产生厚度感 */
+}
+
+.card-top {
 	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 5px;
+	gap: 4px;
+}
+
+.date-range {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: #94a3b8;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.ai-section {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	overflow: visible;
+	flex-shrink: 0;
+}
+
+.ai-bubble {
+	position: relative;
+	background-color: #ffec99;
+	padding: 4px 10px;
+	border-radius: 10px;
+	font-size: 11px;
+	color: #0f172a;
+	margin-right: 8px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.ai-bubble text {
+	white-space: nowrap;
+}
+
+.ai-bubble::after {
+	content: "";
+	position: absolute;
+	right: -4px;
+	top: 50%;
+	transform: translateY(-50%);
+	border-left: 5px solid #ffec99;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+}
+
+.ai-avatar {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	border: 2px solid #fff;
+	overflow: hidden;
+	background-color: #fff;
+}
+
+.avatar-img {
+	width: 100%;
+	height: 100%;
+}
+
+.main-stat {
+	margin-bottom: 10px;
+}
+
+.stat-type {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+.type-text {
+	font-size: 14px;
+	color: #ef4444;
+	font-weight: 500;
+	transition: color 0.3s ease;
+}
+
+.type-text.income-text {
+	color: #10b981;
+}
+
+.type-icon {
+	width: 14px;
+	height: 14px;
+	background-color: #ef4444;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 0.3s ease;
+}
+
+.type-icon.income-bg {
+	background-color: #10b981;
+}
+
+.main-amount {
+	display: flex;
+	align-items: baseline;
 	gap: 6px;
 }
 
-.rotate-90 {
-	transform: rotate(90deg);
+.currency {
+	font-size: 20px;
+	font-weight: 800;
+	color: #0f172a;
 }
 
-.summary-row {
+.amount-val {
+	font-size: 36px;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1;
+}
+
+.card-flex-container {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 20px;
+}
+
+.stats-left {
+	flex: 1;
+	min-width: 0;
+}
+
+.chart-right {
+	width: 90px;
+	height: 90px;
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	margin-left: 20px;
+	flex-shrink: 0;
 	position: relative;
-	z-index: 10;
-	height: 60px;
-	bottom: 10px;
-	flex: 1;
 }
 
-.month-selector {
+.empty-chart {
+	border: 8px solid #f1f5f9;
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+.chart-inner {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
 	justify-content: center;
-	cursor: pointer;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 100%;
 }
 
-.year-text {
-	font-size: 12px;
-	color: var(--secondary-text-color);
-	margin-bottom: 2px;
-	line-height: 1;
+.chart-percent {
+	font-size: 15px;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.2;
+	text-align: center;
 }
 
-.month-display {
-	display: flex;
-	align-items: baseline;
-	gap: 2px;
-	line-height: 1;
-}
-
-.month-text {
-	font-size: 28px;
-	font-weight: 500;
-}
-
-.month-unit {
-	font-size: 14px;
-	margin-right: 4px;
-}
-
-.arrow-icon {
-	margin-bottom: 2px;
-}
-
-.divider {
-	width: 0.5px;
-	background-color: rgba(0, 0, 0, 0.15);
-	margin: 0 20px;
-}
-
-.stat-group {
-	flex: 1;
-	display: flex;
-	justify-content: flex-start;
-	gap: 55px;
-	min-width: 0;
-}
-
-.stat-item {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.stat-label {
+.chart-label {
 	font-size: 11px;
-	color: var(--secondary-text-color);
+	color: #94a3b8;
+	margin-top: 2px;
 }
 
-.stat-value {
-	font-size: 18px;
-	font-weight: 300;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.sub-stats {
+	display: flex;
+	gap: 30px;
+	margin-top: 15px;
+	padding: 0 4px;
 }
 
-:deep(.van-grid-item__content) {
-	background-color: transparent;
-	padding: 4px 0;
-}
-
-.action-item {
+.sub-item {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	gap: 2px;
 }
 
-.action-icon-wrap {
-	width: 44px;
-	height: 44px;
-	border-radius: 12px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-bottom: 4px;
+.sub-label {
+	font-size: 12px;
+	color: #94a3b8;
 }
 
-.action-name {
+.sub-value {
+	font-size: 18px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.card-footer {
+	margin-top: 4px;
+}
+
+.footer-divider {
+	height: 1px;
+	background: repeating-linear-gradient(to right, #e2e8f0, #e2e8f0 4px, transparent 4px, transparent 8px);
+	margin-bottom: 8px;
+}
+
+.footer-action-icon {
+	margin-bottom: 2px;
+}
+
+.footer-action-name {
 	font-size: 10px;
 	font-weight: 500;
-	color: var(--secondary-text-color);
+	color: #64748b;
 }
 
-/* Action Colors */
-.bg-action-amber,
-.bg-action-blue,
-.bg-action-emerald,
-.bg-action-rose,
-.bg-action-slate {
-	background-color: var(--secondary-bg-color);
+:deep(.footer-grid .van-grid-item__content) {
+	background-color: transparent !important;
+	padding: 8px 0 !important;
 }
 
-/* Transactions */
+/* Transactions Section - 独立盒子，自然跟随在卡片下方 */
 .transactions-section {
-	margin-top: 15px;
+	margin: 0 16px 20px;
+	background-color: #fffef2;
+	border-radius: 16px;
+	padding: 10px 0;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+	border: 2.5px solid #DCCEA9;
 }
 
 .day-group {
-	margin-bottom: 15px;
+	margin-bottom: 10px;
+}
+
+.empty-state {
+	padding: 40px 0;
 }
 
 .day-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 0 15px;
+	padding: 8px 16px;
+	font-weight: 500;
 }
+
 .custom-cell {
-	background-color: transparent;
+	background-color: transparent !important;
 	border-radius: 0;
 	margin-bottom: 0;
-	padding: 16px 20px !important;
+	padding: 12px 16px !important;
 	position: relative;
 }
 
-.custom-cell::after {
-	content: "";
-	position: absolute;
-	bottom: 0;
-	left: 72px;
-	right: 0px;
-	height: 1px;
-	background-color: #f1f5f9;
-}
-
-.custom-cell.last-item::after {
-	left: 0;
-}
-
 .flat-cell {
+	background-color: transparent !important;
+}
+
+:deep(.van-cell) {
 	background-color: transparent !important;
 }
 

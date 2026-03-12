@@ -158,7 +158,7 @@ const handleRegister = async () => {
 }
 
 .top-bg {
-  height: 20vh;
+  height: 15vh;
   background: linear-gradient(180deg, rgba(255, 213, 65, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
   padding: 20px 30px 0;
 }
@@ -182,7 +182,7 @@ const handleRegister = async () => {
 }
 
 .login-card {
-  padding: 0 30px 40px;
+  padding: 0 30px 20px;
   flex: 1;
   display: flex;
   flex-direction: column;

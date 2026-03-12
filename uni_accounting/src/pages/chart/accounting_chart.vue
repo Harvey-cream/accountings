@@ -428,6 +428,7 @@ const shouldShowLabel = (index) => {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+	background-color: #FFFEF2;
 }
 
 /* 顶部固定导航 */
@@ -607,12 +608,21 @@ const shouldShowLabel = (index) => {
 }
 
 /* 列表样式 */
+.detail-section {
+	margin: 0 16px 20px;
+	background-color: #fffef2;
+	border-radius: 16px;
+	padding: 10px 0;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+	border: 2.5px solid #DCCEA9;
+}
+
 .section-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 5px;
-	padding: 0 20px;
+	padding: 8px 16px;
 }
 
 .section-title {
@@ -621,10 +631,10 @@ const shouldShowLabel = (index) => {
 }
 
 .custom-cell {
-	background-color: transparent;
+	background-color: transparent !important;
 	border-radius: 0;
 	margin-bottom: 0;
-	padding: 16px 20px !important;
+	padding: 12px 16px !important;
 	border-bottom: 1px solid #f1f5f9;
 }
 

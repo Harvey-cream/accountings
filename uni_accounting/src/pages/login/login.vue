@@ -48,7 +48,7 @@
 			</view>
 
 			<!-- 第三方登录 -->
-			<view class="other-login-section">
+			<!-- <view class="other-login-section">
 				<view class="other-login-title">
 					<view class="line"></view>
 					<text>其它方式登录</text>
@@ -62,7 +62,7 @@
 						<van-icon name="alipay" color="#1677ff" size="28" />
 					</view>
 				</view>
-			</view>
+			</view> -->
 		</view>
 	</view>
 </template>
