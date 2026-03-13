@@ -103,7 +103,7 @@
 			</view>
 
 			<view class="transactions-section">
-				<van-list v-model:loading="loading" :finished="finished" :finished-text="dailyTransactions.length > 0 ? '没有更多了' : ''" @load="onLoad">
+				<van-list v-model:loading="loading" :finished="finished" @load="onLoad">
 					<view v-if="dailyTransactions.length > 0">
 						<view v-for="group in dailyTransactions" :key="group.id" class="day-group">
 							<view class="day-header">
@@ -483,7 +483,7 @@ const formatAmount = (val) => {
 	border-radius: 10px;
 	font-size: 11px;
 	color: #0f172a;
-	margin-right: 8px;
+	margin-left: 20%;
 	white-space: nowrap;
 	flex-shrink: 0;
 }

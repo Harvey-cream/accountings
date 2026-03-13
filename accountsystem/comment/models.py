@@ -51,7 +51,7 @@ class UserPostImage(models.Model):
         verbose_name_plural = verbose_name
         db_table = "user_community_image"
 
-class Comment(models.Model):
+class UserComment(models.Model):
     """
     精细化评论模型 (对齐抖音逻辑)
     1. 使用 SET_NULL 避免级联删除 (父删子存)
@@ -61,11 +61,11 @@ class Comment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments', verbose_name="评论者")
     content = models.TextField(verbose_name="评论内容")
     # 1. 根评论 ID (root_id)：锁定所属的“评论树”
-    # 父评论物理删除后，root 设为 null，子评论依然归属于该帖子，只是不再聚合显示
-    root = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='root_replies', verbose_name="根评论ID")
+    # 父评论物理删除后，root 设为 null，子评论依然归属于该帖子，只是不再聚合显示    
+    comment_root = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='root_replies', verbose_name="根评论ID")
     # 2. 父评论 ID (parent_id)：锁定准确的“回复对象 ID”
     # 父评论物理删除后，parent 设为 null，子评论变成本地一级评论，但 reply_to 还在
-    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_replies', verbose_name="父评论ID")
+    comment_parent= models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_replies', verbose_name="父评论ID")
     # 3. 目标用户 ID (reply_to_id)：这是关键！
     # 即使父评论物理删除了，我们通过这个字段依然知道是在回复“谁”，前端显示不受影响
     reply_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_replies', verbose_name="被回复者ID")

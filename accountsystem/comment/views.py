@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from django.db import transaction
 from django.utils import timezone
-from .models import UserPost, UserPostImage
+from .models import UserPost, UserPostImage, UserComment, UserPostLike
 from user.models import User, UserPointRecord
 from user.utils.user_utils import get_current_user
 from common.response_web import HttpResult
@@ -79,16 +79,35 @@ class PostListView(APIView):
             images = [img.image_url for img in post.images.all().order_by('order')]
             
             # 获取前2条评论
-            comments_queryset = post.comments.filter(parent__isnull=True).order_by('-create_time')
+            comments_queryset = post.comments.filter(comment_parent__isnull=True).order_by('-create_time')
             real_comments = []
             for comment in comments_queryset:
+                # 获取该根评论下的子评论 (前2条)
+                child_comments_queryset = post.comments.filter(comment_root=comment).order_by('create_time')
+                child_comments = []
+                for child in child_comments_queryset[:2]:
+                    child_comments.append({
+                        "id": child.id,
+                        "author": child.user.nickname or child.user.username,
+                        "authorId": child.user.id,
+                        "avatar": child.user.avatar_url,
+                        "content": child.content,
+                        "reply_to": child.reply_to.nickname or child.reply_to.username if child.reply_to else None,
+                        "time": format_time_ago(child.create_time),
+                        "root_id": child.comment_root_id,
+                    })
+
                 real_comments.append({
                     "id": comment.id,
                     "author": comment.user.nickname or comment.user.username,
                     "authorId": comment.user.id,
                     "avatar": comment.user.avatar_url,
                     "content": comment.content,
+                    "likes": comment.likes_count,
                     "time": format_time_ago(comment.create_time),
+                    "root_id": comment.comment_root_id,
+                    "child_comments": child_comments,
+                    "child_count": child_comments_queryset.count()
                 })
 
             # 检查当前用户是否点赞
@@ -115,3 +134,78 @@ class PostListView(APIView):
             })
             
         return HttpResult.success_with_data("获取成功", posts_data)
+
+class PublishCommentView(APIView):
+    """发表评论"""
+    def post(self, request, format=None):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+        
+        data = request.data
+        post_id = data.get('post_id')
+        content = data.get('content', '').strip()
+        parent_id = data.get('parent_id') # 上一级评论 ID
+        root_id = data.get('root_id')     # 根评论 ID
+        reply_to_id = data.get('reply_to_id') # 被回复者 ID
+
+        if not post_id or not content:
+            return HttpResult.fail("帖子ID或内容不能为空")
+
+        try:
+            post = UserPost.objects.get(id=post_id)
+            
+            # 处理根评论和父评论
+            comment_parent = None
+            comment_root = None
+            reply_to = None
+
+            if parent_id:
+                try:
+                    comment_parent = UserComment.objects.get(id=parent_id)
+                    # 默认回复父评论的作者
+                    reply_to = comment_parent.user
+                    
+                    # 根评论逻辑：
+                    # 如果父评论本身没有 root，说明父评论就是 root
+                    # 否则，当前评论的 root 应该和父评论的 root 一致
+                    comment_root = comment_parent.comment_root or comment_parent
+                    
+                    # 如果前端显式传了 root_id，则以前端为准 (多级回复场景)
+                    if root_id:
+                        try:
+                            comment_root = UserComment.objects.get(id=root_id)
+                        except UserComment.DoesNotExist:
+                            pass
+                    
+                    # 如果前端显式传了 reply_to_id，则以前端为准
+                    if reply_to_id:
+                        try:
+                            reply_to = User.objects.get(id=reply_to_id)
+                        except User.DoesNotExist:
+                            pass
+                except UserComment.DoesNotExist:
+                    return HttpResult.fail("回复的评论不存在")
+
+            comment = UserComment.objects.create(
+                post=post,
+                user=user,
+                content=content,
+                comment_parent=comment_parent,
+                comment_root=comment_root,
+                reply_to=reply_to
+            )
+
+            return HttpResult.success_with_data("评论成功", {
+                "id": comment.id,
+                "author": user.nickname or user.username,
+                "avatar": user.avatar_url,
+                "content": comment.content,
+                "time": "刚刚"
+            })
+
+        except UserPost.DoesNotExist:
+            return HttpResult.fail("帖子不存在")
+        except Exception as e:
+            print(f"发表评论异常: {str(e)}")
+            return HttpResult.fail(f"评论失败: {str(e)}")

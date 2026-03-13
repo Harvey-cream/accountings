@@ -45,8 +45,8 @@
           </view>
 
           <view class="post-right">
-            <view class="post-head">
-              <view class="post-meta" @click="goToProfile(post.userId)">
+            <view class="post-head" @click.stop="showReplyInput(post.postId)">
+              <view class="post-meta">
                 <text class="post-name">{{ post.name }}</text>
                 <view class="post-time-box">
                   <text class="post-time">{{ post.time }}</text>
@@ -54,18 +54,19 @@
                 </view>
               </view>
               <view class="head-actions">
-                <view class="action post-comment" @click="showReplyInput(post.postId)">
+                <view class="action post-comment">
                   <van-icon name="chat-o" size="18" color="#64748b" />
+                  <text class="action-text">{{ post.comments }}</text>
                 </view>
 
-                <view class="action post-like" @click="toggleLike(post)">
+                <view class="action post-like" @click.stop="toggleLike(post)">
                   <van-icon :name="post.isLiked ? 'good-job' : 'good-job-o'" size="18" :color="post.isLiked ? '#ff0000' : '#64748b'" />
                   <text class="action-text" :class="{ 'liked-text': post.isLiked }">{{ post.likes }}</text>
                 </view>
               </view>
             </view>
 
-            <text class="post-text">{{ post.text }}</text>
+            <text class="post-text" @click.stop="showReplyInput(post.postId)">{{ post.text }}</text>
 
             <view v-if="post.hasImages" class="post-images">
               <view v-for="(image, index) in post.images" :key="index" class="img-outer" @click="previewImage(post.images, index)">
@@ -77,8 +78,8 @@
             <view class="post-comments">
               <!-- 评论列表 -->
               <view class="comment-list">
-                <!-- 显示评论（最多3条，或全部） -->
-                <view v-for="(comment, index) in (post.showAllComments ? post.realComments : post.realComments.slice(0, 2))" :key="index" class="comment-item" @click="showReplyInput(post.postId, comment)">
+                <!-- 直接渲染摊平后的列表，根据 visibleCommentCount 截取 -->
+                <view v-for="(comment, cIdx) in post.flattenedComments.slice(0, post.visibleCommentCount)" :key="cIdx" class="comment-item" @click.stop="showReplyInput(post.postId, comment)">
                   <view class="comment-header">
                     <view class="comment-avatar">
                       <image v-if="comment.avatar" :src="comment.avatar" mode="aspectFill" class="avatar-img" />
@@ -86,6 +87,10 @@
                     <view class="comment-main">
                       <view class="comment-meta">
                         <text class="comment-author">{{ comment.author }}</text>
+                        <block v-if="!comment.isRoot && comment.reply_to">
+                          <text class="reply-text">></text>
+                          <text class="comment-author">{{ comment.reply_to }}</text>
+                        </block>
                         <text class="comment-time">{{ comment.time }}</text>
                       </view>
                       <text class="comment-content">{{ comment.content }}</text>
@@ -93,8 +98,14 @@
                   </view>
                 </view>
               </view>
-              <view v-if="post.realComments.length > 2" class="toggle-comments" @click="post.showAllComments = !post.showAllComments">
-                <text>{{ post.showAllComments ? '收起' : `查看全部 ${post.realComments.length} 条评论` }}</text>
+
+              <!-- 展示/展开更多按钮 -->
+              <view v-if="post.flattenedComments.length > post.visibleCommentCount" class="expand-comments-btn" @click="expandComments(post)">
+                <text>{{ post.visibleCommentCount === 0 ? `展开 ${post.flattenedComments.length} 条回复` : `查看更多回复 (${post.flattenedComments.length - post.visibleCommentCount}) >` }}</text>
+              </view>
+              
+              <view v-if="post.visibleCommentCount > 0 && post.flattenedComments.length <= post.visibleCommentCount" class="toggle-comments" @click="post.visibleCommentCount = 0">
+                <text>收起回复</text>
               </view>
             </view>
           </view>
@@ -111,7 +122,7 @@
     </view>
 
     <!-- 浮动回复输入框 -->
-    <view v-if="replyPost !== null" class="floating-reply-container">
+    <view v-if="replyPost !== null" class="floating-reply-container" @click.stop="">
       <input
         v-model="replyContent"
         class="floating-reply-input"
@@ -133,7 +144,7 @@
 import { ref, computed, nextTick } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getPostList } from '@/api/api.js';
+import { getPostList, publishComment } from '@/api/api.js';
 
 onShow(() => {
 	uni.$emit('updateTabbar');
@@ -146,7 +157,33 @@ const fetchPosts = async () => {
   try {
     const res = await getPostList({ type: currentPeriod.value });
     if (res.code === 0) {
-      posts.value = res.data;
+      posts.value = res.data.map(post => {
+        // 将所有根评论和子评论摊平到一个数组中
+        const allComments = [];
+        post.realComments.forEach(root => {
+          // 添加根评论
+          allComments.push({
+            ...root,
+            isRoot: true
+          });
+          // 添加该根评论下的子评论
+          if (root.child_comments) {
+            root.child_comments.forEach(child => {
+              allComments.push({
+                ...child,
+                isRoot: false,
+                rootId: root.id
+              });
+            });
+          }
+        });
+        
+        return {
+          ...post,
+          flattenedComments: allComments,
+          visibleCommentCount: 0
+        };
+      });
     }
   } catch (e) {
     console.error('获取动态列表失败:', e);
@@ -198,6 +235,19 @@ const hideReplyInput = () => {
   replyContent.value = '';
 };
 
+// 展开更多评论，每次展开5条
+const expandComments = (post) => {
+  // 这里的 realComments 是后端返回的根评论列表
+  // 但用户的要求是“子评论都在同一级，不管是回复谁”
+  // 在我们的扁平化逻辑里，一个 comment-group 包含一个 root 和它的所有 child
+  // 所以这里的“展开5条”应该是针对这个 group 里的所有 comment-item
+  
+  // 先计算该帖子下总共有多少条可展示的评论项（1个root + N个child）
+  // 注意：后端目前只给每个 root 带了前2个 child，如果需要展开更多，可能需要后端支持
+  // 暂时按现有数据结构实现展开逻辑
+  post.visibleCommentCount += 5;
+};
+
 const goToChatroom = () => {
   uni.navigateTo({
     url: '/pages/discover/page_chatroom/chatroom'
@@ -210,18 +260,51 @@ const goToProfile = (userId) => {
   });
 };
 
-const submitReply = (postId) => {
+const submitReply = async (postId) => {
   if (!replyContent.value.trim()) return;
+
+  const data = {
+    post_id: postId,
+    content: replyContent.value,
+  };
 
   if (replyComment.value) {
     // 回复特定评论
-    console.log('回复评论:', replyComment.value.author, '内容:', replyContent.value);
-  } else {
-    // 回复帖子
-    console.log('回复帖子:', replyContent.value);
+    data.parent_id = replyComment.value.id;
+    // 使用传入的 root_id 或回复对象的 id
+    data.root_id = replyComment.value.rootId || replyComment.value.root_id || replyComment.value.id;
+    data.reply_to_id = replyComment.value.authorId;
   }
 
-  hideReplyInput();
+  try {
+    const res = await publishComment(data);
+    if (res.code === 0) {
+      uni.showToast({
+        title: '回复成功',
+        icon: 'success'
+      });
+      
+      // 更新本地数据，让新评论立即显示
+      const post = posts.value.find(p => p.postId === postId);
+      if (post) {
+        // 重新获取列表以保持扁平化数据最新，或者手动推入 flattenedComments
+        fetchPosts();
+      }
+      
+      hideReplyInput();
+    } else {
+      uni.showToast({
+        title: res.msg || '发布失败',
+        icon: 'none'
+      });
+    }
+  } catch (e) {
+    console.error('发表评论失败:', e);
+    uni.showToast({
+      title: '网络异常，请稍后再试',
+      icon: 'none'
+    });
+  }
 };
 
 // 跳转到发布动态页面
@@ -249,14 +332,15 @@ const toggleDropdown = () => {
   showCustomDropdown.value = !showCustomDropdown.value;
 };
 
-const closeDropdown = () => {
-  showCustomDropdown.value = false;
-};
-
 const selectPeriod = (index) => {
   currentPeriod.value = index;
   showCustomDropdown.value = false;
   fetchPosts();
+};
+
+const closeDropdown = () => {
+  showCustomDropdown.value = false;
+  hideReplyInput();
 };
 
 const tips = [
@@ -350,7 +434,6 @@ const filteredPosts = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 12px 4px 12px;
 }
 
 .section-title {
@@ -372,7 +455,6 @@ const filteredPosts = computed(() => {
 .tip-card {
   flex: 1;
   border-radius: 16px;
-  padding: 14px 14px 12px;
   color: #fff;
   min-height: 88px;
 }
@@ -406,15 +488,19 @@ const filteredPosts = computed(() => {
 .bg-orange { background-color: #f97316; }
 
 .feed {
-  margin-top: 6px;
+  margin-top: 5px;
 }
 
 .post-card {
-  padding: 10px 0px;
-  margin-bottom: 10px;
+  padding: 12px 0px;
   display: flex;
-  gap: 4px;
+  gap: 12px;
+  border-bottom: 1px solid #f1f5f9;
   transition: background-color 0.5s ease;
+}
+
+.post-card:last-child {
+  border-bottom: none;
 }
 
 .highlight-post {
@@ -535,29 +621,21 @@ const filteredPosts = computed(() => {
   }
 
 
+/* 评论样式 */
 .comment-list {
-  margin-top: 8px;
+  margin-top: 10px;
 }
-
-.toggle-comments {
-  text-align: center;
-}
-
-.toggle-comments text {
-  font-size: 12px;
-  color: #64748b;
-}
-
 .comment-item {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
-
+.comment-item:last-child {
+  margin-bottom: 0;
+}
 .comment-header {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
-
 .comment-avatar {
   width: 26px;
   height: 26px;
@@ -565,31 +643,56 @@ const filteredPosts = computed(() => {
   background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   flex-shrink: 0;
 }
-
+.avatar-img {
+  width: 100%;
+  height: 100%;
+}
 .comment-main {
   flex: 1;
 }
-
 .comment-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 1px;
 }
-
 .comment-author {
   font-size: 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1e293b;
 }
-
+.reply-text {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: normal;
+}
 .comment-time {
   font-size: 10px;
   color: #94a3b8;
+  margin-left: 4px;
+}
+.comment-content {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.3;
 }
 
-.comment-content {
-  font-size: 12px;
-  color: #334155;
+.expand-comments-btn, .toggle-comments {
+  margin-top: 8px;
+  display: inline-block;
+}
+
+.expand-comments-btn text, .toggle-comments text {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  background-color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+.expand-comments-btn:active text, .toggle-comments:active text {
+  background-color: #f1f5f9;
 }
 
 .post-actions {

@@ -97,3 +97,6 @@ export const publishPost = (data) => sendRequest("/api/comment/post/publish/", '
 
 // 获取帖子列表
 export const getPostList = (params) => sendRequest("/api/comment/post/list/", 'GET', params);
+
+// 发表评论
+export const publishComment = (data) => sendRequest("/api/comment/publish/", 'POST', data);
