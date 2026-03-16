@@ -157,7 +157,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
-import { getUserInfo } from '@/api/api.js';
+import { getUserInfo, getPostList, publishComment, likePost } from '@/api/api.js';
 
 const statusBarHeight = ref(0);
 const isSelf = ref(true);
@@ -291,7 +291,13 @@ const toggleFollow = () => {
   }
 };
 
+const likeTimers = {}; // 用于存储每个帖子的防抖定时器
+const originalLikeState = {}; // 存储点击前的初始状态，用于对比是否需要发送请求
+
 const toggleLike = (post) => {
+  const postId = post.postId;
+  
+  // 1. 立即更新 UI (乐观更新)
   if (post.isLiked) {
     post.likes--;
     post.isLiked = false;
@@ -299,6 +305,37 @@ const toggleLike = (post) => {
     post.likes++;
     post.isLiked = true;
   }
+
+  // 2. 记录初始状态
+  if (originalLikeState[postId] === undefined) {
+    // 取反
+    originalLikeState[postId] = !post.isLiked; 
+  }
+
+  // 3. 防抖
+  if (likeTimers[postId]) {
+    clearTimeout(likeTimers[postId]);
+  }
+
+  likeTimers[postId] = setTimeout(async () => {
+    const finalState = post.isLiked;
+    const initialState = originalLikeState[postId];
+    // 只有最终状态和最初点击时的状态不一致时，才发送请求
+    if (finalState !== initialState) {
+      try {
+        await likePost(postId, finalState);
+        console.log(`同步点赞状态成功: postId=${postId}, isLiked=${finalState}`);
+      } catch (e) {
+        console.error('同步点赞状态失败:', e);
+      }
+    } else {
+      console.log(`状态无变化，无需同步: postId=${postId}`);
+    }
+
+    // 清理记录的状态和定时器
+    delete likeTimers[postId];
+    delete originalLikeState[postId];
+  }, 1000); // 1秒防抖时间
 };
 
 const previewImage = (images, index) => {

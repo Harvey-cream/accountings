@@ -144,7 +144,7 @@
 import { ref, computed, nextTick } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getPostList, publishComment } from '@/api/api.js';
+import { getPostList, publishComment, likePost } from '@/api/api.js';
 
 onShow(() => {
 	uni.$emit('updateTabbar');
@@ -314,7 +314,13 @@ const goToPublish = () => {
   });
 };
 
+const likeTimers = {}; // 用于存储每个帖子的防抖定时器
+const originalLikeState = {}; // 存储点击前的初始状态，用于对比是否需要发送请求
+
 const toggleLike = (post) => {
+  const postId = post.postId;
+  
+  // 1. 立即更新 UI (乐观更新)
   if (post.isLiked) {
     post.likes--;
     post.isLiked = false;
@@ -322,6 +328,39 @@ const toggleLike = (post) => {
     post.likes++;
     post.isLiked = true;
   }
+
+  // 2. 记录初始状态（如果还没记录的话）
+  if (originalLikeState[postId] === undefined) {
+    // 这里取反是因为上面已经修改了 post.isLiked
+    originalLikeState[postId] = !post.isLiked; 
+  }
+
+  // 3. 防抖处理：只在停止点击一段时间后同步最终状态
+  if (likeTimers[postId]) {
+    clearTimeout(likeTimers[postId]);
+  }
+
+  likeTimers[postId] = setTimeout(async () => {
+    const finalState = post.isLiked;
+    const initialState = originalLikeState[postId];
+
+    // 只有最终状态和最初点击时的状态不一致时，才发送请求
+    if (finalState !== initialState) {
+      try {
+        await likePost(postId, finalState);
+        console.log(`同步点赞状态成功: postId=${postId}, isLiked=${finalState}`);
+      } catch (e) {
+        console.error('同步点赞状态失败:', e);
+        // 如果失败，可以考虑回滚 UI 或提示用户
+      }
+    } else {
+      console.log(`状态无变化，无需同步: postId=${postId}`);
+    }
+
+    // 清理记录的状态和定时器
+    delete likeTimers[postId];
+    delete originalLikeState[postId];
+  }, 1000); // 1秒防抖时间
 };
 
 const period = ['热门推荐', '最新发布', '我的关注'];

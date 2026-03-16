@@ -100,3 +100,6 @@ export const getPostList = (params) => sendRequest("/api/comment/post/list/", 'G
 
 // 发表评论
 export const publishComment = (data) => sendRequest("/api/comment/publish/", 'POST', data);
+
+// 点赞/取消点赞帖子
+export const likePost = (postId, isLiked) => sendRequest("/api/comment/post/like/", 'POST', { postId, isLiked });

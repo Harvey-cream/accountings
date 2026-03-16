@@ -113,7 +113,6 @@ class PostListView(APIView):
             # 检查当前用户是否点赞
             is_liked = False
             if user:
-                from .models import UserPostLike
                 is_liked = UserPostLike.objects.filter(user=user, post=post).exists()
 
             posts_data.append({
@@ -209,3 +208,75 @@ class PublishCommentView(APIView):
         except Exception as e:
             print(f"发表评论异常: {str(e)}")
             return HttpResult.fail(f"评论失败: {str(e)}")
+
+class LikePostView(APIView):
+    """
+    点赞/取消点赞接口
+    GET: 获取当前点赞状态和点赞总数
+    POST: 切换点赞状态 (接收前端防抖后的最终状态)
+    """
+    def get(self, request):
+        user = get_current_user(request)
+        post_id = request.query_params.get('postId')
+        if not post_id:
+            return HttpResult.fail("帖子ID不能为空")
+            
+        try:
+            post = UserPost.objects.get(id=post_id)
+            is_liked = False
+            if user:
+                is_liked = UserPostLike.objects.filter(user=user, post=post).exists()
+            
+            return HttpResult.success_with_data("获取成功", {
+                "isLiked": is_liked,
+                "likesCount": post.likes_count
+            })
+        except UserPost.DoesNotExist:
+            return HttpResult.fail("帖子不存在")
+
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+            
+        data = request.data
+        post_id = data.get('postId')
+        # 前端同步过来的最终状态 (True: 点赞, False: 取消)
+        is_liked_state = data.get('isLiked') 
+
+        if post_id is None or is_liked_state is None:
+            return HttpResult.fail("参数不完整")
+
+        try:
+            with transaction.atomic():
+                # 使用 select_for_update 锁定帖子记录，防止并发更新 likes_count 出错
+                post = UserPost.objects.select_for_update().get(id=post_id)
+                
+                # 检查数据库中当前的实际状态
+                like_exists = UserPostLike.objects.filter(user=user, post=post).exists()
+                
+                if is_liked_state:
+                    # 如果前端传的是“点赞”状态
+                    if not like_exists:
+                        # 只有数据库没记录时才创建，并增加计数
+                        UserPostLike.objects.create(user=user, post=post)
+                        post.likes_count += 1
+                        post.save()
+                else:
+                    # 如果前端传的是“取消点赞”状态
+                    if like_exists:
+                        # 只有数据库有记录时才删除，并减少计数
+                        UserPostLike.objects.filter(user=user, post=post).delete()
+                        post.likes_count = max(0, post.likes_count - 1)
+                        post.save()
+                
+                return HttpResult.success_with_data("同步成功", {
+                    "isLiked": is_liked_state,
+                    "likesCount": post.likes_count
+                })
+                
+        except UserPost.DoesNotExist:
+            return HttpResult.fail("帖子不存在")
+        except Exception as e:
+            print(f"点赞同步异常: {str(e)}")
+            return HttpResult.fail(f"点赞同步失败: {str(e)}")
