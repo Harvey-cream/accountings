@@ -15,7 +15,7 @@ export const getAllIcons = () => sendReleaseRequest("/api/account/icons/", 'GET'
 // --- 受保护接口 (需要登录) ---
 
 // 用户信息 
-export const getUserInfo = () => sendRequest("/api/user/info/", 'GET');
+export const getUserInfo = (userId = 'self') => sendRequest(`/api/user/info/?userId=${userId}`, 'GET');
 
 // 修改用户信息
 export const updateUserInfo = (data) => sendRequest("/api/user/info/update/", 'POST', data);
@@ -98,8 +98,17 @@ export const publishPost = (data) => sendRequest("/api/comment/post/publish/", '
 // 获取帖子列表
 export const getPostList = (params) => sendRequest("/api/comment/post/list/", 'GET', params);
 
+// 获取帖子详情
+export const getPostDetail = (postId) => sendRequest("/api/comment/post/detail/", 'GET', { postId });
+
 // 发表评论
 export const publishComment = (data) => sendRequest("/api/comment/publish/", 'POST', data);
 
 // 点赞/取消点赞帖子
 export const likePost = (postId, isLiked) => sendRequest("/api/comment/post/like/", 'POST', { postId, isLiked });
+
+// 关注/取消关注用户
+export const toggleFollow = (followedUserId, isFollow) => sendRequest("/api/comment/follow/toggle/", 'POST', { followedUserId, isFollow });
+
+// 获取关注/粉丝列表
+export const getFollowList = (userId, type) => sendRequest("/api/comment/follow/list/", 'GET', { userId, type });

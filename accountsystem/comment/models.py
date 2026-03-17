@@ -83,3 +83,49 @@ class UserComment(models.Model):
         user_name = self.user.nickname or self.user.username
         target_name = self.reply_to.nickname if self.reply_to else "帖子"
         return f"{user_name} 回复 {target_name}: {self.content[:20]}"
+
+class UserFollow(models.Model):
+    """
+    用户关注表
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following_relations', verbose_name="关注者")
+    followed_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='follower_relations', verbose_name="被关注者")
+    is_mutual = models.BooleanField(default=False, verbose_name="是否互关")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="关注时间")
+    class Meta:
+        verbose_name = "用户关注"
+        verbose_name_plural = verbose_name
+        db_table = "user_community_follow"
+        unique_together = ('user', 'followed_user')
+
+    def __str__(self):
+        user_name = self.user.nickname or self.user.username
+        followed_name = self.followed_user.nickname or self.followed_user.username
+        return f"{user_name} 关注了 {followed_name}"
+
+class UserNotice(models.Model):
+    """
+    社交通知表 (用于存储关注、点赞、评论等通知)
+    """
+    NOTICE_TYPE_CHOICES = (
+        ('follow', '关注'),
+        ('like', '点赞'),
+        ('comment', '评论'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notices', verbose_name="接收用户")
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="发起用户")
+    notice_type = models.CharField(max_length=10, choices=NOTICE_TYPE_CHOICES, verbose_name="通知类型")
+    related_id = models.IntegerField(null=True, blank=True, verbose_name="关联内容ID")
+    content = models.TextField(null=True, blank=True, verbose_name="通知内容摘要")
+    is_read = models.BooleanField(default=False, verbose_name="是否已读")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="通知时间")
+
+    class Meta:
+        verbose_name = "社交通知"
+        verbose_name_plural = verbose_name
+        db_table = "user_community_notice"
+        ordering = ['-create_time']
+
+    def __str__(self):
+        sender_name = self.sender.nickname or self.sender.username
+        return f"{sender_name} 的 {self.get_notice_type_display()} 通知"

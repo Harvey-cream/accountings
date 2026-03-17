@@ -314,13 +314,11 @@ const goToPublish = () => {
   });
 };
 
-const likeTimers = {}; // 用于存储每个帖子的防抖定时器
-const originalLikeState = {}; // 存储点击前的初始状态，用于对比是否需要发送请求
+const likeTimers = {}; 
+const originalLikeState = {}; 
 
 const toggleLike = (post) => {
   const postId = post.postId;
-  
-  // 1. 立即更新 UI (乐观更新)
   if (post.isLiked) {
     post.likes--;
     post.isLiked = false;
@@ -351,7 +349,6 @@ const toggleLike = (post) => {
         console.log(`同步点赞状态成功: postId=${postId}, isLiked=${finalState}`);
       } catch (e) {
         console.error('同步点赞状态失败:', e);
-        // 如果失败，可以考虑回滚 UI 或提示用户
       }
     } else {
       console.log(`状态无变化，无需同步: postId=${postId}`);

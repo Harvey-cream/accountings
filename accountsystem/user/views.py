@@ -174,16 +174,42 @@ class UserRegisterView(APIView):
 
 
 class GetUserInfoView(APIView):
-    """获取用户信息接口"""
+    """获取用户信息接口 (支持获取他人信息)"""
     def get(self, request, format=None):
-        user = get_current_user(request)
+        current_user = get_current_user(request)
+        user_id = request.query_params.get('userId')
+        
+        if user_id and user_id != 'self':
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return HttpResult.fail("用户不存在")
+        else:
+            user = current_user
+            
         if not user:
-            return HttpResult.fail("用户未登录")
+            return HttpResult.fail("未登录且未指定用户ID")
         
         # 如果 account_id 为空（兼容老用户），则自动生成
         if not user.account_id:
             user.account_id = generate_account_id(User)
             user.save()
+
+        # 获取社交统计数据 (延迟导入避免循环依赖)
+        from comment.models import UserFollow, UserPost, UserPostLike
+        
+        following_count = UserFollow.objects.filter(user=user).count()
+        followers_count = UserFollow.objects.filter(followed_user=user).count()
+        
+        # 获赞与收藏 (暂时只算获赞)
+        # 1. 该用户发布的帖子获得的点赞总数
+        posts = UserPost.objects.filter(user=user)
+        likes_received = UserPostLike.objects.filter(post__in=posts).count()
+        
+        # 检查当前登录用户是否关注了目标用户
+        is_followed = False
+        if current_user and current_user.id != user.id:
+            is_followed = UserFollow.objects.filter(user=current_user, followed_user=user).exists()
 
         user_info = {
             'userId': user.id,
@@ -197,6 +223,11 @@ class GetUserInfoView(APIView):
             'selfCode': user.self_code,
             'avatarUrl': user.avatar_url,
             'isVerified': user.is_verified,
+            'isSelf': current_user.id == user.id if current_user else False,
+            'following': following_count,
+            'followers': followers_count,
+            'likesAndCollects': likes_received,
+            'isFollowed': is_followed
         }
         return HttpResult.success_with_data("获取成功", user_info)
 

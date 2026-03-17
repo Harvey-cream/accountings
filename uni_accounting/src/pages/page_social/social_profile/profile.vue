@@ -157,7 +157,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
-import { getUserInfo, getPostList, publishComment, likePost } from '@/api/api.js';
+import { getUserInfo, getPostList, publishComment, likePost, toggleFollow as toggleFollowApi } from '@/api/api.js';
 
 const statusBarHeight = ref(0);
 const isSelf = ref(true);
@@ -185,59 +185,43 @@ const user = reactive({
   isFollowed: false
 });
 
-const userPosts = ref([
-  {
-    postId: 101,
-    time: '昨天 18:30',
-    text: '今天的记账挑战完成！省下了30块钱，开心~ 💰',
-    hasImages: true,
-    images: ['/static/4.jpg'],
-    likes: 45,
-    isLiked: false,
-    comments: 8
-  },
-  {
-    postId: 102,
-    time: '3天前',
-    text: '分享一个超好用的存钱小技巧：每天把零钱存进小金库，一个月下来也是一笔不小的数目呢。',
-    hasImages: false,
-    likes: 89,
-    isLiked: true,
-    comments: 12
-  }
-]);
+const userPosts = ref([]);
 
-const mockReplies = ref([
-  {
-    name: '路人甲',
-    avatar: '/static/1.jpg',
-    time: '2小时前',
-    text: '确实，这种方法坚持下来很有成就感！🙌'
-  },
-  {
-    name: '理财小能手',
-    avatar: '/static/2.jpg',
-    time: '1小时前',
-    text: '我每个月能省下500多呢，加油！'
+const currentUserId = ref('self');
+
+const fetchUserPosts = async () => {
+  try {
+    const res = await getPostList({ userId: currentUserId.value });
+    if (res.code === 0) {
+      userPosts.value = res.data;
+    }
+  } catch (e) {
+    console.error('获取用户动态失败:', e);
   }
-]);
+};
 
 const fetchProfileData = async () => {
-  if (isSelf.value) {
-    try {
-      const res = await getUserInfo();
-      if (res.code === 0) {
-        const data = res.data;
-        user.accountId = data.accountId;
-        user.name = data.username;
-        user.nickname = data.nickname;
-        user.avatar = data.avatarUrl || '/static/4.jpg';
-        user.signature = data.signature || '';
-        // 统计数据暂由后端其他接口或聚合提供，此处先保持
-      }
-    } catch (e) {
-      console.error('获取个人资料失败:', e);
+  try {
+    const res = await getUserInfo(currentUserId.value);
+    if (res.code === 0) {
+      const data = res.data;
+      currentUserId.value = data.userId; // 确保是真实的数字 ID
+      user.accountId = data.accountId;
+      user.name = data.username;
+      user.nickname = data.nickname;
+      user.avatar = data.avatarUrl || '/static/4.jpg';
+      user.signature = data.signature || '';
+      user.following = data.following || 0;
+      user.followers = data.followers || 0;
+      user.likesAndCollects = data.likesAndCollects || 0;
+      user.isFollowed = data.isFollowed || false;
+      isSelf.value = data.isSelf;
+      
+      // 获取用户资料后，获取该用户的动态
+      fetchUserPosts();
     }
+  } catch (e) {
+    console.error('获取个人资料失败:', e);
   }
 };
 
@@ -250,16 +234,8 @@ onLoad((options) => {
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
 
-  if (options.userId && options.userId !== 'self') {
-    isSelf.value = false;
-    // 模拟获取他人信息
-    user.nickname = '省钱达人';
-    user.accountId = options.userId;
-    user.signature = '一个正在努力攒钱买房的打工人 🏠';
-    user.following = 256;
-    user.followers = 512;
-    user.likesAndCollects = 1024;
-    user.postsCount = 8;
+  if (options.userId) {
+    currentUserId.value = options.userId;
   }
 });
 
@@ -280,16 +256,76 @@ const handleBioClick = () => {
   }
 };
 
-const toggleFollow = () => {
-  user.isFollowed = !user.isFollowed;
-  if (user.isFollowed) {
+const toggleFollow = async () => {
+  const isFollow = !user.isFollowed;
+  
+  // 1. 立即更新 UI (乐观更新)
+  user.isFollowed = isFollow;
+  if (isFollow) {
     user.followers++;
     uni.showToast({ title: '已关注', icon: 'none' });
   } else {
-    user.followers--;
+    user.followers = Math.max(0, user.followers - 1);
     uni.showToast({ title: '已取消关注', icon: 'none' });
   }
+
+  // 2. 记录初始状态 (如果还没记录的话)
+  if (originalFollowState.value === undefined) {
+    // 这里取反是因为上面已经修改了 user.isFollowed
+    originalFollowState.value = !isFollow; 
+  }
+
+  // 3. 防抖处理
+  if (followTimer) {
+    clearTimeout(followTimer);
+  }
+
+  followTimer = setTimeout(async () => {
+    const finalState = user.isFollowed;
+    const initialState = originalFollowState.value;
+
+    // 只有最终状态和最初状态不一致时，才发送请求
+    if (finalState !== initialState) {
+      try {
+        const res = await toggleFollowApi(currentUserId.value, finalState);
+        if (res.code !== 0) {
+          // 失败回滚
+          user.isFollowed = initialState;
+          if (initialState) {
+            user.followers++;
+          } else {
+            user.followers = Math.max(0, user.followers - 1);
+          }
+          uni.showToast({ title: res.msg || '操作失败', icon: 'none' });
+        } else {
+          // 同步最新的粉丝数
+          if (res.data && res.data.followersCount !== undefined) {
+            user.followers = res.data.followersCount;
+          }
+          console.log(`同步关注状态成功: userId=${currentUserId.value}, isFollowed=${finalState}`);
+        }
+      } catch (e) {
+        console.error('关注操作失败:', e);
+        // 失败回滚
+        user.isFollowed = initialState;
+        if (initialState) {
+          user.followers++;
+        } else {
+          user.followers = Math.max(0, user.followers - 1);
+        }
+      }
+    } else {
+      console.log(`状态无变化，无需同步: userId=${currentUserId.value}`);
+    }
+
+    // 清理记录的状态和定时器
+    followTimer = null;
+    originalFollowState.value = undefined;
+  }, 1000); // 1秒防抖时间
 };
+
+let followTimer = null;
+const originalFollowState = ref(undefined);
 
 const likeTimers = {}; // 用于存储每个帖子的防抖定时器
 const originalLikeState = {}; // 存储点击前的初始状态，用于对比是否需要发送请求
@@ -350,7 +386,9 @@ const editProfile = () => {
 };
 
 const goToFollowList = (type) => {
-  console.log('Go to', type, 'list');
+  uni.navigateTo({
+    url: `/pages/page_social/social_follow/follow_list?userId=${currentUserId.value}&type=${type}`
+  });
 };
 </script>
 

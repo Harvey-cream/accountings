@@ -221,6 +221,13 @@
 			}
 		},
 		{
+			"path": "pages/page_social/social_follow/follow_list",
+			"style": {
+				"navigationBarTitleText": "社交列表",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/login/register",
 			"style": {
 				"navigationBarTitleText": "注册",

@@ -1,11 +1,12 @@
 from rest_framework.views import APIView
 from django.db import transaction
 from django.utils import timezone
-from .models import UserPost, UserPostImage, UserComment, UserPostLike
+from .models import UserPost, UserPostImage, UserComment, UserPostLike, UserFollow, UserNotice
 from user.models import User, UserPointRecord
 from user.utils.user_utils import get_current_user
 from common.response_web import HttpResult
 from .utils.comment_utils import format_time_ago
+from django.db.models import Q
 
 class PublishPostView(APIView):
     """发布动态/帖子"""
@@ -60,17 +61,33 @@ class PostListView(APIView):
         user = get_current_user(request)
         
         data = request.query_params
-        post_type = int(data.get('type', 0)) # 0: 热门推荐, 1: 最新发布, 2: 我的关注
+        post_type = data.get('type')
+        user_id = data.get('userId')
         
         queryset = UserPost.objects.filter(is_public=True)
         
-        if post_type == 1:
-            queryset = queryset.order_by('-create_time')
-        elif post_type == 0:
-            queryset = queryset.order_by('-likes_count', '-create_time')
-        elif post_type == 2:
-            if not user:
-                return HttpResult.fail("请先登录查看关注动态")
+        if user_id:
+            if user_id == 'self':
+                if not user:
+                    return HttpResult.fail("请先登录查看个人动态")
+                queryset = queryset.filter(user=user)
+            else:
+                queryset = queryset.filter(user_id=user_id)
+        
+        if post_type is not None:
+            post_type = int(post_type)
+            if post_type == 1:
+                queryset = queryset.order_by('-create_time')
+            elif post_type == 0:
+                queryset = queryset.order_by('-likes_count', '-create_time')
+            elif post_type == 2:
+                if not user:
+                    return HttpResult.fail("请先登录查看关注动态")
+                # 获取关注的人
+                following_ids = UserFollow.objects.filter(user=user).values_list('followed_user_id', flat=True)
+                queryset = queryset.filter(user_id__in=following_ids).order_by('-create_time')
+        else:
+            # 默认排序
             queryset = queryset.order_by('-create_time')
             
         posts_data = []
@@ -280,3 +297,117 @@ class LikePostView(APIView):
         except Exception as e:
             print(f"点赞同步异常: {str(e)}")
             return HttpResult.fail(f"点赞同步失败: {str(e)}")
+
+class ToggleFollowView(APIView):
+    """
+    关注/取消关注接口
+    """
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户身份校验失败，请重新登录")
+            
+        data = request.data
+        followed_user_id = data.get('followedUserId')
+        is_follow = data.get('isFollow') # True: 关注, False: 取消
+
+        if followed_user_id is None or is_follow is None:
+            return HttpResult.fail("参数不完整")
+
+        if int(followed_user_id) == user.id:
+            return HttpResult.fail("不能关注自己")
+
+        try:
+            with transaction.atomic():
+                followed_user = User.objects.get(id=followed_user_id)
+                
+                # 检查是否存在对称关注
+                is_following_me = UserFollow.objects.filter(user=followed_user, followed_user=user).exists()
+                
+                if is_follow:
+                    # 关注逻辑
+                    follow, created = UserFollow.objects.get_or_create(
+                        user=user, 
+                        followed_user=followed_user
+                    )
+                    if created:
+                        # 更新互关状态
+                        if is_following_me:
+                            follow.is_mutual = True
+                            follow.save()
+                            # 同时也把对方的互关状态改为 True
+                            UserFollow.objects.filter(user=followed_user, followed_user=user).update(is_mutual=True)
+                        
+                        # 发送通知
+                        UserNotice.objects.create(
+                            user=followed_user,
+                            sender=user,
+                            notice_type='follow',
+                            content="关注了你"
+                        )
+                else:
+                    # 取消关注逻辑
+                    UserFollow.objects.filter(user=user, followed_user=followed_user).delete()
+                    # 如果之前是互关，取消对方的互关状态
+                    if is_following_me:
+                        UserFollow.objects.filter(user=followed_user, followed_user=user).update(is_mutual=False)
+
+                # 获取最新的粉丝数返回给前端，保持同步
+                followers_count = UserFollow.objects.filter(followed_user=followed_user).count()
+
+                return HttpResult.success_with_data("操作成功", {
+                    "followersCount": followers_count,
+                    "isFollow": is_follow
+                })
+                
+        except User.DoesNotExist:
+            return HttpResult.fail("用户不存在")
+        except Exception as e:
+            print(f"关注操作异常: {str(e)}")
+            return HttpResult.fail(f"操作失败: {str(e)}")
+
+class UserFollowListView(APIView):
+    """
+    获取关注列表/粉丝列表
+    """
+    def get(self, request):
+        user_id = request.query_params.get('userId')
+        list_type = request.query_params.get('type') # 'following' or 'followers'
+
+        if not user_id or not list_type:
+            return HttpResult.fail("参数不完整")
+
+        try:
+            target_user = User.objects.get(id=user_id)
+            if list_type == 'following':
+                relations = UserFollow.objects.filter(user=target_user).select_related('followed_user')
+                user_list = []
+                for rel in relations:
+                    user_list.append({
+                        "userId": rel.followed_user.id,
+                        "nickname": rel.followed_user.nickname or rel.followed_user.username,
+                        "avatar": rel.followed_user.avatar_url,
+                        "signature": rel.followed_user.signature,
+                        "isMutual": rel.is_mutual
+                    })
+            else:
+                relations = UserFollow.objects.filter(followed_user=target_user).select_related('user')
+                user_list = []
+                for rel in relations:
+                    # 判断当前请求者是否也关注了这些粉丝
+                    current_user = get_current_user(request)
+                    is_following = False
+                    if current_user:
+                        is_following = UserFollow.objects.filter(user=current_user, followed_user=rel.user).exists()
+
+                    user_list.append({
+                        "userId": rel.user.id,
+                        "nickname": rel.user.nickname or rel.user.username,
+                        "avatar": rel.user.avatar_url,
+                        "signature": rel.user.signature,
+                        "isFollowing": is_following
+                    })
+            
+            return HttpResult.success_with_data("获取成功", user_list)
+        except User.DoesNotExist:
+            return HttpResult.fail("用户不存在")
