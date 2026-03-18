@@ -4,7 +4,7 @@
     <view class="profile-header-card" :style="{ paddingTop: (statusBarHeight + 10) + 'px' }">
       <view class="header-main">
         <view class="header-info-left">
-          <view class="avatar-wrapper">
+          <view class="avatar-wrapper" @click="previewAvatar">
             <image class="avatar" :src="user.avatar" mode="aspectFill"></image>
             <view v-if="isSelf" class="plus-badge">
               <van-icon name="plus" size="12" color="#000" />
@@ -92,6 +92,14 @@
                   <van-icon :name="post.isLiked ? 'good-job' : 'good-job-o'" size="16" :color="post.isLiked ? '#ff0000' : '#64748b'" />
                   <text class="action-num" :class="{ 'liked': post.isLiked }">{{ post.likes }}</text>
                 </view>
+                <!-- 动态删除按钮 -->
+                <view 
+                  v-if="post.userId === loginUserId" 
+                  class="action-item post-delete" 
+                  @click.stop="handleDeletePost(post)"
+                >
+                  <van-icon name="delete-o" size="16" color="#94a3b8" />
+                </view>
               </view>
             </view>
           </view>
@@ -119,12 +127,12 @@
       
       <scroll-view scroll-y class="popup-content">
         <view class="popup-scroll-inner">
-          <!-- 主评论内容 -->
+          <!-- 主帖子内容 -->
           <view class="main-comment" v-if="selectedPost">
             <view class="comment-user-row">
-              <image class="comment-avatar" :src="user.avatar" mode="aspectFill"></image>
+              <image class="comment-avatar" :src="selectedPost.avatar || user.avatar" mode="aspectFill"></image>
               <view class="comment-user-info">
-                <text class="comment-user-name">{{ user.nickname || user.name }}</text>
+                <text class="comment-user-name">{{ selectedPost.name || user.nickname || user.name }}</text>
                 <text class="comment-time">{{ selectedPost.time }}</text>
               </view>
             </view>
@@ -132,20 +140,38 @@
           </view>
 
           <!-- 分割线 -->
-          <view class="comment-divider">全部回复 ({{ mockReplies.length }})</view>
+          <view class="comment-divider">全部评论 ({{ selectedPost?.comments || 0 }})</view>
 
-          <!-- 回复列表 -->
-          <view class="replies-list">
-            <view v-for="(reply, index) in mockReplies" :key="index" class="reply-item">
-              <image class="reply-avatar" :src="reply.avatar" mode="aspectFill"></image>
-              <view class="reply-body">
+          <!-- 真实评论列表 -->
+          <view class="replies-list" v-if="selectedPost?.flattenedComments">
+            <view v-for="(comment, index) in selectedPost.flattenedComments" :key="index" class="reply-item">
+              <image class="reply-avatar" :src="comment.avatar || '/static/default_avatar.png'" mode="aspectFill"></image>
+              <view class="reply-main">
                 <view class="reply-header">
-                  <text class="reply-user">{{ reply.name }}</text>
-                  <text class="reply-time">{{ reply.time }}</text>
+                  <view class="meta-left">
+                    <text class="reply-user">{{ comment.author }}</text>
+                    <block v-if="!comment.isRoot && comment.reply_to">
+                      <text class="reply-text">></text>
+                      <text class="reply-user">{{ comment.reply_to }}</text>
+                    </block>
+                  </view>
+                  <!-- 删除按钮 -->
+                  <view 
+                    v-if="comment.authorId === loginUserId" 
+                    class="delete-comment-btn"
+                    @click.stop="handleDeleteComment(selectedPost, comment)"
+                  >
+                    <van-icon name="delete-o" size="14" color="#94a3b8" />
+                  </view>
                 </view>
-                <text class="reply-text">{{ reply.text }}</text>
+                <text class="reply-content">{{ comment.content }}</text>
+                <text class="reply-time">{{ comment.time }}</text>
               </view>
             </view>
+          </view>
+          
+          <view v-else class="empty-replies">
+            <text>暂无评论，快来抢沙发吧~</text>
           </view>
         </view>
       </scroll-view>
@@ -157,7 +183,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import CapsuleButton from '@/components/CapsuleButton/CapsuleButton.vue';
-import { getUserInfo, getPostList, publishComment, likePost, toggleFollow as toggleFollowApi } from '@/api/api.js';
+import { getUserInfo, getPostList, publishComment, likePost, toggleFollow as toggleFollowApi, deleteComment, deletePost } from '@/api/api.js';
 
 const statusBarHeight = ref(0);
 const isSelf = ref(true);
@@ -193,10 +219,26 @@ const fetchUserPosts = async () => {
   try {
     const res = await getPostList({ userId: currentUserId.value });
     if (res.code === 0) {
-      userPosts.value = res.data;
+      userPosts.value = res.data.map(post => {
+        // 同样进行扁平化处理
+        const allComments = [];
+        post.realComments.forEach(root => {
+          allComments.push({ ...root, isRoot: true });
+          if (root.child_comments) {
+            root.child_comments.forEach(child => {
+              allComments.push({ ...child, isRoot: false, rootId: root.id });
+            });
+          }
+        });
+        return {
+          ...post,
+          flattenedComments: allComments,
+          visibleCommentCount: 0
+        };
+      });
     }
   } catch (e) {
-    console.error('获取用户动态失败:', e);
+    console.error('获取帖子列表失败:', e);
   }
 };
 
@@ -228,7 +270,15 @@ onShow(() => {
   fetchProfileData();
 });
 
+const loginUserId = ref(null);
+
 onLoad((options) => {
+  // 获取当前登录用户ID
+  const session = uni.getStorageSync('session');
+  if (session && session.user_info) {
+    loginUserId.value = session.user_info.userId;
+  }
+
   // 获取状态栏高度
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
@@ -239,8 +289,67 @@ onLoad((options) => {
 });
 
 const openCommentDetail = (post) => {
+  console.log('Open comment detail for post:', post.postId);
   selectedPost.value = post;
   showCommentPopup.value = true;
+};
+
+// 删除评论逻辑
+const handleDeleteComment = (post, comment) => {
+  uni.showModal({
+    title: '提示',
+    content: '确定要删除这条评论吗？',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          const apiRes = await deleteComment(comment.id);
+          if (apiRes.code === 0) {
+            uni.showToast({ title: '删除成功', icon: 'none' });
+            // 本地移除
+            post.flattenedComments = post.flattenedComments.filter(c => c.id !== comment.id);
+            post.comments--; // 评论数减1
+          } else {
+            uni.showToast({ title: apiRes.msg || '删除失败', icon: 'none' });
+          }
+        } catch (e) {
+          console.error('删除评论失败:', e);
+        }
+      }
+    }
+  });
+};
+
+// 展开更多评论，每次展开5条
+const expandComments = (post) => {
+  post.visibleCommentCount += 5;
+};
+
+const openReplyInput = (post, comment = null) => {
+  // 这里可以复用 community.vue 的回复逻辑，或者简单提示
+  uni.showToast({ title: '暂不支持在此回复', icon: 'none' });
+};
+
+// 删除动态逻辑
+const handleDeletePost = (post) => {
+  uni.showModal({
+    title: '提示',
+    content: '确定要删除这条动态吗？',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          const apiRes = await deletePost(post.postId);
+          if (apiRes.code === 0) {
+            uni.showToast({ title: '已删除', icon: 'none' });
+            userPosts.value = userPosts.value.filter(p => p.postId !== post.postId);
+          } else {
+            uni.showToast({ title: apiRes.msg || '删除失败', icon: 'none' });
+          }
+        } catch (e) {
+          console.error('删除动态失败:', e);
+        }
+      }
+    }
+  });
 };
 
 const goBack = () => {
@@ -256,6 +365,13 @@ const handleBioClick = () => {
 };
 
 const toggleFollow = async () => {
+  // 检查登录状态
+  const session = uni.getStorageSync('session');
+  if (!session || !session.user_info) {
+    uni.showToast({ title: '请先登录', icon: 'none' });
+    return;
+  }
+  
   const isFollow = !user.isFollowed;
   
   // 1. 立即更新 UI (乐观更新)
@@ -371,6 +487,15 @@ const toggleLike = (post) => {
     delete likeTimers[postId];
     delete originalLikeState[postId];
   }, 1000); // 1秒防抖时间
+};
+
+const previewAvatar = () => {
+  if (user.avatar && !user.avatar.includes('default_avatar')) {
+    uni.previewImage({
+      urls: [user.avatar],
+      current: 0
+    });
+  }
 };
 
 const previewImage = (images, index) => {
@@ -817,6 +942,62 @@ const goToFollowList = (type) => {
 
 .liked {
   color: #ff0000;
+}
+
+.comment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1px;
+}
+.meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.delete-comment-btn {
+  padding: 2px 4px;
+}
+.delete-comment-btn:active {
+  opacity: 0.6;
+}
+.comment-author {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.reply-text {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: normal;
+}
+.comment-time {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-left: 4px;
+}
+.comment-content {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.expand-comments-btn, .toggle-comments {
+  margin-top: 8px;
+  display: inline-block;
+}
+
+.expand-comments-btn text, .toggle-comments text {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  background-color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+.expand-comments-btn:active text, .toggle-comments:active text {
+  background-color: #f1f5f9;
 }
 
 .empty-state {

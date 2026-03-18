@@ -4,7 +4,9 @@
 		<view class="header-card">
 			<view class="header-banner">
 				<view class="user-info">
-					<image class="avatar" :src="userInfo.avatarUrl || '/static/default_avatar.png'" mode="aspectFill"></image>
+					<view class="avatar-box" @click="previewAvatar">
+						<image class="avatar" :src="userInfo.avatarUrl || '/static/default_avatar.png'" mode="aspectFill"></image>
+					</view>
 					<view class="user-detail">
 						<text class="user-name">{{ userInfo.nickname || userInfo.username || '未登录' }}</text>
 					</view>
@@ -306,6 +308,15 @@ const handleVIPClick = () => {
 		title: 'VIP功能敬请期待！',
 		icon: 'none'
 	});
+};
+
+const previewAvatar = () => {
+	if (userInfo.value.avatarUrl) {
+		uni.previewImage({
+			urls: [userInfo.value.avatarUrl],
+			current: 0
+		});
+	}
 };
 
 // 生成选择器数据（仅显示今天及以后的一年）

@@ -224,6 +224,7 @@ class PublishCommentView(APIView):
             return HttpResult.success_with_data("评论成功", {
                 "id": comment.id,
                 "author": user.nickname or user.username,
+                "authorId": user.id,
                 "avatar": sign_oss_url(user.avatar_url),
                 "content": comment.content,
                 "time": "刚刚"
@@ -232,8 +233,60 @@ class PublishCommentView(APIView):
         except UserPost.DoesNotExist:
             return HttpResult.fail("帖子不存在")
         except Exception as e:
-            print(f"发表评论异常: {str(e)}")
-            return HttpResult.fail(f"评论失败: {str(e)}")
+            print(f"发布评论异常: {str(e)}")
+            return HttpResult.fail(f"发布失败: {str(e)}")
+
+class DeleteCommentView(APIView):
+    """删除评论接口"""
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        comment_id = request.data.get('commentId')
+        if not comment_id:
+            return HttpResult.fail("参数错误")
+            
+        try:
+            comment = UserComment.objects.get(id=comment_id)
+            # 只能删除自己的评论
+            if comment.user_id != user.id:
+                return HttpResult.fail("无权删除他人的评论")
+                
+            comment.delete()
+            return HttpResult.success("删除成功")
+            
+        except UserComment.DoesNotExist:
+            return HttpResult.fail("评论不存在")
+        except Exception as e:
+            print(f"删除评论异常: {str(e)}")
+            return HttpResult.fail(f"删除失败: {str(e)}")
+
+class DeletePostView(APIView):
+    """删除动态/帖子接口"""
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        post_id = request.data.get('postId')
+        if not post_id:
+            return HttpResult.fail("参数错误")
+            
+        try:
+            post = UserPost.objects.get(id=post_id)
+            # 只能删除自己的动态
+            if post.user_id != user.id:
+                return HttpResult.fail("无权删除他人的动态")
+                
+            post.delete()
+            return HttpResult.success("动态已删除")
+            
+        except UserPost.DoesNotExist:
+            return HttpResult.fail("动态不存在")
+        except Exception as e:
+            print(f"删除动态异常: {str(e)}")
+            return HttpResult.fail(f"删除失败: {str(e)}")
 
 class LikePostView(APIView):
     """

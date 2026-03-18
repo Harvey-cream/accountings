@@ -86,26 +86,45 @@
                     </view>
                     <view class="comment-main">
                       <view class="comment-meta">
-                        <text class="comment-author">{{ comment.author }}</text>
-                        <block v-if="!comment.isRoot && comment.reply_to">
-                          <text class="reply-text">></text>
-                          <text class="comment-author">{{ comment.reply_to }}</text>
-                        </block>
-                        <text class="comment-time">{{ comment.time }}</text>
+                        <view class="meta-left">
+                          <text class="comment-author">{{ comment.author }}</text>
+                          <block v-if="!comment.isRoot && comment.reply_to">
+                            <text class="reply-text">></text>
+                            <text class="comment-author">{{ comment.reply_to }}</text>
+                          </block>
+                          <text class="comment-time">{{ comment.time }}</text>
+                        </view>
+                        <!-- 删除按钮：仅限自己的评论 -->
+                        <view 
+                          v-if="comment.authorId === currentUserId" 
+                          class="delete-comment-btn"
+                          @click.stop="handleDelete('comment', post, comment)"
+                        >
+                          <van-icon name="delete-o" size="14" color="#94a3b8" />
+                        </view>
                       </view>
                       <text class="comment-content">{{ comment.content }}</text>
                     </view>
                   </view>
                 </view>
               </view>
+            </view>
 
-              <!-- 展示/展开更多按钮 -->
-              <view v-if="post.flattenedComments.length > post.visibleCommentCount" class="expand-comments-btn" @click="expandComments(post)">
-                <text>{{ post.visibleCommentCount === 0 ? `展开 ${post.flattenedComments.length} 条回复` : `查看更多回复 (${post.flattenedComments.length - post.visibleCommentCount}) >` }}</text>
+            <!-- 动态底部操作区 (移动到评论下方) -->
+            <view class="post-bottom-bar">
+              <view class="left-actions">
+                <view v-if="post.flattenedComments.length > post.visibleCommentCount" class="expand-comments-btn" @click="expandComments(post)">
+                  <text>{{ post.visibleCommentCount === 0 ? `展开 ${post.flattenedComments.length} 条回复` : `查看更多回复 (${post.flattenedComments.length - post.visibleCommentCount}) >` }}</text>
+                </view>
+                <view v-if="post.visibleCommentCount > 0 && post.flattenedComments.length <= post.visibleCommentCount" class="toggle-comments" @click="post.visibleCommentCount = 0">
+                  <text>收起回复</text>
+                </view>
               </view>
-              
-              <view v-if="post.visibleCommentCount > 0 && post.flattenedComments.length <= post.visibleCommentCount" class="toggle-comments" @click="post.visibleCommentCount = 0">
-                <text>收起回复</text>
+
+              <view v-if="post.userId === currentUserId" class="right-actions">
+                <view class="action post-delete" @click.stop="handleDelete('post', post)">
+                  <van-icon name="delete-o" size="16" color="#94a3b8" />
+                </view>
               </view>
             </view>
           </view>
@@ -144,7 +163,7 @@
 import { ref, computed, nextTick } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { getPostList, publishComment, likePost } from '@/api/api.js';
+import { getPostList, publishComment, likePost, deleteComment, deletePost } from '@/api/api.js';
 
 onShow(() => {
 	uni.$emit('updateTabbar');
@@ -152,8 +171,15 @@ onShow(() => {
 });
 
 const posts = ref([]);
+const currentUserId = ref(null);
 
 const fetchPosts = async () => {
+  // 获取当前用户ID
+  const session = uni.getStorageSync('session');
+  if (session && session.user_info) {
+    currentUserId.value = session.user_info.userId;
+  }
+
   try {
     const res = await getPostList({ type: currentPeriod.value });
     if (res.code === 0) {
@@ -233,6 +259,39 @@ const hideReplyInput = () => {
   replyPost.value = null;
   replyComment.value = null;
   replyContent.value = '';
+};
+
+// 统一删除逻辑 (动态或评论)
+const handleDelete = (type, post, comment = null) => {
+  const isPost = type === 'post';
+  const title = '提示';
+  const content = isPost ? '确定要删除这条动态吗？' : '确定要删除这条评论吗？';
+  uni.showModal({
+    title,
+    content,
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          const apiRes = isPost ? await deletePost(post.postId) : await deleteComment(comment.id);
+          if (apiRes.code === 0) {
+            uni.showToast({ title: isPost ? '已删除' : '删除成功', icon: 'none' }); 
+            if (isPost) {
+              // 1. 删除动态
+              posts.value = posts.value.filter(p => p.postId !== post.postId);
+            } else {
+              // 2. 删除评论
+              post.flattenedComments = post.flattenedComments.filter(c => c.id !== comment.id);
+              post.comments--; // 评论数减1
+            }
+          } else {
+            uni.showToast({ title: apiRes.msg || '操作失败', icon: 'none' });
+          }
+        } catch (e) {
+          console.error(`删除${isPost ? '动态' : '评论'}失败:`, e);
+        }
+      }
+    }
+  });
 };
 
 // 展开更多评论，每次展开5条
@@ -648,13 +707,39 @@ const filteredPosts = computed(() => {
   }
 
   .img-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 8px; 
-    border: 1px solid #f1f5f9; 
-    background: linear-gradient(135deg, #f8fafc, #f1f5f9); 
-    object-fit: cover;
-  }
+  width: 100%;
+  height: 100%;
+  border-radius: 8px; 
+  border: 1px solid #f1f5f9; 
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9); 
+  object-fit: cover;
+}
+
+.post-bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  min-height: 32px;
+}
+
+.left-actions {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.right-actions {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+.delete-text {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: 4px;
+}
 
 
 /* 评论样式 */
@@ -689,8 +774,19 @@ const filteredPosts = computed(() => {
 .comment-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
   margin-bottom: 1px;
+}
+.meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.delete-comment-btn {
+  padding: 2px 4px;
+}
+.delete-comment-btn:active {
+  opacity: 0.6;
 }
 .comment-author {
   font-size: 12px;

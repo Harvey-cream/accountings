@@ -340,15 +340,15 @@ const changeAvatar = () => {
 // 将上传逻辑抽离，避免干扰同步调用栈
 const handleUpload = async (tempFilePath) => {
   uni.showLoading({ title: '正在上传...' });
-  console.log('DEBUG: 开始上传图片, 临时路径:', tempFilePath);
+  // console.log('DEBUG: 开始上传图片, 临时路径:', tempFilePath);
   try {
     const uploadRes = await uploadAvatar(tempFilePath);
     uni.hideLoading();
-    console.log('DEBUG: 上传接口返回结果:', uploadRes);
+    // console.log('DEBUG: 上传接口返回结果:', uploadRes);
     
     if (uploadRes.code === 0) {
       const newAvatarUrl = uploadRes.data.avatarUrl;
-      console.log('DEBUG: 上传成功, 新头像地址:', newAvatarUrl);
+      // console.log('DEBUG: 上传成功, 新头像地址:', newAvatarUrl);
       userInfo.value.avatarUrl = newAvatarUrl;
       
       // 更新本地缓存中的用户信息

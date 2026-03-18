@@ -79,7 +79,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { publishPost } from '@/api/api.js';
+import { publishPost, uploadFile } from '@/api/api.js';
 
 const content = ref('');
 const fileList = ref([]);
@@ -118,14 +118,30 @@ const onPublish = async () => {
     return;
   }
 
-  uni.showLoading({ title: '发布中...' });
+  uni.showLoading({ title: '正在发布...' });
 
   try {
+    // 1. 循环上传图片到 OSS
+    const uploadedUrls = [];
+    if (fileList.value.length > 0) {
+      for (let i = 0; i < fileList.value.length; i++) {
+        uni.showLoading({ title: `上传第 ${i + 1}/${fileList.value.length} 张...` });
+        const res = await uploadFile(fileList.value[i], 'posts');
+        if (res.code === 0) {
+          // 这里存 ossPath (相对路径)，后端 publishPost 存储时需要它
+          uploadedUrls.push(res.data.ossPath);
+        } else {
+          throw new Error(res.msg || `第 ${i + 1} 张图片上传失败`);
+        }
+      }
+    }
+
+    // 2. 提交动态内容
     const postData = {
       content: content.value,
       location: showLocation.value ? locationInfo.value : '',
-      is_hidden: visibility.value === '公开', // true为公开, false为私密
-      images: fileList.value // 这里暂时传本地路径，实际开发通常需要先上传图片获取 URL
+      is_hidden: visibility.value === '公开', // 保持原有传参名，对应后端 is_public
+      images: uploadedUrls
     };
 
     const res = await publishPost(postData);
@@ -151,7 +167,7 @@ const onPublish = async () => {
     uni.hideLoading();
     console.error('发布失败:', err);
     uni.showToast({
-      title: '网络错误，发布失败',
+      title: err.message || '网络错误，发布失败',
       icon: 'none'
     });
   }

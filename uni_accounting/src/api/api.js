@@ -20,6 +20,9 @@ export const getUserInfo = (userId = 'self') => sendRequest(`/api/user/info/?use
 // 修改用户信息
 export const updateUserInfo = (data) => sendRequest("/api/user/info/update/", 'POST', data);
 
+// 通用上传文件 (OSS)
+export const uploadFile = (filePath, folder = 'others') => sendUploadRequest("/api/user/info/avatar/", filePath, 'file', { folder });
+
 // 上传用户头像
 export const uploadAvatar = (filePath) => sendUploadRequest("/api/user/info/avatar/", filePath);
 
@@ -98,6 +101,9 @@ export const getInviteQR = () => sendRequest("/api/user/invite/qr/", 'GET');
 // 发布帖子
 export const publishPost = (data) => sendRequest("/api/comment/post/publish/", 'POST', data);
 
+// 删除帖子
+export const deletePost = (postId) => sendRequest("/api/comment/post/delete/", 'POST', { postId });
+
 // 获取帖子列表
 export const getPostList = (params) => sendRequest("/api/comment/post/list/", 'GET', params);
 
@@ -106,6 +112,9 @@ export const getPostDetail = (postId) => sendRequest("/api/comment/post/detail/"
 
 // 发表评论
 export const publishComment = (data) => sendRequest("/api/comment/publish/", 'POST', data);
+
+// 删除评论
+export const deleteComment = (commentId) => sendRequest("/api/comment/delete/", 'POST', { commentId });
 
 // 点赞/取消点赞帖子
 export const likePost = (postId, isLiked) => sendRequest("/api/comment/post/like/", 'POST', { postId, isLiked });

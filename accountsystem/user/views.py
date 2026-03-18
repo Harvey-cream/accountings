@@ -19,13 +19,16 @@ import uuid
 from django.conf import settings
 
 class UploadAvatarView(APIView):
-    """用户上传头像接口"""
+    """用户上传文件接口 (支持头像和其他业务图片)"""
     def post(self, request):
         user = get_current_user(request)
         if not user:
             return HttpResult.fail("用户未登录")
             
         file_obj = request.FILES.get('file')
+        # 获取上传目录，默认为 avatars
+        folder = request.POST.get('folder', 'avatars')
+        
         if not file_obj:
             return HttpResult.fail("请选择图片文件")
         ext = os.path.splitext(file_obj.name)[1].lower()
@@ -34,27 +37,28 @@ class UploadAvatarView(APIView):
         if file_obj.size > 2 * 1024 * 1024:
             return HttpResult.fail("图片大小不能超过 2MB")  
         try:
-            # 使用阿里云 OSS 上传 (返回的是相对路径 avatars/xxx.jpg)
-            oss_path = upload_to_oss(file_obj, folder='avatars')
+            # 使用阿里云 OSS 上传
+            oss_path = upload_to_oss(file_obj, folder=folder)
             
             if not oss_path:
                 return HttpResult.fail("上传到云存储失败")
                 
-            # 更新用户头像地址
-            user.avatar_url = oss_path
-            user.save()
+            # 如果是上传头像，则更新用户信息
+            if folder == 'avatars':
+                user.avatar_url = oss_path
+                user.save()
             
             # 生成带签名的 URL 给前端显示
             full_url = sign_oss_url(oss_path)
             
-            print(f"DEBUG: OSS 上传成功, 签名 URL={full_url}")
-            
-            return HttpResult.success_with_data("头像上传成功", {
-                "avatarUrl": full_url
+            return HttpResult.success_with_data("上传成功", {
+                "url": full_url, # 通用返回字段
+                "avatarUrl": full_url, # 兼容旧版头像逻辑
+                "ossPath": oss_path # 返回原始路径供后续业务存储
             })
             
         except Exception as e:
-            print(f"上传头像异常: {e}")
+            print(f"上传文件异常: {e}")
             return HttpResult.fail(f"上传失败: {str(e)}")
 
 class GetInviteQRView(APIView):
