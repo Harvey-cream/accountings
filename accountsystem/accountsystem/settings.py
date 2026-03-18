@@ -157,6 +157,13 @@ USE_TZ = False
 
 STATIC_URL = 'static/'
 
+# 阿里云 OSS 配置
+OSS_ACCESS_KEY_ID = 'LTAI5tE7ghpotoT9NSKpCcGz'
+OSS_ACCESS_KEY_SECRET = 'TLKGwmezBWXpEZ1CFpnTluF5oCGxAH'
+OSS_BUCKET_NAME = 'my-oss-bucket-2026-2026'
+OSS_ENDPOINT = 'oss-cn-shenzhen.aliyuncs.com'
+OSS_URL_PREFIX = f'https://{OSS_BUCKET_NAME}.{OSS_ENDPOINT}'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

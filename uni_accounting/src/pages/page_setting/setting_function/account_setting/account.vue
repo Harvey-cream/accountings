@@ -17,7 +17,10 @@
         <view class="settings-item avatar-item" @click="changeAvatar">
           <text class="item-title">头像</text>
           <view class="item-right">
-            <image class="avatar-img" :src="userInfo.avatarUrl" mode="aspectFill"></image>
+            <view class="avatar-wrapper">
+              <image class="avatar-img" :src="userInfo.avatarUrl || '/static/default_avatar.png'" mode="aspectFill"></image>
+              <view v-if="!userInfo.avatarUrl" class="upload-tip">点击上传</view>
+            </view>
             <van-icon name="arrow" color="#cbd5e1" size="16" />
           </view>
         </view>   
@@ -164,7 +167,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/store/user.js';
-import { updateUserInfo } from '@/api/api.js';
+import { updateUserInfo, uploadAvatar } from '@/api/api.js';
 
 const userStore = useUserStore();
 
@@ -318,20 +321,60 @@ const confirmBio = async () => {
 
 // 修改头像
 const changeAvatar = () => {
+  // 确保 uni.chooseImage 是同步触发的第一步
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
     success: (res) => {
+      // 这里的 success 是异步回调，没问题，因为文件选择器已经打开过了
       const tempFilePath = res.tempFilePaths[0];
-      // 模拟上传成功
-      userInfo.value.avatarUrl = tempFilePath;
+      handleUpload(tempFilePath);
+    },
+    fail: (err) => {
+      console.log('选择图片失败或取消', err);
+    }
+  });
+};
+
+// 将上传逻辑抽离，避免干扰同步调用栈
+const handleUpload = async (tempFilePath) => {
+  uni.showLoading({ title: '正在上传...' });
+  console.log('DEBUG: 开始上传图片, 临时路径:', tempFilePath);
+  try {
+    const uploadRes = await uploadAvatar(tempFilePath);
+    uni.hideLoading();
+    console.log('DEBUG: 上传接口返回结果:', uploadRes);
+    
+    if (uploadRes.code === 0) {
+      const newAvatarUrl = uploadRes.data.avatarUrl;
+      console.log('DEBUG: 上传成功, 新头像地址:', newAvatarUrl);
+      userInfo.value.avatarUrl = newAvatarUrl;
+      
+      // 更新本地缓存中的用户信息
+      const session = uni.getStorageSync('session');
+      if (session) {
+        session.user_info.avatarUrl = newAvatarUrl;
+        uni.setStorageSync('session', session);
+      }
+      
       uni.showToast({
         title: '更换成功',
         icon: 'success'
       });
+    } else {
+      uni.showToast({
+        title: uploadRes.msg || '上传失败',
+        icon: 'none'
+      });
     }
-  });
+  } catch (e) {
+    uni.hideLoading();
+    uni.showToast({
+      title: '网络异常，上传失败',
+      icon: 'none'
+    });
+  }
 };
 
 const handleItemClick = (type) => {
@@ -433,6 +476,28 @@ const handleLogout = () => {
   height: 56px;
   border-radius: 50%;
   background-color: #f1f5f9;
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.upload-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 10px;
+  text-align: center;
 }
 
 /* 注销项特有样式 */

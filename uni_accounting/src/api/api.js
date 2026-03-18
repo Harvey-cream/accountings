@@ -1,4 +1,4 @@
-import { sendRequest, sendReleaseRequest } from './request.js';
+import { sendRequest, sendReleaseRequest, sendUploadRequest } from './request.js';
 
 // --- 公开接口 (不需要登录) ---
 
@@ -19,6 +19,9 @@ export const getUserInfo = (userId = 'self') => sendRequest(`/api/user/info/?use
 
 // 修改用户信息
 export const updateUserInfo = (data) => sendRequest("/api/user/info/update/", 'POST', data);
+
+// 上传用户头像
+export const uploadAvatar = (filePath) => sendUploadRequest("/api/user/info/avatar/", filePath);
 
 // 获取账单列表
 export const getBills = (data) => sendRequest("/api/account/bill/list/", 'GET', data);

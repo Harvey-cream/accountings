@@ -197,3 +197,101 @@ const refreshToken = () => {
 		});
 	});
 }
+
+// 图片/文件上传接口 (同样带拦截/Token/过期自动刷新)
+export const sendUploadRequest = async (url, filePath, name = 'file', formData = {}) => {
+	// 0. 请求锁：防止用户重复点击 (使用 filePath 区分)
+	const requestKey = `upload:${url}:${filePath}`
+	if (pendingReqs.has(requestKey)) {
+		console.log("正在上传中，请勿频繁操作：", url)
+		return Promise.reject("正在上传中，请勿频繁操作")
+	}
+	pendingReqs.add(requestKey)
+
+	// 1. 获取登录信息
+	const sessionInfo = uni.getStorageSync('session');
+	let token = sessionInfo?.token_info?.token;
+
+	if (!token) {
+		pendingReqs.delete(requestKey)
+		uni.showModal({
+			title: '提示',
+			content: '您尚未登录，请先登录后再进行操作',
+			showCancel: false,
+			confirmText: '去登录',
+			success: (res) => {
+				if (res.confirm) {
+					uni.reLaunch({
+						url: '/pages/login/login'
+					});
+				}
+			}
+		});
+		return Promise.reject('未登录');
+	}
+
+	// 2. Token 过期预检
+	const expires = sessionInfo?.token_info?.expires;
+	const now = Date.now();
+	if (expires && expires - now < 30000) {
+		try {
+			token = await refreshToken();
+		} catch (err) {
+			pendingReqs.delete(requestKey)
+			uni.reLaunch({
+				url: '/pages/login/login'
+			});
+			return Promise.reject('Token 刷新失败');
+		}
+	}
+	// 3. 发起上传请求
+	return new Promise((resolve, reject) => {
+		uni.uploadFile({
+			url: API_URL + url,
+			filePath: filePath,
+			name: name,
+			formData: formData,
+			header: {
+				'Authorization': 'Bearer ' + token
+			},
+			success(res) {
+				// 注意：uploadFile 返回的 data 是字符串格式
+				const resData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+				
+				if (res.statusCode === 200) {
+					resolve(resData)
+				} else if (res.statusCode === 401) {
+					// 4. 401 处理
+					refreshToken().then(newToken => {
+						pendingReqs.delete(requestKey)
+						resolve(sendUploadRequest(url, filePath, name, formData));
+					}).catch(() => {
+						uni.hideLoading();
+						uni.reLaunch({
+							url: '/pages/login/login'
+						});
+						reject('登录失效');
+					});
+				} else {
+					uni.hideLoading();
+					uni.showToast({
+						title: resData.msg || '上传失败',
+						icon: 'none'
+					});
+					reject(resData)
+				}
+			},
+			fail(err) {
+				uni.hideLoading();
+				uni.showToast({
+					title: '网络错误',
+					icon: 'none'
+				});
+				reject(err)
+			},
+			complete() {
+				pendingReqs.delete(requestKey)
+			}
+		})
+	})
+}

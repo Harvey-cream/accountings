@@ -209,15 +209,14 @@ const fetchProfileData = async () => {
       user.accountId = data.accountId;
       user.name = data.username;
       user.nickname = data.nickname;
-      user.avatar = data.avatarUrl || '/static/4.jpg';
+      user.avatar = data.avatarUrl || '/static/default_avatar.png';
       user.signature = data.signature || '';
       user.following = data.following || 0;
       user.followers = data.followers || 0;
       user.likesAndCollects = data.likesAndCollects || 0;
       user.isFollowed = data.isFollowed || false;
       isSelf.value = data.isSelf;
-      
-      // 获取用户资料后，获取该用户的动态
+
       fetchUserPosts();
     }
   } catch (e) {
@@ -269,9 +268,9 @@ const toggleFollow = async () => {
     uni.showToast({ title: '已取消关注', icon: 'none' });
   }
 
-  // 2. 记录初始状态 (如果还没记录的话)
+  // 2. 记录初始状态 
   if (originalFollowState.value === undefined) {
-    // 这里取反是因为上面已经修改了 user.isFollowed
+    // 取反
     originalFollowState.value = !isFollow; 
   }
 
@@ -302,7 +301,7 @@ const toggleFollow = async () => {
           if (res.data && res.data.followersCount !== undefined) {
             user.followers = res.data.followersCount;
           }
-          console.log(`同步关注状态成功: userId=${currentUserId.value}, isFollowed=${finalState}`);
+          // console.log(`同步关注状态成功: userId=${currentUserId.value}, isFollowed=${finalState}`);
         }
       } catch (e) {
         console.error('关注操作失败:', e);

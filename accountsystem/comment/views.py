@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import UserPost, UserPostImage, UserComment, UserPostLike, UserFollow, UserNotice
 from user.models import User, UserPointRecord
-from user.utils.user_utils import get_current_user
+from user.utils.user_utils import get_current_user, upload_to_oss, sign_oss_url
 from common.response_web import HttpResult
 from .utils.comment_utils import format_time_ago
 from django.db.models import Q
@@ -19,26 +19,35 @@ class PublishPostView(APIView):
         content = data.get('content', '').strip()
         location = data.get('location', '')
         is_public = data.get('is_hidden', True) # 前端传的是 is_hidden，对应逻辑：True为公开
-        images = data.get('images', [])
+        
+        # 这里的 images 是前端通过 uni.uploadFile 上传后拿到的 OSS URL 列表
+        # 或者如果是原生表单上传，需要在这里处理 FILES
+        images_urls = data.get('images', [])
+        files = request.FILES.getlist('files') # 兼容多图上传
 
-        # 1. 参数校验
-        if not content and not images:
+        if not content and not images_urls and not files:
             return HttpResult.fail("内容或图片不能为空")
-
-        # 2. 业务逻辑处理
         try:
             with transaction.atomic():
-                # 创建帖子记录
+                # 1. 如果有实时上传的文件，先传到 OSS
+                if files:
+                    for f in files:
+                        oss_url = upload_to_oss(f, folder='posts')
+                        if oss_url:
+                            images_urls.append(oss_url)
+
+                # 2. 创建帖子记录
                 post = UserPost.objects.create(
                     user=user,
                     content=content,
                     location=location,
                     is_public=is_public
                 )
-                # 保存图片
-                if images and isinstance(images, list):
+                
+                # 3. 保存图片关联记录
+                if images_urls:
                     image_objects = []
-                    for index, img_url in enumerate(images):
+                    for index, img_url in enumerate(images_urls):
                         image_objects.append(UserPostImage(
                             post=post,
                             image_url=img_url,
@@ -92,8 +101,8 @@ class PostListView(APIView):
             
         posts_data = []
         for post in queryset[:20]:
-            # 获取图片
-            images = [img.image_url for img in post.images.all().order_by('order')]
+            # 获取图片并生成签名 URL
+            images = [sign_oss_url(img.image_url) for img in post.images.all().order_by('order')]
             
             # 获取前2条评论
             comments_queryset = post.comments.filter(comment_parent__isnull=True).order_by('-create_time')
@@ -107,7 +116,7 @@ class PostListView(APIView):
                         "id": child.id,
                         "author": child.user.nickname or child.user.username,
                         "authorId": child.user.id,
-                        "avatar": child.user.avatar_url,
+                        "avatar": sign_oss_url(child.user.avatar_url),
                         "content": child.content,
                         "reply_to": child.reply_to.nickname or child.reply_to.username if child.reply_to else None,
                         "time": format_time_ago(child.create_time),
@@ -118,7 +127,7 @@ class PostListView(APIView):
                     "id": comment.id,
                     "author": comment.user.nickname or comment.user.username,
                     "authorId": comment.user.id,
-                    "avatar": comment.user.avatar_url,
+                    "avatar": sign_oss_url(comment.user.avatar_url),
                     "content": comment.content,
                     "likes": comment.likes_count,
                     "time": format_time_ago(comment.create_time),
@@ -136,7 +145,7 @@ class PostListView(APIView):
                 "postId": post.id,
                 "userId": post.user.id,
                 "name": post.user.nickname or post.user.username,
-                "avatar": post.user.avatar_url,
+                "avatar": sign_oss_url(post.user.avatar_url),
                 "time": format_time_ago(post.create_time),
                 "text": post.content,
                 "hasImages": len(images) > 0,
@@ -215,7 +224,7 @@ class PublishCommentView(APIView):
             return HttpResult.success_with_data("评论成功", {
                 "id": comment.id,
                 "author": user.nickname or user.username,
-                "avatar": user.avatar_url,
+                "avatar": sign_oss_url(user.avatar_url),
                 "content": comment.content,
                 "time": "刚刚"
             })
@@ -386,7 +395,7 @@ class UserFollowListView(APIView):
                     user_list.append({
                         "userId": rel.followed_user.id,
                         "nickname": rel.followed_user.nickname or rel.followed_user.username,
-                        "avatar": rel.followed_user.avatar_url,
+                        "avatar": sign_oss_url(rel.followed_user.avatar_url),
                         "signature": rel.followed_user.signature,
                         "isMutual": rel.is_mutual
                     })
@@ -403,7 +412,7 @@ class UserFollowListView(APIView):
                     user_list.append({
                         "userId": rel.user.id,
                         "nickname": rel.user.nickname or rel.user.username,
-                        "avatar": rel.user.avatar_url,
+                        "avatar": sign_oss_url(rel.user.avatar_url),
                         "signature": rel.user.signature,
                         "isFollowing": is_following
                     })

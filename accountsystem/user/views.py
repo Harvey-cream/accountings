@@ -10,10 +10,52 @@ from datetime import datetime, timedelta
 from django.db.models import Count, Q, Sum, Min, Max
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
-from user.utils.user_utils import get_current_user
+from user.utils.user_utils import get_current_user, upload_to_oss, sign_oss_url
 from common.response_web import HttpResult, WebStatusEnum
 from django.db import transaction
 from user.utils.tools import generate_account_id, generate_qr_base64
+import os
+import uuid
+from django.conf import settings
+
+class UploadAvatarView(APIView):
+    """用户上传头像接口"""
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+            
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return HttpResult.fail("请选择图片文件")
+        ext = os.path.splitext(file_obj.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.gif']:
+            return HttpResult.fail("仅支持 jpg, png, gif 格式的图片")
+        if file_obj.size > 2 * 1024 * 1024:
+            return HttpResult.fail("图片大小不能超过 2MB")  
+        try:
+            # 使用阿里云 OSS 上传 (返回的是相对路径 avatars/xxx.jpg)
+            oss_path = upload_to_oss(file_obj, folder='avatars')
+            
+            if not oss_path:
+                return HttpResult.fail("上传到云存储失败")
+                
+            # 更新用户头像地址
+            user.avatar_url = oss_path
+            user.save()
+            
+            # 生成带签名的 URL 给前端显示
+            full_url = sign_oss_url(oss_path)
+            
+            print(f"DEBUG: OSS 上传成功, 签名 URL={full_url}")
+            
+            return HttpResult.success_with_data("头像上传成功", {
+                "avatarUrl": full_url
+            })
+            
+        except Exception as e:
+            print(f"上传头像异常: {e}")
+            return HttpResult.fail(f"上传失败: {str(e)}")
 
 class GetInviteQRView(APIView):
     """获取邀请二维码（Base64格式）"""
@@ -70,6 +112,9 @@ class UserloginView(APIView):
                     user.account_id = generate_account_id(User)
                     user.save()
 
+                # 格式化头像地址 (生成签名 URL)
+                avatar_url = sign_oss_url(user.avatar_url)
+
                 # 5. 构造详细用户信息
                 user_info = {
                     'userId': user.id,
@@ -81,7 +126,7 @@ class UserloginView(APIView):
                     'mobile': user.mobile,
                     'loginType': user.login_type,
                     'selfCode': user.self_code,
-                    'avatarUrl': user.avatar_url,
+                    'avatarUrl': avatar_url,
                     'isVerified': user.is_verified,
                 }
                 
@@ -211,6 +256,9 @@ class GetUserInfoView(APIView):
         if current_user and current_user.id != user.id:
             is_followed = UserFollow.objects.filter(user=current_user, followed_user=user).exists()
 
+        # 格式化头像地址 (生成签名 URL)
+        avatar_url = sign_oss_url(user.avatar_url)
+
         user_info = {
             'userId': user.id,
             'username': user.username if user.username else user.mobile,
@@ -221,7 +269,7 @@ class GetUserInfoView(APIView):
             'mobile': user.mobile,
             'loginType': user.login_type,
             'selfCode': user.self_code,
-            'avatarUrl': user.avatar_url,
+            'avatarUrl': avatar_url,
             'isVerified': user.is_verified,
             'isSelf': current_user.id == user.id if current_user else False,
             'following': following_count,
@@ -259,6 +307,9 @@ class UpdateUserInfoView(APIView):
             
         user.save()
         
+        # 格式化头像地址 (生成签名 URL)
+        avatar_url = sign_oss_url(user.avatar_url)
+
         # 返回更新后的信息
         user_info = {
             'userId': user.id,
@@ -268,7 +319,7 @@ class UpdateUserInfoView(APIView):
             'signature': user.signature,
             'gender': user.gender,
             'mobile': user.mobile,
-            'avatarUrl': user.avatar_url,
+            'avatarUrl': avatar_url,
         }
         
         return HttpResult.success_with_data("修改成功", user_info)
