@@ -198,7 +198,7 @@ const refreshToken = () => {
 	});
 }
 
-// 图片/文件上传接口 (同样带拦截/Token/过期自动刷新)
+// 图片/文件上传接口 
 export const sendUploadRequest = async (url, filePath, name = 'file', formData = {}) => {
 	// 0. 请求锁：防止用户重复点击 (使用 filePath 区分)
 	const requestKey = `upload:${url}:${filePath}`

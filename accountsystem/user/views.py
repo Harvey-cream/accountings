@@ -154,10 +154,13 @@ class RefreshTokenView(APIView):
         if not refresh_token:
             return HttpResult.fail("刷新令牌不能为空")
             
-        # 1. 验证旧的 Token (返回 user_id)
-        user_id = verify_token(refresh_token)
-        if not user_id:
+        # 1. 验证旧的 Token (获取完整 payload 以便检查过期时间)
+        payload = verify_token(refresh_token, expect_refresh=True)
+        if not payload:
             return HttpResult.fail("Token 已失效，请重新登录")
+        
+        user_id = payload.get('user_id')
+        exp_timestamp = payload.get('exp')
             
         try: 
             user = User.objects.get(id=user_id, is_active=True) 
@@ -166,16 +169,27 @@ class RefreshTokenView(APIView):
         except Exception as e:
             return HttpResult.fail(f'刷新异常: {str(e)}')
             
-        # 2. 生成新 Token (10 分钟) 和保持旧的 Refresh Token (或者生成新的)
-        # 这里简单起见，生成新的 Access Token，保持原有的 Refresh Token 或者也更新
+        # 2. 生成新 Access Token (10 分钟)
         new_token = create_token(user_id, minutes=10)
         token_expires = datetime.now() + timedelta(minutes=10)
         
-        # 为了保持前端 sessionInfo.token_info 的完整性，返回完整对象
+        # 3. 检查 Refresh Token 并且返回完整对象
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        remaining_days = (exp_timestamp - now_ts) / (24 * 3600)
+        
+        new_refresh_token = refresh_token # 默认沿用旧的
+        refresh_expires_ts = exp_timestamp * 1000 # 默认沿用旧的过期时间
+        
+        if remaining_days < 1:
+            new_refresh_token = create_token(user_id) # 续期 1 周
+            refresh_expires_ts = int((datetime.now() + timedelta(weeks=1)).timestamp() * 1000)
+            print(f"用户={user_id} 的 Refresh Token 即将到期 (剩余 {remaining_days:.1f} 天)，已自动续期一周")
+        
         token_info = {
             'token': new_token,
-            'refresh': refresh_token, # 继续使用当前的刷新令牌
+            'refresh': new_refresh_token,
             'expires': int(token_expires.timestamp() * 1000),
+            'refresh_expires': refresh_expires_ts,
         }
         
         print(f"Token 刷新成功: 用户 ID={user_id}, 新 Token 前缀={new_token[:10]}...")
