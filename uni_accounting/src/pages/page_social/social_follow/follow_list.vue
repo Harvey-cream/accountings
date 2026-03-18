@@ -29,7 +29,7 @@
     >
       <view v-if="userList.length > 0" class="user-list">
         <view v-for="user in userList" :key="user.userId" class="user-item" @click="goToProfile(user.userId)">
-          <image class="avatar" :src="user.avatar || '/static/4.jpg'" mode="aspectFill"></image>
+          <image class="avatar" :src="user.avatar || '/static/default_avatar.png'" mode="aspectFill"></image>
           <view class="user-info">
             <text class="nickname">{{ user.nickname }}</text>
             <text class="signature">{{ user.signature || '暂无简介' }}</text>

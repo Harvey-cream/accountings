@@ -4,7 +4,7 @@
 		<view class="header-card">
 			<view class="header-banner">
 				<view class="user-info">
-					<image class="avatar" :src="userInfo.avatarUrl || '/static/4.jpg'" mode="aspectFill"></image>
+					<image class="avatar" :src="userInfo.avatarUrl || '/static/default_avatar.png'" mode="aspectFill"></image>
 					<view class="user-detail">
 						<text class="user-name">{{ userInfo.nickname || userInfo.username || '未登录' }}</text>
 					</view>
@@ -200,7 +200,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import CustomTabbar from '@/components/Tabbar/Tabbar.vue';
-import { userCheckIn, getUserStats, getUnreadMessageCount } from '@/api/api.js';
+import { userCheckIn, getUserStats, getUnreadMessageCount, getUserInfo } from '@/api/api.js';
 
 // 登录用户信息
 const userInfo = ref({
@@ -210,6 +210,24 @@ const userInfo = ref({
 
 // 未读消息数量
 const unreadCount = ref(0);
+
+const fetchUserInfo = async () => {
+	try {
+		const res = await getUserInfo();
+		if (res.code === 0) {
+			userInfo.value = res.data;
+			// 同步更新缓存中的头像和昵称，防止其他页面读取过期 URL
+			const session = uni.getStorageSync('session');
+			if (session && session.user_info) {
+				session.user_info.avatarUrl = res.data.avatarUrl;
+				session.user_info.nickname = res.data.nickname;
+				uni.setStorageSync('session', session);
+			}
+		}
+	} catch (e) {
+		console.error('获取用户信息失败:', e);
+	}
+};
 
 const fetchUnreadCount = async () => {
 	try {
@@ -333,6 +351,7 @@ onMounted(() => {
 });
 
 onShow(() => {
+	fetchUserInfo();
 	fetchUserStats();
 	fetchUnreadCount();
 });

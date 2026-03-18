@@ -40,7 +40,7 @@
         <view v-for="post in filteredPosts" :key="post.postId" :id="'post-' + post.postId" :class="['post-card', { 'highlight-post': post.isHighlighted }]">
           <view class="post-left" @click="goToProfile(post.userId)">
             <view class="avatar">
-              <image v-if="post.avatar" :src="post.avatar" mode="aspectFill" class="avatar-img" />
+              <image :src="post.avatar || '/static/default_avatar.png'" mode="aspectFill" class="avatar-img" />
             </view>
           </view>
 
@@ -82,7 +82,7 @@
                 <view v-for="(comment, cIdx) in post.flattenedComments.slice(0, post.visibleCommentCount)" :key="cIdx" class="comment-item" @click.stop="showReplyInput(post.postId, comment)">
                   <view class="comment-header">
                     <view class="comment-avatar">
-                      <image v-if="comment.avatar" :src="comment.avatar" mode="aspectFill" class="avatar-img" />
+                      <image :src="comment.avatar || '/static/default_avatar.png'" mode="aspectFill" class="avatar-img" />
                     </view>
                     <view class="comment-main">
                       <view class="comment-meta">
