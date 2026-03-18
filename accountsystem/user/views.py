@@ -6,7 +6,7 @@ from .models import User, UserCheckIn, Medal, UserMedal, UserPointRecord
 from .serializers import MedalSerializer
 from django.utils import timezone
 from account.models import TransactionRecord
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from django.db.models import Count, Q, Sum, Min, Max
 from .utils.sm2 import request_handler, sm3_hash, get_refer_code
 from .utils.jwt_token import create_token, verify_token
@@ -98,11 +98,13 @@ class UserloginView(APIView):
             if sm3_hash(decrypted_password) == user.password:
                 user.last_login_time = timezone.now()
                 user.save()
-                token = create_token(user.id)
-                refresh_token = create_token(user.id)
+                token = create_token(user.id, minutes=10)
+                refresh_token = create_token(user.id) # 默认 1 周
 
-                token_expires = datetime.now() + timedelta(minutes=10)
-                refresh_expires = datetime.now() + timedelta(weeks=1)
+                # 使用 UTC 时间，确保前后端计算一致
+                now = datetime.now(dt_timezone.utc)
+                token_expires = now + timedelta(minutes=10)
+                refresh_expires = now + timedelta(weeks=1)
                 
                 token_info = {
                     'token': token,
@@ -170,11 +172,12 @@ class RefreshTokenView(APIView):
             return HttpResult.fail(f'刷新异常: {str(e)}')
             
         # 2. 生成新 Access Token (10 分钟)
+        now = datetime.now(dt_timezone.utc)
         new_token = create_token(user_id, minutes=10)
-        token_expires = datetime.now() + timedelta(minutes=10)
+        token_expires = now + timedelta(minutes=10)
         
-        # 3. 检查 Refresh Token 并且返回完整对象
-        now_ts = int(datetime.now(timezone.utc).timestamp())
+        # 3. 检查 Refresh Token 是否需要续期
+        now_ts = int(now.timestamp())
         remaining_days = (exp_timestamp - now_ts) / (24 * 3600)
         
         new_refresh_token = refresh_token # 默认沿用旧的
@@ -182,8 +185,8 @@ class RefreshTokenView(APIView):
         
         if remaining_days < 1:
             new_refresh_token = create_token(user_id) # 续期 1 周
-            refresh_expires_ts = int((datetime.now() + timedelta(weeks=1)).timestamp() * 1000)
-            print(f"用户={user_id} 的 Refresh Token 即将到期 (剩余 {remaining_days:.1f} 天)，已自动续期一周")
+            refresh_expires_ts = int((now + timedelta(weeks=1)).timestamp() * 1000)
+            print(f"DEBUG: 用户 ID={user_id} 的 Refresh Token 即将到期 (剩余 {remaining_days:.1f} 天)，已自动续期一周")
         
         token_info = {
             'token': new_token,
