@@ -29,11 +29,15 @@ export const uploadAvatar = (filePath) => sendUploadRequest("/api/user/info/avat
 // 获取账单列表
 export const getBills = (data) => sendRequest("/api/account/bill/list/", 'GET', data);
 
-// 保存账单
+// 保存或更新账单
 export const saveBill = (params) => sendRequest("/api/account/bill/save/", 'POST', params);
+export const updateBill = saveBill; // 别名，方便语义化
 
 // 删除账单
-export const deleteBill = (id) => sendRequest("/api/account/bill/delete/", 'POST', { id });
+export const deleteBill = (id) => {
+	const params = typeof id === 'object' ? id : { id };
+	return sendRequest("/api/account/bill/delete/", 'POST', params);
+};
 
 // 获取账单汇总统计
 export const getBillSummary = (params) => sendRequest("/api/account/bill/summary/", 'GET', params);
@@ -97,6 +101,11 @@ export const getUnreadMessageCount = () => sendRequest("/api/system/message/unre
 export const getInviteQR = () => sendRequest("/api/user/invite/qr/", 'GET');
 
 // --- 社区动态接口 ---
+
+// AI 记账对话
+export const getLangchainChat = () => sendRequest("/api/account/langchain/chat/", 'GET');
+
+export const sendLangchainChat = (params) => sendRequest("/api/account/langchain/chat/", 'POST', params);
 
 // 发布帖子
 export const publishPost = (data) => sendRequest("/api/comment/post/publish/", 'POST', data);

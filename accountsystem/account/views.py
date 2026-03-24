@@ -1,5 +1,9 @@
 from rest_framework.views import APIView
-from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice
+import json
+from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
+from .serializers import LangchainChatMessageSerializer
+from .utils.langchain import extract_accounting_info
+from .utils.icons import NORMAL_ICONS
 from user.models import User, UserPointRecord
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult
@@ -26,12 +30,13 @@ from user.utils.user_utils import get_current_user
 from django.db import transaction
 
 class SaveBillView(APIView):
-    """保存账单"""
+    """保存或更新账单"""
     def post(self, request, format=None):
         user = get_current_user(request)
         if not user:
             return HttpResult.fail("用户身份校验失败，请重新登录")
         data = request.data
+        bill_id = data.get('id') # 增加对 ID 的判断，用于更新
         amount = data.get('amount')
         bill_type = data.get('type')
         icon_id = data.get('icon_id')
@@ -46,72 +51,88 @@ class SaveBillView(APIView):
             amount = Decimal(str(amount))
         except Exception:
             return HttpResult.fail("金额格式错误")
+        
         if not bill_type:
             return HttpResult.fail("请选择账单类型")
-        if not icon_id:
-            return HttpResult.fail("请选择分类图标")
         if not date_str:
             return HttpResult.fail("请选择日期")
 
         # 2. 业务逻辑处理
         try:
             with transaction.atomic():
-                # 验证图标是否存在
-                try:
-                    icon = TransactionIcon.objects.get(id=icon_id)
-                except TransactionIcon.DoesNotExist:
-                    return HttpResult.fail("所选图标不存在")
-                
-                # 修正：如果图标没有名称（自定义图标），则使用“其他”作为分类名称
-                category_name = icon.name if icon.name else "其他"
-                
-                category, created = TransactionCategory.objects.get_or_create(
-                    user=user,
-                    name=category_name,
-                    type=bill_type,
-                    icon=icon
-                )
-                # 更新该分类的账单笔数和更新时间
-                category.count += 1
-                category.save()
-                # 使用公共方法解析日期
                 obs_date = parse_date(date_str)
-                # 创建账单记录 (TransactionRecord)
-                record = TransactionRecord.objects.create(
-                    user=user,
-                    category=category,
-                    amount=amount,
-                    type=bill_type,
-                    date=obs_date,
-                    time=(timezone.now() + timezone.timedelta(hours=8)).time(), # 同样加8小时
-                    location=location,
-                    remark=remark
-                )
-
-                # 3. 积分逻辑：每天每个用户第一笔账可以+5积分
-                today = timezone.now().date()
-                has_pointed_today = UserPointRecord.objects.filter(
-                    user=user, 
-                    type='task', 
-                    description='每日记账奖励',
-                    create_time__date=today
-                ).exists()
-
-                points_earned = 0
-                if not has_pointed_today:
-                    UserPointRecord.objects.create(
+                
+                if bill_id:
+                    # --- 更新逻辑 ---
+                    try:
+                        record = TransactionRecord.objects.get(id=bill_id, user=user)
+                        record.amount = amount
+                        record.type = bill_type
+                        record.date = obs_date
+                        record.remark = remark
+                        # 如果传了 icon_id，则尝试更新分类
+                        if icon_id:
+                            try:
+                                icon = TransactionIcon.objects.get(id=icon_id)
+                                category_name = icon.name if icon.name else "其他"
+                                category, _ = TransactionCategory.objects.get_or_create(
+                                    user=user, name=category_name, type=bill_type, icon=icon
+                                )
+                                record.category = category
+                            except TransactionIcon.DoesNotExist:
+                                pass
+                        record.save()
+                        return HttpResult.success("修改成功")
+                    except TransactionRecord.DoesNotExist:
+                        return HttpResult.fail("账单不存在或无权修改")
+                else:
+                    # --- 新增逻辑 ---
+                    if not icon_id:
+                        return HttpResult.fail("请选择分类图标")
+                    
+                    try:
+                        icon = TransactionIcon.objects.get(id=icon_id)
+                    except TransactionIcon.DoesNotExist:
+                        return HttpResult.fail("所选图标不存在")
+                    
+                    category_name = icon.name if icon.name else "其他"
+                    category, created = TransactionCategory.objects.get_or_create(
                         user=user,
-                        amount=5,
-                        direction='income',
-                        type='task',
-                        description='每日记账奖励'
+                        name=category_name,
+                        type=bill_type,
+                        icon=icon
                     )
-                    points_earned = 5
+                    category.count += 1
+                    category.save()
+                    
+                    record = TransactionRecord.objects.create(
+                        user=user,
+                        category=category,
+                        amount=amount,
+                        type=bill_type,
+                        date=obs_date,
+                        time=(timezone.now() + timezone.timedelta(hours=8)).time(),
+                        location=location,
+                        remark=remark
+                    )
 
-                return HttpResult.success_with_data("保存成功", {
-                    "id": record.id,
-                    "points_earned": points_earned
-                })
+                    # 3. 积分逻辑
+                    today = timezone.now().date()
+                    has_pointed_today = UserPointRecord.objects.filter(
+                        user=user, type='task', description='每日记账奖励', create_time__date=today
+                    ).exists()
+
+                    points_earned = 0
+                    if not has_pointed_today:
+                        UserPointRecord.objects.create(
+                            user=user, amount=5, direction='income', type='task', description='每日记账奖励'
+                        )
+                        points_earned = 5
+
+                    return HttpResult.success_with_data("保存成功", {
+                        "id": record.id,
+                        "points_earned": points_earned
+                    })
 
         except Exception as e:
             print(f"保存账单异常: {str(e)}")
@@ -205,6 +226,9 @@ class DeleteBillView(APIView):
         try:
             record = TransactionRecord.objects.get(id=bill_id, user=user)
             category = record.category
+            
+            # --- 同步逻辑：如果是从 AI 对话生成的，则同步删除对话框中的卡片 ---
+            LangchainChatMessage.objects.filter(record=record).delete()
             
             # 删除记录
             record.delete()
@@ -595,6 +619,113 @@ class GetBudgetView(APIView):
         except Exception as e:
             print(f"获取预算异常: {str(e)}")
             return HttpResult.fail(f"获取预算失败: {str(e)}")
+
+class LangchainChatView(APIView):
+    """AI 记账对话接口"""
+    def get(self, request):
+        """获取历史对话记录"""
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+        
+        # 过滤出该用户的所有对话，且如果消息关联了账单记录，则要求该记录必须存在
+        # 这确保了如果在其他地方删除了账单，对话中的卡片也会同步消失（因为 get 会根据外键 record 过滤）
+        messages = LangchainChatMessage.objects.filter(user=user).order_by('create_time')
+        serializer = LangchainChatMessageSerializer(messages, many=True)
+        # 过滤掉由于关联账单删除而导致序列化结果为 None 的数据
+        final_data = [m for m in serializer.data if m is not None]
+        return HttpResult.success_with_data("获取成功", final_data)
+    def post(self, request):
+        """发送新消息并获取 AI 回复"""
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+        
+        content = request.data.get('content')
+        if not content:
+            return HttpResult.fail("消息内容不能为空")
+
+        # 1. 保存用户消息
+        user_msg = LangchainChatMessage.objects.create(
+            user=user,
+            role='user',
+            type='text',
+            content=content
+        )
+        ai_data = extract_accounting_info(content)
+        
+        # 3. 构造 AI 消息并保存
+        # 如果 money 大于 0，则认为是账单卡片
+        try:
+            money_val = float(ai_data.get('money', 0))
+        except:
+            money_val = 0
+
+        if money_val > 0:
+            ai_type = 'transaction'
+            # 从 NORMAL_ICONS 中根据 AI 返回的 category 名称匹配图标
+            cat_name = ai_data.get('category', '其他')
+            matched_icon = next((item for item in NORMAL_ICONS if item['name'] == cat_name), {'icon': 'notes-o'})
+            
+            # AI存入账单表 ---
+            try:
+                # 1. 获取对应的图标对象
+                icon_code = matched_icon.get('icon', 'notes-o')
+                icon_obj = TransactionIcon.objects.filter(icon=icon_code).first()
+                
+                # 2. 获取或创建分类对象
+                category_obj, _ = TransactionCategory.objects.get_or_create(
+                    user=user,
+                    name=cat_name,
+                    defaults={
+                        'type': 'expense' if ai_data.get('type') == '支出' else 'income', 
+                        'icon': icon_obj
+                    }
+                )
+                now = timezone.now()
+                new_record = TransactionRecord.objects.create(
+                    user=user,
+                    category=category_obj,
+                    amount=Decimal(str(money_val)),
+                    type='expense' if ai_data.get('type') == '支出' else 'income',
+                    date=now.date(),
+                    time=now.time(),
+                    remark=ai_data.get('remark', content),
+                )
+                record_id = new_record.id
+                associated_record = new_record
+            except Exception as e:
+                print(f"自动记账存入失败: {str(e)}")
+                record_id = None
+                associated_record = None
+
+            extra_data = {
+                "amount": f"{'-' if ai_data.get('type') == '支出' else '+'}{money_val:.2f}",
+                "category": cat_name,
+                "remark": ai_data.get('remark', ''),
+                "date": timezone.now().strftime('%Y年%m月%d日'),
+                "icon": matched_icon.get('icon', 'notes-o'),
+                "iconColor": "#64748b",
+                "bgColor": "#f1f5f9",
+                "record_id": record_id # 关联正式账单 ID
+            }
+        else:
+            ai_type = 'text'
+            extra_data = None
+            associated_record = None
+
+        ai_msg = LangchainChatMessage.objects.create(
+            user=user,
+            role='ai',
+            type=ai_type,
+            content=ai_data.get('reply', ''),
+            extra_data=json.dumps(extra_data, ensure_ascii=False) if extra_data else None,
+            record=associated_record
+        )
+
+        # 返回最新的两条消息（用户和 AI）
+        serializer = LangchainChatMessageSerializer([user_msg, ai_msg], many=True)
+        return HttpResult.success_with_data("回复成功", serializer.data)
 
 class SaveAssetAccountView(APIView):
     """保存或更新资产账户"""

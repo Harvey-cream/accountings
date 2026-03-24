@@ -7,7 +7,10 @@
 					<view class="tab-item" :class="{ active: activeTab === 'expense' }" @click="activeTab = 'expense'">支出</view>
 					<view class="tab-item" :class="{ active: activeTab === 'income' }" @click="activeTab = 'income'">收入</view>
 				</view>
-				<view style="width: 24px;"></view>
+				<view class="ai-btn" @click="goToAI">
+					<van-icon name="fire-o" size="16" color="#0f172a" />
+					<text class="ai-text">AI记</text>
+				</view>
 			</view>
 		</view>
 
@@ -104,6 +107,11 @@ import { assignDefaultColors } from '@/utils/color.js';
 import { goBack } from '@/utils/common.js';
 import { useIconStore } from '@/store/icon.js';
 
+const goToAI = () => {
+	uni.navigateTo({
+		url: '/page_langchain/langchain'
+	});
+};
 const amount = ref('');
 const selectedCategoryId = ref(null); // 初始设为 null
 const activeTab = ref('expense'); 
@@ -345,7 +353,22 @@ const handleSave = async () => {
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 10px;
+}
 
+.ai-btn {
+	display: flex;
+	align-items: center;
+	padding: 4px 10px;
+	background-color: rgba(15, 23, 42, 0.05);
+	border-radius: 20px;
+	border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.ai-text {
+	font-size: 14px;
+	font-weight: 500;
+	color: #0f172a;
+	margin-left: 4px;
 }
 
 .tab-box {

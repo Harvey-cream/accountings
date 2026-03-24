@@ -20,7 +20,7 @@ NORMAL_ICONS = [
     {'name': '话费', 'icon': 'phone-o', 'type': 'expense'},
     {'name': '社交', 'icon': 'friends-o', 'type': 'expense'},
     {'name': '美发', 'icon': 'brush-o', 'type': 'expense'},
-    {'name': '其他', 'icon': 'ellipsis', 'type': 'expense'},
+    {'name': '其他', 'icon': 'ellipsis', 'type': 'all'},
 
     # 收入预设 (incomeCategories 数组)
     {'name': '工资', 'icon': 'gold-coin-o', 'type': 'income'},
@@ -37,8 +37,7 @@ NORMAL_ICONS = [
     {'name': '退款', 'icon': 'refund-o', 'type': 'income'},
     {'name': '利息', 'icon': 'balance-list-o', 'type': 'income'},
     {'name': '二手', 'icon': 'shop-o', 'type': 'income'},
-    {'name': '红包', 'icon': 'paimai', 'type': 'income'},
-    {'name': '其他', 'icon': 'ellipsis', 'type': 'income'},
+    {'name': '其他', 'icon': 'ellipsis', 'type': 'all'},
 ]
 
 # 2. 自定义图标库 (custom) - 对应 category.vue 中的 availableIcons

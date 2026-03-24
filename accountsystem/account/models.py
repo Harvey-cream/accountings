@@ -131,3 +131,29 @@ class TransactionInvoice(models.Model):
         verbose_name = "发票助手"
         db_table = "transaction_invoice"
 
+class LangchainChatMessage(models.Model):
+    """AI 记账对话记录"""
+    ROLE_CHOICES = (
+        ('user', '用户'),
+        ('ai', 'AI'),
+    )
+    MSG_TYPE_CHOICES = (
+        ('text', '纯文本'),
+        ('text_image', '图文'),
+        ('transaction', '账单卡片'),
+    )
+    id = models.AutoField(primary_key=True, verbose_name="消息ID")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="所属用户ID")
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, verbose_name="角色")
+    type = models.CharField(max_length=20, choices=MSG_TYPE_CHOICES, default='text', verbose_name="消息类型")
+    content = models.TextField(verbose_name="文本内容", blank=True, null=True)
+    image_url = models.CharField(max_length=500, verbose_name="图片地址", blank=True, null=True)
+    extra_data = models.TextField(verbose_name="额外结构化数据(JSON)", null=True, blank=True)
+    record = models.ForeignKey(TransactionRecord, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="关联账单记录")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="发送时间")
+
+    class Meta:
+        verbose_name = "AI 对话记录"
+        db_table = "transaction_langchain_chat"
+        ordering = ['create_time']
+

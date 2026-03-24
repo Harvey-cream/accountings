@@ -240,6 +240,13 @@
 				"navigationBarTitleText": "找回密码",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "page_langchain/langchain",
+			"style": {
+				"navigationBarTitleText": "AI 记账",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {
