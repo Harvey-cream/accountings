@@ -56,6 +56,18 @@
 					</view>
 				</view>
 				<!-- Spacer for fixed bottom panel -->
+				<view v-if="loading" class="message-item ai-msg">
+					<view class="avatar">
+						<image src="/static/logo.png" mode="aspectFill" />
+					</view>
+					<view class="content-box">
+						<view class="bubble typing-bubble">
+							<view class="typing-dot"></view>
+							<view class="typing-dot"></view>
+							<view class="typing-dot"></view>
+						</view>
+					</view>
+				</view>
 				<view class="bottom-spacer"></view>
 			</view>
 		</scroll-view>
@@ -227,15 +239,26 @@ const formatMessage = (msg) => {
 const handleSend = async () => {
 	if (!inputValue.value.trim() || loading.value) return;
 	
-	const content = inputValue.value;
+	const content = inputValue.value.trim();
+	const loadingStart = Date.now();
 	inputValue.value = '';
+	// 先本地插入用户消息，立即展示
+	messages.value.push({
+		id: `local-user-${Date.now()}`,
+		role: 'user',
+		type: 'text',
+		content
+	});
 	loading.value = true;
+	scrollToBottom();
 
 	try {
 		const res = await sendLangchainChat({ content });
 		if (res.code === 0) {
-			// 将返回的用户消息和 AI 回复都加入列表
-			res.data.forEach(msg => {
+						// 后端返回 [user, ai]，避免重复插入 user，只追加 ai
+			res.data
+				.filter(msg => msg.role === 'ai')
+				.forEach(msg => {
 				messages.value.push(formatMessage(msg));
 			});
 			scrollToBottom();
@@ -243,7 +266,11 @@ const handleSend = async () => {
 	} catch (e) {
 		uni.showToast({ title: '发送失败', icon: 'none' });
 	} finally {
-		loading.value = false;
+		const elapsed = Date.now() - loadingStart;
+		const remain = Math.max(0, 450 - elapsed);
+		setTimeout(() => {
+			loading.value = false;
+		}, remain);
 	}
 };
 
@@ -438,6 +465,9 @@ onMounted(() => {
 .text-content {
 	font-size: 15px;
 	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 .image-box {
@@ -551,6 +581,43 @@ onMounted(() => {
 .edit-text {
 	font-size: 12px;
 	color: #0f172a;
+}
+
+
+.typing-bubble {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 74px;
+	padding: 12px 14px;
+}
+
+.typing-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #94a3b8;
+	opacity: 0.35;
+	animation: typingPulse 1.1s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+	animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+	animation-delay: 0.3s;
+}
+
+@keyframes typingPulse {
+	0%, 80%, 100% {
+		transform: translateY(0);
+		opacity: 0.3;
+	}
+	40% {
+		transform: translateY(-4px);
+		opacity: 1;
+	}
 }
 
 /* --- Bottom Interaction --- */

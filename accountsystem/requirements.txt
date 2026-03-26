@@ -20,7 +20,7 @@ flower>=2.0.0
 qrcode==8.0
 pillow==11.1.0
 oss2==2.18.0
-langchain
-langchain-community
-langchain-dashscope
+langchain==0.1.16
+langchain-community==0.0.38
+langsmith<0.2
 python-dotenv

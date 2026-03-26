@@ -14,6 +14,14 @@ from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+
+def _safe_db_text(text):
+    """兼容 utf8(3字节) 数据库：去掉 4 字节字符（如大部分 emoji）"""
+    if text is None:
+        return ""
+    s = str(text)
+    return "".join(ch for ch in s if ord(ch) <= 0xFFFF)
+
 class GetIconsView(APIView):
     """获取所有图标列表"""
     def get(self, request, format=None):
@@ -642,6 +650,7 @@ class LangchainChatView(APIView):
             return HttpResult.fail("用户未登录")
         
         content = request.data.get('content')
+        safe_content = _safe_db_text(content)
         if not content:
             return HttpResult.fail("消息内容不能为空")
 
@@ -650,9 +659,9 @@ class LangchainChatView(APIView):
             user=user,
             role='user',
             type='text',
-            content=content
+            content=safe_content
         )
-        ai_data = extract_accounting_info(content)
+        ai_data = extract_accounting_info(content, user=user)
         
         # 3. 构造 AI 消息并保存
         # 如果 money 大于 0，则认为是账单卡片
@@ -718,7 +727,7 @@ class LangchainChatView(APIView):
             user=user,
             role='ai',
             type=ai_type,
-            content=ai_data.get('reply', ''),
+            content=_safe_db_text(ai_data.get('reply', '')),
             extra_data=json.dumps(extra_data, ensure_ascii=False) if extra_data else None,
             record=associated_record
         )
