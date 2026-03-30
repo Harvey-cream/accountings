@@ -2,7 +2,7 @@ database:
   engine: django.db.backends.mysql
   name: account
   user: root
-  password: LuLongXiang200554@
+  password: LuLongXiang200554
   host: mysql_db
   port: 3306
   'OPTIONS':

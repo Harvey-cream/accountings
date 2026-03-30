@@ -8,7 +8,7 @@ services:
     restart: always
     environment:
       MYSQL_DATABASE: account
-      MYSQL_ROOT_PASSWORD: LuLongXiang200554@
+      MYSQL_ROOT_PASSWORD: LuLongXiang200554
     volumes:
       - /wwwroot/accounting/mysql_data:/var/lib/mysql
     ports:
@@ -44,65 +44,6 @@ services:
     depends_on:
       - db
       - redis
-
-  celery:
-    container_name: celery
-    build: .
-    command: celery -A accountsystem worker --pool=prefork --concurrency=8 --loglevel=info -Q default
-    environment:
-      - DJANGO_ENV=${DJANGO_ENV:-production}
-    volumes:
-      - .:/app
-    restart: always
-    depends_on:
-      - mini_app
-    networks:
-      - shared_network
-
-  celery-compute:
-    container_name: celery-compute
-    build: .
-    command: celery -A accountsystem worker --pool=prefork --concurrency=8 --loglevel=info -Q compute
-    environment:
-      - DJANGO_ENV=${DJANGO_ENV:-production}
-    volumes:
-      - .:/app
-    restart: always
-    depends_on:
-      - mini_app
-    networks:
-      - shared_network
-  
-  celery-beat:
-    container_name: celery-beat
-    build: .
-    command: celery -A accountsystem beat --loglevel=info
-    environment:
-      - DJANGO_ENV=${DJANGO_ENV:-production}
-    volumes:
-      - .:/app
-    restart: always
-    depends_on:
-      - mini_app
-    networks:
-      - shared_network
-  
-  celery-flower:
-    container_name: celery-flower
-    build: .
-    command: celery -A accountsystem flower --port=5050 --basic_auth=admin:password
-    environment:
-      - DJANGO_ENV=${DJANGO_ENV:-production}
-    volumes:
-      - .:/app
-    ports:
-      - "5050:5050"
-    restart: always
-    depends_on:
-      - mini_app
-    networks:
-      - shared_network
-  
   nginx:
     container_name: account_nginx
     image: nginx:latest
