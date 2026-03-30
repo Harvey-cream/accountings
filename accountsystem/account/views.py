@@ -3,7 +3,7 @@ import json
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
 from .serializers import LangchainChatMessageSerializer
 from .utils.langchain import extract_accounting_info
-from .utils.icons import NORMAL_ICONS
+from common.initia import NORMAL_ICONS
 from user.models import User, UserPointRecord
 from user.utils.jwt_token import verify_token
 from common.response_web import HttpResult

@@ -5,15 +5,16 @@ export const ACCOUNT = "168168"
 // 接口地址配置
 const FORCE_DEV = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FORCE_DEV) === 'true'
 const IS_DEVELOPMENT = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) === true
+// 是否使用国内 IP 服务器环境 (47.107.238.136)
+const IS_CN_SERVER = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CN_SERVER) === 'true'
 
 // 统一 API 地址
-// 开发环境下连接本地局域网 IP，生产环境下连接云服务器 IP
+// 开发环境下连接本地局域网 IP，生产环境下根据标记连接香港域名或国内 IP
 export const API_URL = (FORCE_DEV || IS_DEVELOPMENT)
-	?
-	"http://192.168.110.134:8030" :
-	"https://draccounting.xin"
-	// "http://47.107.238.136:8011"
+	? "http://172.20.10.3:8030" 
+	: (IS_CN_SERVER ? "http://47.107.238.136:8011" : "https://draccounting.xin")
+
 // 如果未来需要 WebSocket，也可以在这里预留
-export const WS_URL = (FORCE_DEV || IS_DEVELOPMENT) ?
-	"ws://192.168.110.134:8030" :
-	"wss://draccounting.xin"
+export const WS_URL = (FORCE_DEV || IS_DEVELOPMENT) 
+	? "http://172.20.10.3:8030" 
+	: (IS_CN_SERVER ? "ws://47.107.238.136:8011" : "wss://draccounting.xin")

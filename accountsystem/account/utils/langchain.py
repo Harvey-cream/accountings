@@ -10,7 +10,7 @@ from langchain_core.tools import Tool
 from langchain.agents import create_react_agent, AgentExecutor
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from .icons import NORMAL_ICONS
+from common.initia import NORMAL_ICONS
 from datetime import date, timedelta
 from account.models import TransactionRecord
 from django.db.models import Sum
