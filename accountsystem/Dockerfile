@@ -16,14 +16,13 @@ apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# 配置 PyPI 镜像源以加速安装
-RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set global.trusted-host mirrors.aliyun.com
-
 # 复制 requirements.txt 并安装依赖
 COPY requirements.txt /app/
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+
+# 🌟 关键修改：合并安装命令，保留阿里云源，取消单独 config 层
+RUN pip install --no-cache-dir -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
+    --upgrade pip \
+    -r requirements.txt
 
 # 复制整个项目代码
 COPY . /app/
