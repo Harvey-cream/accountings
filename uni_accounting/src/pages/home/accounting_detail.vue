@@ -160,6 +160,10 @@
 				/>
 			</van-popup>
 		</view>
+		<!-- 首页入口：AI 对话记账（与 page_langchain/langchain 一致） -->
+		<view class="ai-float" @click="goToAiChat">
+			<text class="ai-float-text">AI记</text>
+		</view>
 		<custom-tabbar />
 	</view>
 </template>
@@ -407,6 +411,12 @@ const getLastDayOfMonth = (year, month) => {
 	return new Date(year, month, 0).getDate();
 };
 
+const goToAiChat = () => {
+	uni.navigateTo({
+		url: '/page_langchain/langchain'
+	});
+};
+
 const formatAmount = (val) => {
 	if (val === undefined || val === null) return '0.00';
 	const num = toNum(val);
@@ -419,6 +429,37 @@ const formatAmount = (val) => {
 	min-height: 100vh;
 	padding-bottom: 70px;
 	background-color: #FFFEF2;
+}
+
+/* 右下角 AI 入口：略小于中间记账 FAB，避免抢视觉 */
+.ai-float {
+	position: fixed;
+	right: 14px;
+	bottom: calc(70px + constant(safe-area-inset-bottom));
+	bottom: calc(70px + env(safe-area-inset-bottom));
+	z-index: 998;
+	width: 42px;
+	height: 42px;
+	border-radius: 50%;
+	background: linear-gradient(160deg, #ffe566, #ffd541);
+	box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.9);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ai-float:active {
+	opacity: 0.92;
+	transform: scale(0.96);
+}
+
+.ai-float-text {
+	font-size: 12px;
+	font-weight: 700;
+	color: #0f172a;
+	letter-spacing: 0;
+	line-height: 1;
 }
 
 /* Header Section Styles */

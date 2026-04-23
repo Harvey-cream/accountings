@@ -38,5 +38,9 @@ dist
 # 忽略初始化文件 (如果你不想在版本管理中看到它们)
 __init__.py
 
+# 证书文件
+accountsystem/nginx/certs/
+
 #1
 #
+/accountsystem/account/utils/chroma_data/
