@@ -3,7 +3,7 @@
 		{
 			"path": "pages/login/login",
 			"style": {
-				"navigationBarTitleText": "登录",
+				"navigationBarTitleText": "小龙社交记账",
 				"navigationStyle": "custom"
 			}
 		},
@@ -251,7 +251,7 @@
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "",
+		"navigationBarTitleText": "小龙社交记账",
 		"navigationBarBackgroundColor": "#F8F8F8",
 		"backgroundColor": "#F8F8F8",
 		"navigationStyle": "custom"

@@ -1,10 +1,14 @@
 <script>
 import { initRouterInterceptor, checkInitialPath } from '@/utils/navigate.js';
 import { useIconStore } from '@/store/icon.js';
+import { APP_TITLE } from '@/config/index.js';
 
 export default {
 	onLaunch: function () {
 		console.log('App Launch');
+		// #ifdef H5
+		document.title = APP_TITLE;
+		// #endif
 		// 1. 初始化路由拦截器
 		initRouterInterceptor();
 		

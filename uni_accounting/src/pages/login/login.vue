@@ -12,6 +12,11 @@
 		<view class="login-card">
 			<view class="login-type-hint">使用手机号密码登录</view>
 
+			<view class="demo-hint">
+				<text class="demo-hint__title">面试官您好 👋</text>
+				<text class="demo-hint__desc">演示账号已预填，直接点击「登录」即可体验</text>
+			</view>
+
 			<!-- 输入区域 -->
 			<view class="input-group">
 				<view class="input-item">
@@ -75,8 +80,8 @@ import { SM2Utils, BACK_PUBLIC_KEY } from '../../utils/sm2.js';
 import { useUserStore } from '../../store/user.js';
 
 const userStore = useUserStore();
-const mobile = ref('');
-const password = ref('');
+const mobile = ref('15573701909');
+const password = ref('root');
 const agreed = ref(true);
 const showPassword = ref(false);
 const referCode = ref('');
@@ -192,7 +197,29 @@ const handleLogin = async () => {
 .login-type-hint {
 	font-size: 14px;
 	color: #94a3b8;
+	margin-bottom: 12px;
+}
+
+.demo-hint {
+	background-color: #fffbeb;
+	border: 1px solid #fde68a;
+	border-radius: 12px;
+	padding: 12px 16px;
 	margin-bottom: 20px;
+}
+
+.demo-hint__title {
+	display: block;
+	font-size: 14px;
+	font-weight: 600;
+	color: #92400e;
+	margin-bottom: 4px;
+}
+
+.demo-hint__desc {
+	display: block;
+	font-size: 13px;
+	color: #b45309;
 }
 
 .input-group {

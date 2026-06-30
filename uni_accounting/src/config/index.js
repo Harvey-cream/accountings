@@ -1,4 +1,4 @@
-export const APP_TITLE = "记账家"
+export const APP_TITLE = "小龙社交记账"
 // export const APPID = "wxddde2ee84641ac77" // 
 export const ACCOUNT = "168168"
 

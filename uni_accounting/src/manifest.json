@@ -78,6 +78,8 @@
 		"enable": false
 	},
 	"h5": {
+		"title": "小龙社交记账",
+		"favicon": "static/logo.png",
 		"router": {
 			"mode": "hash",
 			"base": "/"
