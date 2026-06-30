@@ -97,12 +97,6 @@ python manage.py shell -c "from common.initia import init_all; init_all()"
 python manage.py runserver 0.0.0.0:8899
 ```
 
-### Docker 部署
-
-```bash
-docker-compose up -d
-```
-
 ### 前端开发
 
 ```bash
@@ -110,24 +104,6 @@ cd uni_accounting
 npm install
 npm run dev:mp-weixin
 ```
-
-## API 接口
-
-| 模块 | 接口 | 说明 |
-|------|------|------|
-| 用户 | POST /api/user/login | 用户登录 |
-| 用户 | POST /api/user/register | 用户注册 |
-| 记账 | POST /api/account/save_bill | 保存账单 |
-| 记账 | GET /api/account/bill_list | 账单列表 |
-| 记账 | GET /api/account/bill_summary | 收支汇总 |
-| 资产 | POST /api/account/save_asset | 保存资产 |
-| 资产 | GET /api/account/asset_list | 资产列表 |
-| 预算 | POST /api/account/save_budget | 保存预算 |
-| 预算 | GET /api/account/budget | 预算详情 |
-| AI | POST /api/account/langchain_chat | AI 对话 |
-| 社交 | POST /api/comment/publish_post | 发布动态 |
-| 社交 | POST /api/comment/publish_comment | 发表评论 |
-| 社交 | POST /api/comment/like_post | 点赞 |
 
 ## 配置说明
 
