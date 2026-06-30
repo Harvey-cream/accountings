@@ -41,7 +41,7 @@ def _normalize_phrase(text: str) -> str:
 def quick_agent_greeting_prompt(user_input: str) -> GreetingCheck:
     """
     用字典精确匹配 + 标准库 difflib 相似度判断是否为极短寒暄。
-    非寒暄：走后续 skill 向量 + agent 流程。
+    非寒暄：走后续工具调度 + agent 流程。
     """
     key = _normalize_phrase(user_input)
     if not key:

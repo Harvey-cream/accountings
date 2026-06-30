@@ -27,8 +27,14 @@ RUN pip install --no-cache-dir -i http://mirrors.aliyun.com/pypi/simple/ --trust
 # 复制整个项目代码
 COPY . /app/
 
+# 启动脚本：等待数据库 + 自动迁移
+RUN chmod +x /app/docker-entrypoint.sh
+
 # 设置生产环境标识（由 docker-compose 覆盖或此处指定默认）
 ENV DJANGO_ENV=production
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["gunicorn", "accountsystem.asgi:application", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8899", "--access-logfile", "-", "--log-level", "info"]
 
 # 暴露端口
 EXPOSE 8899

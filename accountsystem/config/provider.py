@@ -1,6 +1,9 @@
 import os 
 from common.logger import printe 
+from config.dotenv_loader import load_project_dotenv
 from config.opt_file import load_yaml 
+
+load_project_dotenv()
 
 CONF_DIR = os.path.dirname(__file__) 
 

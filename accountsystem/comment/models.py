@@ -62,10 +62,16 @@ class UserComment(models.Model):
     content = models.TextField(verbose_name="评论内容")
     # 1. 根评论 ID (root_id)：锁定所属的“评论树”
     # 父评论物理删除后，root 设为 null，子评论依然归属于该帖子，只是不再聚合显示    
-    comment_root = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='root_replies', verbose_name="根评论ID")
+    comment_root = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='root_replies', verbose_name="根评论ID", db_column='root_id',
+    )
     # 2. 父评论 ID (parent_id)：锁定准确的“回复对象 ID”
     # 父评论物理删除后，parent 设为 null，子评论变成本地一级评论，但 reply_to 还在
-    comment_parent= models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_replies', verbose_name="父评论ID")
+    comment_parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='child_replies', verbose_name="父评论ID", db_column='parent_id',
+    )
     # 3. 目标用户 ID (reply_to_id)：这是关键！
     # 即使父评论物理删除了，我们通过这个字段依然知道是在回复“谁”，前端显示不受影响
     reply_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_replies', verbose_name="被回复者ID")

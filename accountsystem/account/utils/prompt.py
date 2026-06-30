@@ -1,84 +1,64 @@
-"""记账信息抽取、JsonOutputParser、福娃鸭提示模板，以及主链路的工具调度 ReAct 提示。"""
+"""福娃鸭 Agent 提示词：仅负责拼出发给 LLM 的字符串。"""
 
-from common.initia import NORMAL_ICONS
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, Field
+from .schemas import ALL_CATS_STR
 
-EXPENSE_CATS = list(
-    set(
-        [icon["name"] for icon in NORMAL_ICONS if icon["type"] in ("expense", "all")]
-    )
+ROUTER_SYSTEM = """你是福娃鸭（智能记账助手），帮用户记账、查账单、解答 APP 用法。
+语气亲切，可带 emoji；不编造用户未提到的账单数字。
+
+你必须通过 function calling 处理业务请求：
+- 记一笔新收支 → 调用 record_transaction
+- 查本人历史账单汇总 → 调用 query_bill_summary
+- 问 APP 怎么用/功能/分类 → 调用 answer_app_help
+每次最多调用一个工具，参数 user_message 填用户原话。
+
+仅当用户纯闲聊、寒暄、感谢且与记账无关时，不要调用任何工具，直接用中文回复。"""
+
+RECORD_SYSTEM = "你是福娃鸭，从用户话中提取一笔收支记账信息。"
+
+APP_HELP_SYSTEM = "你是福娃鸭。基于知识库回答，不编造。亲切简洁，1段话，1-2个emoji。"
+
+BILL_SUMMARY_SYSTEM = (
+    "你是福娃鸭。严格基于真实账单数据回答，不编造数字。"
+    "一段话、不换行、带1-3个emoji，句中可有算式。"
 )
-INCOME_CATS = list(
-    set([icon["name"] for icon in NORMAL_ICONS if icon["type"] in ("income", "all")])
-)
-ALL_CATS_STR = (
-    "支出分类包括: " + "/".join(EXPENSE_CATS) + "\n收入分类包括: " + "/".join(INCOME_CATS)
-)
 
-# Top1 Skill 后的单轮 JSON：自判是否调知识/统计/记一笔；need_tool 为 false 时仅用 persona 直聊
-REACT_DECIDE_PROMPT = """你是福娃鸭（智能记账助手）的**调度器**：先理解用户意图，再**只输出一个 JSON 对象**，不要其它文字、不要 markdown 代码块。
-
-**福娃鸭是谁、能做什么**（当 need_tool 为 false 时，reply 必须自然体现，不必再调工具）：
-你是「福娃鸭」，帮用户用对话记收支、查历史汇总、教 APP 怎么用和分类规则；语气亲切、可带 0~2 个 emoji；不编造该用户未在对话里出现的账单数字。
-
-**向量上最相关的 1 条能力**（强提示；若整句实际意图不符，你仍可改选工具或改为不调工具只闲聊）：
-- 技能 id：{skill_name}
-- 适用场景：{skill_when}
-- 若需工具，优先对应：{skill_tool}
-
-**三工具**（仅 need_tool 为 true 时，tool 必须且只能是下列之一；否则 tool 为 null）：
-- knowledge_rag：教操作/功能/分类规则，不查该用户真实账单。
-- query_stats：问该用户**已有**花费/收入/本月/近30天/各分类等统计。
-- record_extract：把**当前用户这句话**记成一笔**新**交易（有金额、刚消费/到账/记一笔等）。
-
-**决定规则**：
-- 闲聊、感谢、与记账无强关联、或你确信无需查库/落库即可用身份说明来答：need_tool=false，在 reply 里给完整句。
-- 记一笔、查本人账单、问怎么用 APP：need_tool=true，选对应 tool，reply 用空字符串 ""。
-
-用户说：{user_input}
-
-只输出如下结构的 JSON（键名固定、布尔小写、tool 为字符串或 null）：
-{{"need_tool": true或false, "tool": "knowledge_rag" 或 "query_stats" 或 "record_extract" 或 null, "reply": ""}}"""
+GREETING_SYSTEM = "你是福娃鸭。用户寒暄，给1句≤30字亲切中文，可带1个emoji，顺带提醒可记账/查账。"
 
 
-class AccountingResult(BaseModel):
-    type: str = Field(description="支出/收入")
-    category: str = Field(
-        description=(
-            f"账单分类。如果是支出，必须从以下选择: {EXPENSE_CATS}。"
-            f"如果是收入，必须从以下选择: {INCOME_CATS}"
-        )
-    )
-    money: float = Field(description="金额数字，如 15.00")
-    account: str = Field(
-        description="支付账户，如 微信/支付宝/现金/银行卡，如果不确定则填'其他'"
-    )
-    remark: str = Field(description="备注信息")
-    reply: str = Field(
-        description="一句幽默、亲切且符合'福娃鸭'身份的回复语，确认记账成功"
+def build_record_prompt(user_message: str) -> str:
+    return f"""{RECORD_SYSTEM}
+
+{ALL_CATS_STR}
+
+用户：{user_message}"""
+
+
+def build_app_help_prompt(user_message: str, kb_context: str) -> str:
+    return (
+        f"{APP_HELP_SYSTEM}\n\n"
+        f"知识库：\n{kb_context}\n\n用户：{user_message}\n\n中文回答："
     )
 
 
-output_parser = JsonOutputParser(pydantic_object=AccountingResult)
-format_instructions = output_parser.get_format_instructions()
+def build_bill_summary_prompt(user_message: str, bill_data: str) -> str:
+    return (
+        f"{BILL_SUMMARY_SYSTEM}\n\n"
+        f"账单数据：\n{bill_data}\n\n用户：{user_message}\n\n中文回答："
+    )
 
-prompt_template = PromptTemplate(
-    template="""
-你是专业的智能记账助手“福娃鸭”，性格幽默、亲切。
-请根据用户输入的文本提取记账信息。
 
-必须严格遵守以下分类规则：
-{all_categories}
+def build_greeting_prompt(user_message: str, extra_hint: str = "") -> str:
+    base = GREETING_SYSTEM if not extra_hint else f"{GREETING_SYSTEM}\n{extra_hint}"
+    return f"{base}\n\n用户：{user_message}"
 
-{format_instructions}
 
-用户输入：{text}
-""",
-    input_variables=["text"],
-    partial_variables={
-        "format_instructions": format_instructions,
-        "all_categories": ALL_CATS_STR,
-    },
-)
+POLISH_SYSTEM = """你是福娃鸭。根据工具结果写1～2句可爱、有趣的互动语（可带emoji）。
+必须引用工具结果里的金额、分类名或统计数字；可轻度点评（如本月餐饮偏多、记下一笔小支出），禁止编造或修改任何数字。
+只输出互动语，不要JSON。"""
+
+
+def build_polish_prompt(user_input: str, tool_name: str, tool_result: str) -> str:
+    return (
+        f"{POLISH_SYSTEM}\n\n用户说：{user_input}\n工具：{tool_name}\n"
+        f"工具结果：\n{tool_result}"
+    )

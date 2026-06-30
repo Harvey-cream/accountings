@@ -10,11 +10,17 @@ services:
       MYSQL_DATABASE: account
       MYSQL_ROOT_PASSWORD: LuLongXiang200554
     volumes:
-      - /wwwroot/accounting/mysql_data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     ports:
       - "3307:3306"
     networks:
       - shared_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pLuLongXiang200554"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   redis:
     image: redis:7.0-alpine
@@ -28,8 +34,8 @@ services:
   mini_app:
     container_name: accounting
     build: .
-    # 按照您的要求，移除了迁移命令，直接启动服务
-    command: gunicorn accountsystem.asgi:application --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8899 --access-logfile - --log-level info
+    env_file:
+      - .env
     environment:
       - DJANGO_ENV=${DJANGO_ENV:-production}
     volumes:
@@ -42,8 +48,10 @@ services:
     networks:
       - shared_network
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
   nginx:
     container_name: account_nginx
     image: nginx:latest
@@ -66,5 +74,5 @@ networks:
   shared_network:
     driver: bridge
 
-# volumes:
-#   mysql_data:
+volumes:
+  mysql_data:

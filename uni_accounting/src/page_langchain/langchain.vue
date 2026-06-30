@@ -53,6 +53,9 @@
 								</view>
 							</view>
 						</view>
+						<view v-if="msg.type === 'transaction' && msg.content" class="bubble txn-reply-bubble">
+							<text class="text-content">{{ msg.content }}</text>
+						</view>
 					</view>
 				</view>
 				<!-- Spacer for fixed bottom panel -->
@@ -501,6 +504,10 @@ onMounted(() => {
 	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 	min-width: 240px; /* Further increase width as requested */
 	max-width: 100%;
+}
+
+.txn-reply-bubble {
+	margin-top: 8px;
 }
 
 .card-body {

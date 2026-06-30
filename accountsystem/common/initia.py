@@ -37,7 +37,7 @@ NORMAL_ICONS = [
     {'name': '医疗', 'icon': 'friends-o', 'type': 'expense'},
     {'name': '学习', 'icon': 'bookmark-o', 'type': 'expense'},
     {'name': '房租', 'icon': 'wap-home-o', 'type': 'expense'},
-    {'name': '其他', 'icon': 'ellipsis', 'type': 'expense'},
+    {'name': '其他', 'icon': 'ellipsis', 'type': 'all'},
     
     # 更多支出
     {'name': '电影', 'icon': 'video-o', 'type': 'expense'},
