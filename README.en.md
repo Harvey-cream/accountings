@@ -108,25 +108,6 @@ cd uni_accounting
 npm install
 npm run dev:mp-weixin
 ```
-
-## API Endpoints
-
-| Module | Endpoint | Description |
-|--------|----------|-------------|
-| User | POST /api/user/login | User login |
-| User | POST /api/user/register | User registration |
-| Accounting | POST /api/account/save_bill | Save bill |
-| Accounting | GET /api/account/bill_list | List of bills |
-| Accounting | GET /api/account/bill_summary | Income/expense summary |
-| Assets | POST /api/account/save_asset | Save asset |
-| Assets | GET /api/account/asset_list | List of assets |
-| Budget | POST /api/account/save_budget | Save budget |
-| Budget | GET /api/account/budget | Budget details |
-| AI | POST /api/account/langchain_chat | AI chat |
-| Social | POST /api/comment/publish_post | Publish post |
-| Social | POST /api/comment/publish_comment | Post comment |
-| Social | POST /api/comment/like_post | Like post |
-
 ## Configuration
 
 Main environment variables:
