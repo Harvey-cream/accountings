@@ -34,7 +34,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 ENV DJANGO_ENV=production
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["gunicorn", "accountsystem.asgi:application", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8899", "--access-logfile", "-", "--log-level", "info"]
+CMD ["gunicorn", "accountsystem.wsgi:application", "--workers", "4", "--bind", "0.0.0.0:8899", "--timeout", "300", "--access-logfile", "-", "--log-level", "info"]
 
 # 暴露端口
 EXPOSE 8899

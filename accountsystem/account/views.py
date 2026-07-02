@@ -714,7 +714,6 @@ class LangchainChatStreamView(APIView):
         def generate():
             import asyncio
 
-            # 立即推一帧，避免长时间空白；2KB 注释促 runserver/nginx 尽快刷出缓冲
             yield _sse({"type": "status", "text": "鸭鸭正在想..."})
             yield ":" + (" " * 2048) + "\n\n"
 
