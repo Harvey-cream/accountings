@@ -117,6 +117,7 @@ DATABASES = {
         'PASSWORD': _db_config.get('password', 'root'),
         'HOST': _db_config.get('host', '127.0.0.1'),
         'PORT': str(_db_config.get('port', '3306')),
+        'OPTIONS': _db_config.get('OPTIONS', {'charset': 'utf8mb4'}),
     }
 }
 
