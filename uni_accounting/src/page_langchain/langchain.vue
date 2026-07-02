@@ -12,7 +12,15 @@
 				</view>
 			</view>
 		</view>
-		<scroll-view scroll-y class="chat-container">
+		<scroll-view
+			scroll-y
+			class="chat-container"
+			:class="{ 'chat-ready': historyReady }"
+			:scroll-top="scrollTop"
+			:scroll-with-animation="false"
+			upper-threshold="80"
+			@scrolltoupper="loadMoreHistory"
+		>
 			<view class="chat-list">
 				<view class="top-spacer"></view>
 				<view v-for="msg in messages" :key="msg.id" :class="['message-item', msg.role === 'user' ? 'user-msg' : 'ai-msg']">
@@ -23,7 +31,13 @@
 					<view class="content-box">
 						<!-- Text Message -->
 						<view v-if="msg.type === 'text' || msg.type === 'text_image'" class="bubble">
-							<text class="text-content">{{ msg.content }}</text>
+							<text v-if="msg.content" class="text-content">{{ displayText(msg) }}</text>
+							<text v-else-if="streamingAiId === msg.id && streamingStatus" class="streaming-hint">{{ streamingStatus }}</text>
+							<view v-else-if="streamingAiId === msg.id" class="typing-bubble">
+								<view class="typing-dot"></view>
+								<view class="typing-dot"></view>
+								<view class="typing-dot"></view>
+							</view>
 						</view>
 						<view v-if="msg.type === 'text_image'" class="image-box">
 							<image :src="msg.image" mode="widthFix" class="content-image" />
@@ -54,7 +68,7 @@
 							</view>
 						</view>
 						<view v-if="msg.type === 'transaction' && msg.content" class="bubble txn-reply-bubble">
-							<text class="text-content">{{ msg.content }}</text>
+							<text class="text-content">{{ displayText(msg) }}</text>
 						</view>
 					</view>
 				</view>
@@ -128,8 +142,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, getCurrentInstance } from 'vue';
 import { getLangchainChat, sendLangchainChat, deleteBill, updateBill } from '@/api/api.js';
+import { isLangchainStreamSupported, sendLangchainChatStream } from '@/utils/langchain_stream.js';
 
 const goToManual = () => {
 	uni.navigateBack();
@@ -138,6 +153,26 @@ const goToManual = () => {
 const messages = ref([]);
 const inputValue = ref('');
 const loading = ref(false);
+const streamingAiId = ref(null);
+const streamingStatus = ref('');
+const scrollTop = ref(0);
+const historyReady = ref(false);
+const hasMoreHistory = ref(false);
+const loadingHistory = ref(false);
+let scrollRaf = 0;
+const HISTORY_PAGE_SIZE = 20;
+const instance = getCurrentInstance();
+
+const patchAiMessage = (aiId, patch) => {
+	const idx = messages.value.findIndex((m) => m.id === aiId);
+	if (idx < 0) return;
+	messages.value[idx] = { ...messages.value[idx], ...patch };
+};
+
+const displayText = (msg) => {
+	const text = msg?.content || '';
+	return msg?.role === 'ai' ? text.replace(/\*\*/g, '') : text;
+};
 
 // Edit Logic
 const showEdit = ref(false);
@@ -213,13 +248,58 @@ const handleDelete = (msg) => {
 
 const fetchHistory = async () => {
 	try {
-		const res = await getLangchainChat();
+		const res = await getLangchainChat({ limit: HISTORY_PAGE_SIZE });
 		if (res.code === 0) {
-			messages.value = res.data.map(msg => formatMessage(msg));
-			scrollToBottom();
+			const payload = res.data || {};
+			const list = (payload.messages || []).map((msg) => formatMessage(msg));
+			hasMoreHistory.value = !!payload.has_more;
+			messages.value = list;
+			await nextTick();
+			scrollTop.value = 999999 + Math.random();
+			await nextTick();
+			historyReady.value = true;
 		}
 	} catch (e) {
 		console.error('获取历史记录失败:', e);
+		historyReady.value = true;
+	}
+};
+
+const measureListHeight = () => new Promise((resolve) => {
+	uni.createSelectorQuery()
+		.in(instance.proxy)
+		.select('.chat-list')
+		.boundingClientRect((rect) => resolve(rect?.height || 0))
+		.exec();
+});
+
+const loadMoreHistory = async () => {
+	if (!hasMoreHistory.value || loadingHistory.value || !messages.value.length) return;
+	const first = messages.value[0];
+	if (typeof first.id !== 'number') return;
+
+	loadingHistory.value = true;
+	try {
+		const oldHeight = await measureListHeight();
+		const res = await getLangchainChat({ limit: HISTORY_PAGE_SIZE, before_id: first.id });
+		if (res.code !== 0) return;
+
+		const payload = res.data || {};
+		const older = (payload.messages || []).map((msg) => formatMessage(msg));
+		hasMoreHistory.value = !!payload.has_more;
+		if (!older.length) {
+			hasMoreHistory.value = false;
+			return;
+		}
+
+		messages.value = [...older, ...messages.value];
+		await nextTick();
+		const newHeight = await measureListHeight();
+		scrollTop.value = Math.max(0, newHeight - oldHeight);
+	} catch (e) {
+		console.error('加载更多历史失败:', e);
+	} finally {
+		loadingHistory.value = false;
 	}
 };
 
@@ -228,7 +308,7 @@ const formatMessage = (msg) => {
 		id: msg.id,
 		role: msg.role,
 		type: msg.type,
-		content: msg.content,
+		content: msg.role === 'ai' ? (msg.content || '').replace(/\*\*/g, '') : msg.content,
 		image: msg.image_url
 	};
 	
@@ -245,20 +325,68 @@ const handleSend = async () => {
 	const content = inputValue.value.trim();
 	const loadingStart = Date.now();
 	inputValue.value = '';
-	// 先本地插入用户消息，立即展示
 	messages.value.push({
 		id: `local-user-${Date.now()}`,
 		role: 'user',
 		type: 'text',
 		content
 	});
+	scrollToBottom();
+
+	if (isLangchainStreamSupported()) {
+		const aiId = `local-ai-${Date.now()}`;
+		streamingAiId.value = aiId;
+		streamingStatus.value = '';
+		messages.value.push({ id: aiId, role: 'ai', type: 'text', content: '' });
+		try {
+			await sendLangchainChatStream(content, {
+				onStatus: (text) => {
+					if (streamingAiId.value === aiId) streamingStatus.value = text;
+					scrollToBottomThrottled();
+				},
+				onToken: (text) => {
+					const idx = messages.value.findIndex((m) => m.id === aiId);
+					if (idx < 0) return;
+					if (streamingStatus.value) streamingStatus.value = '';
+					const prev = messages.value[idx].content || '';
+					patchAiMessage(aiId, { content: prev + text.replace(/\*\*/g, '') });
+					scrollToBottomThrottled();
+				},
+				onDone: (event) => {
+					streamingAiId.value = null;
+					streamingStatus.value = '';
+					const aiMsg = (event.data || []).find((m) => m.role === 'ai');
+					const idx = messages.value.findIndex((m) => m.id === aiId);
+					if (aiMsg && idx >= 0) {
+						const streamed = messages.value[idx].content;
+						const formatted = formatMessage(aiMsg);
+						if (formatted.type === 'text') {
+							formatted.content = streamed || formatted.content;
+						}
+						messages.value[idx] = formatted;
+					}
+					scrollToBottom();
+				},
+				onError: () => {
+					streamingAiId.value = null;
+					streamingStatus.value = '';
+					uni.showToast({ title: '发送失败', icon: 'none' });
+				}
+			});
+		} catch (e) {
+			streamingAiId.value = null;
+			streamingStatus.value = '';
+			uni.showToast({ title: '发送失败', icon: 'none' });
+		}
+		return;
+	}
+
 	loading.value = true;
 	scrollToBottom();
 
 	try {
 		const res = await sendLangchainChat({ content });
 		if (res.code === 0) {
-						// 后端返回 [user, ai]，避免重复插入 user，只追加 ai
 			res.data
 				.filter(msg => msg.role === 'ai')
 				.forEach(msg => {
@@ -279,11 +407,15 @@ const handleSend = async () => {
 
 const scrollToBottom = () => {
 	nextTick(() => {
-		// 简单的滚动到底部逻辑，实际可根据 scroll-view 的 scroll-top 优化
-		uni.pageScrollTo({
-			scrollTop: 99999,
-			duration: 300
-		});
+		scrollTop.value = 999999 + Math.random();
+	});
+};
+
+const scrollToBottomThrottled = () => {
+	if (scrollRaf) return;
+	scrollRaf = requestAnimationFrame(() => {
+		scrollRaf = 0;
+		scrollToBottom();
 	});
 };
 
@@ -395,7 +527,13 @@ onMounted(() => {
 /* --- Chat Content --- */
 .chat-container {
 	flex: 1;
+	min-height: 0;
 	background-color: #fff;
+	visibility: hidden;
+}
+
+.chat-container.chat-ready {
+	visibility: visible;
 }
 
 .chat-list {
@@ -471,6 +609,12 @@ onMounted(() => {
 	white-space: pre-wrap;
 	word-break: break-word;
 	overflow-wrap: anywhere;
+}
+
+.streaming-hint {
+	font-size: 15px;
+	line-height: 1.5;
+	color: #94a3b8;
 }
 
 .image-box {
@@ -595,8 +739,6 @@ onMounted(() => {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	min-width: 74px;
-	padding: 12px 14px;
 }
 
 .typing-dot {

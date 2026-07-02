@@ -23,15 +23,12 @@ BILL_SUMMARY_NO_USER = "当前无法查询账单，因为缺少用户信息。"
 AGENT_ERROR_REPLY = "哎呀，鸭鸭刚才走神了，没听清呢。您可以再说一遍吗？比如：'买奶茶花了15元'~"
 
 
-class UserMessageInput(BaseModel):
-    user_message: str = Field(min_length=1, description="用户原话，一般整句复制")
-
-
 class TextReply(BaseModel):
     reply: str = Field(
         min_length=1,
         description="福娃鸭口吻的1～2句互动语，须贴合工具结果中的金额或统计，可爱有趣",
     )
+
 
 
 class AccountingResult(BaseModel):
@@ -57,6 +54,17 @@ class AccountingResult(BaseModel):
             acct = "其他"
         object.__setattr__(self, "account", acct)
         return self
+
+
+class ToolObservation(BaseModel):
+    ok: bool
+    kind: Literal["record", "text"]
+    record: AccountingResult | None = None
+    text: str = ""
+    error: str | None = None
+
+    def for_agent(self) -> str:
+        return self.model_dump_json(ensure_ascii=False)
 
 
 def chat_response(reply: str) -> dict:

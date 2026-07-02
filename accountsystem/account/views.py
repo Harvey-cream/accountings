@@ -1,8 +1,12 @@
 from rest_framework.views import APIView
+from rest_framework.renderers import BaseRenderer
 import json
+from decimal import Decimal
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
 from .serializers import LangchainChatMessageSerializer
-from .utils.langchain import extract_accounting_info
+from django.http import StreamingHttpResponse
+from .utils.langchain import extract_accounting_info, astream_accounting
+from .utils.response import chat, to_api_dict
 from common.initia import NORMAL_ICONS
 from user.models import User, UserPointRecord
 from user.utils.jwt_token import verify_token
@@ -12,15 +16,8 @@ from django.utils import timezone
 from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
-from decimal import Decimal
-
-
-def _safe_db_text(text):
-    """兼容 utf8(3字节) 数据库：去掉 4 字节字符（如大部分 emoji）"""
-    if text is None:
-        return ""
-    s = str(text)
-    return "".join(ch for ch in s if ord(ch) <= 0xFFFF)
+from .services.langchain_chat import create_ai_chat_message, create_user_chat_message
+from .utils.schemas import AGENT_ERROR_REPLY
 
 class GetIconsView(APIView):
     """获取所有图标列表"""
@@ -628,6 +625,14 @@ class GetBudgetView(APIView):
             print(f"获取预算异常: {str(e)}")
             return HttpResult.fail(f"获取预算失败: {str(e)}")
 
+
+def _chat_turn_user_message(user, content):
+    """校验并保存用户消息，失败时返回 (None, error_response)。"""
+    if not content:
+        return None, HttpResult.fail("消息内容不能为空")
+    return create_user_chat_message(user, content), None
+
+
 class LangchainChatView(APIView):
     """AI 记账对话接口"""
     def get(self, request):
@@ -638,11 +643,24 @@ class LangchainChatView(APIView):
         
         # 过滤出该用户的所有对话，且如果消息关联了账单记录，则要求该记录必须存在
         # 这确保了如果在其他地方删除了账单，对话中的卡片也会同步消失（因为 get 会根据外键 record 过滤）
-        messages = LangchainChatMessage.objects.filter(user=user).order_by('create_time')
-        serializer = LangchainChatMessageSerializer(messages, many=True)
-        # 过滤掉由于关联账单删除而导致序列化结果为 None 的数据
+        limit = min(max(int(request.query_params.get('limit', 20)), 1), 50)
+        before_id = request.query_params.get('before_id')
+
+        qs = LangchainChatMessage.objects.filter(user=user).order_by('-create_time')
+        if before_id:
+            try:
+                qs = qs.filter(id__lt=int(before_id))
+            except (TypeError, ValueError):
+                pass
+
+        batch = list(qs[: limit + 1])
+        has_more = len(batch) > limit
+        batch = batch[:limit]
+        batch.reverse()
+
+        serializer = LangchainChatMessageSerializer(batch, many=True)
         final_data = [m for m in serializer.data if m is not None]
-        return HttpResult.success_with_data("获取成功", final_data)
+        return HttpResult.success_with_data("获取成功", {"messages": final_data, "has_more": has_more})
     def post(self, request):
         """发送新消息并获取 AI 回复"""
         user = get_current_user(request)
@@ -650,91 +668,93 @@ class LangchainChatView(APIView):
             return HttpResult.fail("用户未登录")
         
         content = request.data.get('content')
-        safe_content = _safe_db_text(content)
-        if not content:
-            return HttpResult.fail("消息内容不能为空")
+        user_msg, err = _chat_turn_user_message(user, content)
+        if err:
+            return err
 
-        # 1. 保存用户消息
-        user_msg = LangchainChatMessage.objects.create(
-            user=user,
-            role='user',
-            type='text',
-            content=safe_content
-        )
         ai_data = extract_accounting_info(content, user=user)
-        
-        # 3. 构造 AI 消息并保存
-        # 如果 money 大于 0，则认为是账单卡片
-        try:
-            money_val = float(ai_data.get('money', 0))
-        except:
-            money_val = 0
-
-        if money_val > 0:
-            ai_type = 'transaction'
-            # 从 NORMAL_ICONS 中根据 AI 返回的 category 名称匹配图标
-            cat_name = ai_data.get('category', '其他')
-            matched_icon = next((item for item in NORMAL_ICONS if item['name'] == cat_name), {'icon': 'notes-o'})
-            
-            # AI存入账单表 ---
-            try:
-                # 1. 获取对应的图标对象
-                icon_code = matched_icon.get('icon', 'notes-o')
-                icon_obj = TransactionIcon.objects.filter(icon=icon_code).first()
-                
-                # 2. 获取或创建分类对象
-                category_obj, _ = TransactionCategory.objects.get_or_create(
-                    user=user,
-                    name=cat_name,
-                    defaults={
-                        'type': 'expense' if ai_data.get('type') == '支出' else 'income', 
-                        'icon': icon_obj
-                    }
-                )
-                now = timezone.now()
-                new_record = TransactionRecord.objects.create(
-                    user=user,
-                    category=category_obj,
-                    amount=Decimal(str(money_val)),
-                    type='expense' if ai_data.get('type') == '支出' else 'income',
-                    date=now.date(),
-                    time=now.time(),
-                    remark=ai_data.get('remark', content),
-                )
-                record_id = new_record.id
-                associated_record = new_record
-            except Exception as e:
-                print(f"自动记账存入失败: {str(e)}")
-                record_id = None
-                associated_record = None
-
-            extra_data = {
-                "amount": f"{'-' if ai_data.get('type') == '支出' else '+'}{money_val:.2f}",
-                "category": cat_name,
-                "remark": ai_data.get('remark', ''),
-                "date": timezone.now().strftime('%Y年%m月%d日'),
-                "icon": matched_icon.get('icon', 'notes-o'),
-                "iconColor": "#64748b",
-                "bgColor": "#f1f5f9",
-                "record_id": record_id # 关联正式账单 ID
-            }
-        else:
-            ai_type = 'text'
-            extra_data = None
-            associated_record = None
-
-        ai_msg = LangchainChatMessage.objects.create(
-            user=user,
-            role='ai',
-            type=ai_type,
-            content=_safe_db_text(ai_data.get('reply', '')),
-            extra_data=json.dumps(extra_data, ensure_ascii=False) if extra_data else None,
-            record=associated_record
-        )
+        ai_msg = create_ai_chat_message(user, content, ai_data)
 
         # 返回最新的两条消息（用户和 AI）
         serializer = LangchainChatMessageSerializer([user_msg, ai_msg], many=True)
         return HttpResult.success_with_data("回复成功", serializer.data)
+
+
+class LangchainChatStreamView(APIView):
+    """AI 记账对话流式接口（SSE，H5）"""
+
+    class _SSERenderer(BaseRenderer):
+        media_type = "text/event-stream"
+        format = "event-stream"
+        charset = "utf-8"
+
+        def render(self, data, accepted_media_type=None, renderer_context=None):
+            return data
+
+    renderer_classes = [_SSERenderer]
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        if isinstance(response, StreamingHttpResponse):
+            return response
+        return super().finalize_response(request, response, *args, **kwargs)
+
+    def post(self, request):
+        user = get_current_user(request)
+        if not user:
+            return HttpResult.fail("用户未登录")
+
+        content = request.data.get("content")
+        user_msg, err = _chat_turn_user_message(user, content)
+        if err:
+            return err
+
+        def _sse(payload: dict) -> str:
+            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        def generate():
+            import asyncio
+
+            # 立即推一帧，避免长时间空白；2KB 注释促 runserver/nginx 尽快刷出缓冲
+            yield _sse({"type": "status", "text": "鸭鸭正在想..."})
+            yield ":" + (" " * 2048) + "\n\n"
+
+            loop = asyncio.new_event_loop()
+            ai_data = None
+            try:
+                agen = astream_accounting(content, user=user)
+                while True:
+                    try:
+                        event = loop.run_until_complete(agen.__anext__())
+                    except StopAsyncIteration:
+                        break
+
+                    if event.get("type") == "agent_result":
+                        ai_data = to_api_dict(event["data"])
+                        continue
+                    if event.get("type") == "error":
+                        ai_data = chat(event.get("message", ""))
+                        if event.get("remark"):
+                            ai_data["remark"] = event["remark"]
+                        yield _sse(event)
+                        break
+                    yield _sse(event)
+            except Exception as e:
+                print(f"流式对话异常: {e}")
+                ai_data = chat(AGENT_ERROR_REPLY)
+                yield _sse({"type": "error", "message": ai_data.get("reply", "")})
+            finally:
+                loop.close()
+
+            if ai_data is None:
+                ai_data = chat(AGENT_ERROR_REPLY)
+            ai_msg = create_ai_chat_message(user, content, ai_data)
+            serializer = LangchainChatMessageSerializer([user_msg, ai_msg], many=True)
+            yield _sse({"type": "done", "code": 0, "data": serializer.data})
+
+        response = StreamingHttpResponse(generate(), content_type="text/event-stream; charset=utf-8")
+        response["Cache-Control"] = "no-cache, no-transform"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
 class SaveAssetAccountView(APIView):
     """保存或更新资产账户"""

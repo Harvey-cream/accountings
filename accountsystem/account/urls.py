@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import ( GetIconsView, SaveBillView, GetBillListView, DeleteBillView,GetBillSummaryView, SaveBudgetView, GetBudgetView, SaveAssetAccountView,
-    GetAssetListView, SaveInvoiceView, DeleteInvoiceView, GetInvoiceListView, LangchainChatView
+    GetAssetListView, SaveInvoiceView, DeleteInvoiceView, GetInvoiceListView, LangchainChatView, LangchainChatStreamView
 )
 
 urlpatterns = [
     path('langchain/chat/', LangchainChatView.as_view(), name='langchain_chat'),
+    path('langchain/chat/stream/', LangchainChatStreamView.as_view(), name='langchain_chat_stream'),
     path('icons/', GetIconsView.as_view(), name='get_icons'),
     path('bill/save/', SaveBillView.as_view(), name='save_bill'),
     path('bill/list/', GetBillListView.as_view(), name='get_bill_list'),

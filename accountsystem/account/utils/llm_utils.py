@@ -35,14 +35,3 @@ def json_from_text(text: str) -> str:
         raise ValueError("no JSON in model output")
     return t[start : end + 1]
 
-
-def first_tool_call(message) -> tuple[str, dict] | None:
-    """从 AIMessage 解析标准 tool_calls（LangChain OpenAI 格式）。"""
-    calls = getattr(message, "tool_calls", None) or []
-    if calls:
-        tc = calls[0]
-        name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-        args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", {})
-        if name:
-            return str(name), dict(args or {})
-    return None
