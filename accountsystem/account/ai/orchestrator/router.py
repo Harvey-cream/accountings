@@ -8,7 +8,10 @@ from .state import AgentState
 
 
 def decide(state: AgentState) -> AgentState:
-    decision = route(state.get("user_input") or "")
+    decision = route(
+        state.get("user_input") or "",
+        context=state.get("memory_text") or "",
+    )
     state["task_type"] = decision.task_type
     state["current_agent"] = decision.task_type
     return state

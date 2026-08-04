@@ -13,11 +13,14 @@ from .supervisor_schemas import RouteDecision
 _router_llm = llm.with_structured_output(RouteDecision)
 
 
-def route(user_input: str) -> RouteDecision:
+def route(user_input: str, context: str = "") -> RouteDecision:
     """把用户输入路由到 bill / analysis / budget。失败时兜底到 bill。"""
     try:
+        human = user_input or ""
+        if context:
+            human = f"近期对话上下文：\n{context}\n\n当前用户说：{user_input or ''}"
         decision = _router_llm.invoke(
-            [SystemMessage(content=SUPERVISOR_SYSTEM), HumanMessage(content=user_input or "")]
+            [SystemMessage(content=SUPERVISOR_SYSTEM), HumanMessage(content=human)]
         )
         if isinstance(decision, RouteDecision):
             return decision

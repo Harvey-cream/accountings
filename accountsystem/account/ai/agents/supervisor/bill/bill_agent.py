@@ -46,16 +46,19 @@ def _build_chain(user):
     )
     return (
         RunnableLambda(
-            lambda s: {"messages": [HumanMessage(content=s.get("input") or "")]}
+            lambda s: {
+                "messages": list(s.get("history") or [])
+                + [HumanMessage(content=s.get("input") or "")]
+            }
         )
         | bill_graph
         | RunnableLambda(_graph_to_result)
     )
 
 
-def run(user_input: str, user=None) -> dict:
+def run(user_input: str, user=None, history=None) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
-        {"input": user_input or ""},
+        {"input": user_input or "", "history": history or []},
         config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 2, 10)},
     )

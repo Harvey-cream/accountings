@@ -19,7 +19,11 @@ _RUNNERS = {
 
 def execute(state: AgentState) -> AgentState:
     runner = _RUNNERS.get(state.get("task_type") or "bill", bill.run)
-    result = runner(state.get("user_input") or "", state.get("user"))
+    result = runner(
+        state.get("user_input") or "",
+        state.get("user"),
+        history=state.get("memory_messages") or [],
+    )
     state["tool_results"] = result.get("intermediate_steps") or []
     state["final_response"] = result
     return state

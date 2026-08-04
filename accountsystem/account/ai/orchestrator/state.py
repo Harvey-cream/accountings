@@ -24,7 +24,9 @@ class AgentState(TypedDict, total=False):
     current_agent: str  # 当前执行的业务 Agent 名
 
     # --- 执行上下文 ---
-    messages: list          # 预留：跨 Agent 共享的消息序列
+    messages: list          # 预留 / 也可承载本轮 memory 历史
+    memory_messages: list   # 最近对话（含可选摘要），喂给子 Agent
+    memory_text: str        # 短文本上下文，喂给 Supervisor
     tool_results: list      # intermediate_steps: [(tool_call, observation), ...]
 
     # --- 输出 ---
@@ -38,5 +40,7 @@ def new_state(user_input: str, user: Any = None, conversation_id: Any = None) ->
         user=user,
         user_input=user_input or "",
         messages=[],
+        memory_messages=[],
+        memory_text="",
         tool_results=[],
     )
