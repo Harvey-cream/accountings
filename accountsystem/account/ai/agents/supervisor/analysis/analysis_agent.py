@@ -1,0 +1,61 @@
+"""Analysis Agent：消费分析域独立管道（本文件自有 LCEL + LangGraph，不与其他 Agent 共用）。"""
+
+from __future__ import annotations
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableLambda
+from langgraph.prebuilt import create_react_agent
+
+from account.ai.llm.llm import AGENT_MAX_ITERATIONS, llm
+from account.ai.llm.llm_utils import extract_content
+from account.ai.tools.finance_tools import build_analysis_tools
+
+from .analysis_prompt import ANALYSIS_SYSTEM
+
+
+def _tool_call_id(tc) -> str:
+    if isinstance(tc, dict):
+        return str(tc.get("id") or "")
+    return str(getattr(tc, "id", "") or "")
+
+
+def _graph_to_result(graph_state: dict) -> dict:
+    """Analysis 结果适配：messages -> {output, intermediate_steps}。"""
+    messages = graph_state.get("messages") or []
+    pending = {}
+    steps = []
+    for msg in messages:
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            for tc in msg.tool_calls:
+                pending[_tool_call_id(tc)] = tc
+        elif isinstance(msg, ToolMessage):
+            tc = pending.get(str(msg.tool_call_id))
+            if tc is not None:
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                steps.append((tc, content))
+    output = extract_content(messages[-1]).strip() if messages else ""
+    return {"output": output, "intermediate_steps": steps}
+
+
+def _build_chain(user):
+    """分析域专属管道：input -> analysis graph(analyze_expense) -> result。"""
+    analysis_graph = create_react_agent(
+        llm,
+        build_analysis_tools(user),
+        prompt=ANALYSIS_SYSTEM,
+    )
+    return (
+        RunnableLambda(
+            lambda s: {"messages": [HumanMessage(content=s.get("input") or "")]}
+        )
+        | analysis_graph
+        | RunnableLambda(_graph_to_result)
+    )
+
+
+def run(user_input: str, user=None) -> dict:
+    chain = _build_chain(user)
+    return chain.invoke(
+        {"input": user_input or ""},
+        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 2, 10)},
+    )

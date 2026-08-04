@@ -1,7 +1,7 @@
 from langchain_core.documents import Document
 
 from .embedding import build_embeddings
-from .llm_utils import log_agent_exc
+from account.ai.llm.llm_utils import log_agent_exc
 from .vector_chroma import build_chroma_from_documents
 
 KB_DOCS = [

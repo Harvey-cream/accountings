@@ -16,6 +16,7 @@ oss2==2.18.0
 langchain==0.2.17
 langchain-community==0.2.19
 langchain-openai==0.1.25
+langgraph>=0.2.0
 openai>=1.40.0,<2.0.0
 chromadb>=0.4.0
 python-dotenv

@@ -4,6 +4,7 @@
 	"description": "uni_accounting",
 	"main": "main.js",
 	"scripts": {
+		"dev": "uni",
 		"dev:h5": "uni",
 		"build:h5": "uni build",
 		"dev:mp-weixin": "uni -p mp-weixin",

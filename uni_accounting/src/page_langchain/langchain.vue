@@ -333,6 +333,7 @@ const handleSend = async () => {
 	});
 	scrollToBottom();
 
+	// H5：流式主路径；小程序/App：降级同步 POST
 	if (isLangchainStreamSupported()) {
 		const aiId = `local-ai-${Date.now()}`;
 		streamingAiId.value = aiId;

@@ -12,7 +12,7 @@ class AccountConfig(AppConfig):
             return
         AccountConfig._prewarmed = True
         try:
-            from .utils.langchain import prewarm_runtime
+            from .ai.agent.agent import prewarm_runtime
 
             prewarm_runtime()
         except Exception as e:

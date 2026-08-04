@@ -1,0 +1,18 @@
+"""Supervisor 路由决策的 Pydantic 约束。"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+TaskType = Literal["bill", "analysis", "budget"]
+
+
+class RouteDecision(BaseModel):
+    """把用户请求路由到某个业务 Agent。"""
+
+    task_type: TaskType = Field(
+        description="业务域：bill=记账/查账单/改账单；analysis=消费统计与趋势；budget=预算管理",
+    )
+    reason: str = Field(default="", description="一句话说明分类依据，便于排查")

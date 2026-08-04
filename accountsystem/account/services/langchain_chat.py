@@ -1,18 +1,13 @@
-"""AI 对话落库：Agent 结构化结果 → 账单记录 + 聊天消息。"""
+"""AI 对话落库：Agent 结构化结果 → 聊天消息（账单优先复用 Tool 已写入的 record）。"""
 
 import json
 from decimal import Decimal
 
 from django.utils import timezone
 
-from common.initia import NORMAL_ICONS
-
-from ..models import (
-    LangchainChatMessage,
-    TransactionCategory,
-    TransactionIcon,
-    TransactionRecord,
-)
+from ..models import LangchainChatMessage, TransactionRecord
+from .errors import ServiceError
+from .expense_service import create_expense
 
 
 def safe_db_text(text):
@@ -24,7 +19,8 @@ def safe_db_text(text):
 def create_ai_chat_message(user, content, ai_data):
     """
     根据 Agent 返回的 ai_data 持久化 AI 消息：
-    - money > 0：写入 TransactionRecord，消息类型为 transaction（前端账单卡片）
+    - 已有 record_id：Tool 已写库，只挂聊天卡片
+    - money > 0 且无 record_id：兼容旧路径，经 expense_service 写入
     - 否则：仅保存文本回复
     """
     try:
@@ -32,46 +28,49 @@ def create_ai_chat_message(user, content, ai_data):
     except (TypeError, ValueError):
         money_val = 0
 
-    if money_val > 0:
+    record_id = ai_data.get("record_id")
+    associated_record = None
+    icon_code = ai_data.get("icon") or "notes-o"
+
+    if record_id:
+        associated_record = TransactionRecord.objects.filter(id=record_id, user=user).first()
+        if associated_record and money_val <= 0:
+            money_val = float(associated_record.amount)
+
+    if money_val > 0 or associated_record is not None:
         ai_type = "transaction"
         cat_name = ai_data.get("category", "其他")
-        matched_icon = next(
-            (item for item in NORMAL_ICONS if item["name"] == cat_name), {"icon": "notes-o"}
-        )
-        record_id = None
-        associated_record = None
-        try:
-            icon_code = matched_icon.get("icon", "notes-o")
-            icon_obj = TransactionIcon.objects.filter(icon=icon_code).first()
-            category_obj, _ = TransactionCategory.objects.get_or_create(
-                user=user,
-                name=cat_name,
-                defaults={
-                    "type": "expense" if ai_data.get("type") == "支出" else "income",
-                    "icon": icon_obj,
-                },
-            )
-            now = timezone.now()
-            new_record = TransactionRecord.objects.create(
-                user=user,
-                category=category_obj,
-                amount=Decimal(str(money_val)),
-                type="expense" if ai_data.get("type") == "支出" else "income",
-                date=now.date(),
-                time=now.time(),
-                remark=ai_data.get("remark", content),
-            )
-            record_id = new_record.id
-            associated_record = new_record
-        except Exception as e:
-            print(f"自动记账存入失败: {e}")
+        if associated_record is None:
+            bill_type = "expense" if ai_data.get("type") == "支出" else "income"
+            try:
+                created = create_expense(
+                    user,
+                    amount=Decimal(str(money_val)),
+                    bill_type=bill_type,
+                    category_name=cat_name,
+                    remark=ai_data.get("remark", content) or "",
+                )
+                record_id = created["id"]
+                icon_code = created.get("icon") or icon_code
+                associated_record = TransactionRecord.objects.filter(id=record_id).first()
+            except ServiceError as e:
+                print(f"自动记账存入失败: {e.message}")
+            except Exception as e:
+                print(f"自动记账存入失败: {e}")
+
+        if associated_record is not None:
+            cat_name = associated_record.category.name if associated_record.category_id else cat_name
+            type_label = "支出" if associated_record.type == "expense" else "收入"
+            money_val = float(associated_record.amount)
+        else:
+            type_label = ai_data.get("type") or "支出"
 
         extra_data = {
-            "amount": f"{'-' if ai_data.get('type') == '支出' else '+'}{money_val:.2f}",
+            "amount": f"{'-' if type_label == '支出' else '+'}{money_val:.2f}",
             "category": cat_name,
             "remark": ai_data.get("remark", ""),
             "date": timezone.now().strftime("%Y年%m月%d日"),
-            "icon": matched_icon.get("icon", "notes-o"),
+            "icon": icon_code,
             "iconColor": "#64748b",
             "bgColor": "#f1f5f9",
             "record_id": record_id,

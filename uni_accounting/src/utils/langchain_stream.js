@@ -59,6 +59,7 @@ export async function sendLangchainChatStream(content, handlers = {}) {
 	buffer = _parseBuffer(buffer + '\n\n', handlers);
 }
 
+/** 是否支持 H5 SSE 流式（浏览器 fetch + ReadableStream） */
 export const isLangchainStreamSupported = () => {
 	if (typeof window === 'undefined' || typeof fetch !== 'function') return false;
 	return typeof ReadableStream !== 'undefined';

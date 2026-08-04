@@ -5,8 +5,8 @@ from decimal import Decimal
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
 from .serializers import LangchainChatMessageSerializer
 from django.http import StreamingHttpResponse
-from .utils.langchain import extract_accounting_info, astream_accounting
-from .utils.response import chat, to_api_dict
+from .ai.agent.agent import extract_accounting_info, astream_accounting
+from .ai.llm.response import chat, to_api_dict
 from common.initia import NORMAL_ICONS
 from user.models import User, UserPointRecord
 from user.utils.jwt_token import verify_token
@@ -17,7 +17,7 @@ from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
 from .services.langchain_chat import create_ai_chat_message, create_user_chat_message
-from .utils.schemas import AGENT_ERROR_REPLY
+from .ai.llm.schemas import AGENT_ERROR_REPLY
 
 class GetIconsView(APIView):
     """获取所有图标列表"""

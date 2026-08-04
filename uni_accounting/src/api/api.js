@@ -103,6 +103,7 @@ export const getInviteQR = () => sendRequest("/api/user/invite/qr/", 'GET');
 // --- 社区动态接口 ---
 
 // AI 记账对话
+// AI 记账对话：GET 历史；POST 同步发消息（小程序/App 降级）
 export const getLangchainChat = (params = {}) => sendRequest("/api/account/langchain/chat/", 'GET', params);
 
 export const sendLangchainChat = (params) => sendRequest("/api/account/langchain/chat/", 'POST', params);
