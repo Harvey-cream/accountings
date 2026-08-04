@@ -15,7 +15,12 @@ from .common import run_service
 def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
-    return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except ValueError as e:
+        from account.services.errors import ServiceError
+
+        raise ServiceError("日期格式应为 YYYY-MM-DD") from e
 
 
 # ----- create_bill -----
@@ -136,9 +141,82 @@ def query_bills_tool(user) -> StructuredTool:
     )
 
 
+# ----- search_bills -----
+
+
+class SearchBillInput(BaseModel):
+    keyword: str | None = Field(default=None, description="备注关键词，如奶茶、午饭")
+    category: str | None = Field(default=None, description="分类名称，如餐饮、交通")
+    days: int | None = Field(
+        default=30, ge=1, le=365, description="近多少天；若传了 start_date/end_date 可忽略"
+    )
+    start_date: str | None = Field(default=None, description="起始日期 YYYY-MM-DD")
+    end_date: str | None = Field(default=None, description="结束日期 YYYY-MM-DD")
+    bill_type: str | None = Field(
+        default=None, description="可选：expense/income；不传则全部"
+    )
+    limit: int = Field(default=20, ge=1, le=100, description="最多返回条数")
+
+
+def search_bills_tool(user) -> StructuredTool:
+    def search_bills(
+        keyword: str | None = None,
+        category: str | None = None,
+        days: int | None = 30,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        bill_type: str | None = None,
+        limit: int = 20,
+    ) -> str:
+        return run_service(
+            lambda: expense_service.search_expense(
+                user,
+                keyword=keyword,
+                category_name=category,
+                days=days,
+                start_date=_parse_date(start_date),
+                end_date=_parse_date(end_date),
+                bill_type=bill_type,
+                limit=limit,
+            ),
+            ok_message="搜索成功",
+        )
+
+    return StructuredTool.from_function(
+        func=search_bills,
+        name="search_bills",
+        description="按备注/分类/日期搜索当前用户账单，用于改单或删单前定位（用户不会说 id）。",
+        args_schema=SearchBillInput,
+    )
+
+
+# ----- delete_bill -----
+
+
+class DeleteBillInput(BaseModel):
+    bill_id: int = Field(..., description="要删除的账单内部 ID（来自 search/query 结果）")
+
+
+def delete_bill_tool(user) -> StructuredTool:
+    def delete_bill(bill_id: int) -> str:
+        return run_service(
+            lambda: expense_service.delete_expense(user, bill_id),
+            ok_message="账单已删除",
+        )
+
+    return StructuredTool.from_function(
+        func=delete_bill,
+        name="delete_bill",
+        description="删除当前用户的一笔账单。先用 search_bills 定位，再传入结果中的 id。",
+        args_schema=DeleteBillInput,
+    )
+
+
 def build_bill_tools(user) -> list[StructuredTool]:
     return [
         create_bill_tool(user),
         update_bill_tool(user),
         query_bills_tool(user),
+        search_bills_tool(user),
+        delete_bill_tool(user),
     ]
