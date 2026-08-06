@@ -1,16 +1,17 @@
-"""Bill Agent：账单域独立管道（本文件自有 LCEL + LangGraph，不与其他 Agent 共用）。"""
+"""Bill Agent 外壳：LCEL 管道 → Bill Workflow(StateGraph) → 结果适配。
+
+图与节点在 bill_graph / bill_nodes 里，本文件只负责入参整形与出参兼容。
+"""
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableLambda
-from langgraph.prebuilt import create_react_agent
 
-from account.ai.llm.llm import AGENT_MAX_ITERATIONS, llm
+from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.llm.llm_utils import extract_content
-from account.ai.tools.finance_tools import build_bill_tools
 
-from .bill_prompt import BILL_SYSTEM
+from .bill_graph import build_bill_graph
 
 
 def _tool_call_id(tc) -> str:
@@ -20,7 +21,7 @@ def _tool_call_id(tc) -> str:
 
 
 def _graph_to_result(graph_state: dict) -> dict:
-    """Bill 结果适配：messages -> {output, intermediate_steps}。"""
+    """Bill 结果适配：messages + result -> {output, intermediate_steps}。"""
     messages = graph_state.get("messages") or []
     pending = {}
     steps = []
@@ -33,25 +34,30 @@ def _graph_to_result(graph_state: dict) -> dict:
             if tc is not None:
                 content = msg.content if isinstance(msg.content, str) else str(msg.content)
                 steps.append((tc, content))
-    output = extract_content(messages[-1]).strip() if messages else ""
+    result = graph_state.get("result") or {}
+    output = (result.get("message") or "").strip()
+    if not output and messages:
+        output = extract_content(messages[-1]).strip()
     return {"output": output, "intermediate_steps": steps}
 
 
+def _to_graph_input(payload: dict) -> dict:
+    user = payload.get("user")
+    return {
+        "input": payload.get("input") or "",
+        "messages": list(payload.get("history") or []),
+        "user_id": getattr(user, "id", None),
+        "need_confirm": False,
+        "confirmed": False,
+        "loops": 0,
+    }
+
+
 def _build_chain(user):
-    """账单域专属管道：input -> bill graph(create/update/query) -> result。"""
-    bill_graph = create_react_agent(
-        llm,
-        build_bill_tools(user),
-        prompt=BILL_SYSTEM,
-    )
+    """账单域专属管道：input -> bill workflow -> result。"""
     return (
-        RunnableLambda(
-            lambda s: {
-                "messages": list(s.get("history") or [])
-                + [HumanMessage(content=s.get("input") or "")]
-            }
-        )
-        | bill_graph
+        RunnableLambda(_to_graph_input)
+        | build_bill_graph(user)
         | RunnableLambda(_graph_to_result)
     )
 
@@ -59,6 +65,6 @@ def _build_chain(user):
 def run(user_input: str, user=None, history=None) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
-        {"input": user_input or "", "history": history or []},
-        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 2, 10)},
+        {"input": user_input or "", "history": history or [], "user": user},
+        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
     )
