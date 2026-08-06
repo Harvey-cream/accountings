@@ -70,6 +70,29 @@
 						<view v-if="msg.type === 'transaction' && msg.content" class="bubble txn-reply-bubble">
 							<text class="text-content">{{ displayText(msg) }}</text>
 						</view>
+						<!-- 改删确认卡片：点确认/取消，布尔回传 -->
+						<view v-if="msg.type === 'confirm'" class="confirm-card">
+							<text v-if="msg.content" class="confirm-title">{{ displayText(msg) }}</text>
+							<view
+								v-for="item in (msg.candidates || [])"
+								:key="item.id"
+								class="confirm-item"
+							>
+								<view class="confirm-item-main">
+									<text class="confirm-item-name">{{ item.remark || item.category || '账单' }}</text>
+									<text class="confirm-item-meta">{{ item.date }} · {{ formatConfirmAmount(item) }}</text>
+								</view>
+								<view
+									v-if="!msg.resolved"
+									class="confirm-btn confirm-btn-ok"
+									@click="handleConfirmAction(msg, true, item)"
+								>确认{{ actionLabel(msg.action) }}</view>
+							</view>
+							<view v-if="!msg.resolved" class="confirm-actions">
+								<view class="confirm-btn confirm-btn-cancel" @click="handleConfirmAction(msg, false)">取消</view>
+							</view>
+							<text v-else class="confirm-resolved">已处理</text>
+						</view>
 					</view>
 				</view>
 				<!-- Spacer for fixed bottom panel -->
@@ -312,11 +335,113 @@ const formatMessage = (msg) => {
 		image: msg.image_url
 	};
 	
-	if (msg.type === 'transaction' && msg.extra_data) {
+	if ((msg.type === 'transaction' || msg.type === 'confirm') && msg.extra_data) {
 		const extra = typeof msg.extra_data === 'string' ? JSON.parse(msg.extra_data) : msg.extra_data;
 		Object.assign(formatted, extra);
 	}
 	return formatted;
+};
+
+const actionLabel = (action) => (action === 'update' ? '修改' : action === 'delete' ? '删除' : '操作');
+
+const formatConfirmAmount = (item) => {
+	const n = Number(item?.amount);
+	if (Number.isNaN(n)) return '';
+	const prefix = item?.type === 'income' ? '+' : '-';
+	return `${prefix}${n % 1 === 0 ? n : n.toFixed(2)}元`;
+};
+
+const markConfirmResolved = (msg) => {
+	const idx = messages.value.findIndex((m) => m.id === msg.id);
+	if (idx >= 0) {
+		messages.value[idx] = { ...messages.value[idx], resolved: true };
+	}
+};
+
+/** 确认卡片：confirm 布尔 + bill_id + action 回传后端 */
+const handleConfirmAction = async (msg, ok, item = null) => {
+	if (loading.value || msg.resolved) return;
+	const extra = ok
+		? { confirm: true, bill_id: item?.id, action: msg.action }
+		: { confirm: false };
+	if (ok && (extra.bill_id == null || !extra.action)) {
+		return uni.showToast({ title: '缺少账单信息', icon: 'none' });
+	}
+
+	const content = ok ? `确认${actionLabel(msg.action)}` : '取消';
+	markConfirmResolved(msg);
+	messages.value.push({
+		id: `local-user-${Date.now()}`,
+		role: 'user',
+		type: 'text',
+		content
+	});
+	scrollToBottom();
+
+	const loadingStart = Date.now();
+	if (isLangchainStreamSupported()) {
+		const aiId = `local-ai-${Date.now()}`;
+		streamingAiId.value = aiId;
+		streamingStatus.value = '';
+		messages.value.push({ id: aiId, role: 'ai', type: 'text', content: '' });
+		try {
+			await sendLangchainChatStream(content, {
+				onStatus: (text) => {
+					if (streamingAiId.value === aiId) streamingStatus.value = text;
+					scrollToBottomThrottled();
+				},
+				onToken: (text) => {
+					const idx = messages.value.findIndex((m) => m.id === aiId);
+					if (idx < 0) return;
+					if (streamingStatus.value) streamingStatus.value = '';
+					const prev = messages.value[idx].content || '';
+					patchAiMessage(aiId, { content: prev + text.replace(/\*\*/g, '') });
+					scrollToBottomThrottled();
+				},
+				onDone: (event) => {
+					streamingAiId.value = null;
+					streamingStatus.value = '';
+					const aiMsg = (event.data || []).find((m) => m.role === 'ai');
+					const idx = messages.value.findIndex((m) => m.id === aiId);
+					if (aiMsg && idx >= 0) {
+						const streamed = messages.value[idx].content;
+						const formatted = formatMessage(aiMsg);
+						if (formatted.type === 'text') {
+							formatted.content = streamed || formatted.content;
+						}
+						messages.value[idx] = formatted;
+					}
+					scrollToBottom();
+				},
+				onError: () => {
+					streamingAiId.value = null;
+					streamingStatus.value = '';
+					uni.showToast({ title: '发送失败', icon: 'none' });
+				}
+			}, extra);
+		} catch (e) {
+			streamingAiId.value = null;
+			streamingStatus.value = '';
+			uni.showToast({ title: '发送失败', icon: 'none' });
+		}
+		return;
+	}
+
+	loading.value = true;
+	try {
+		const res = await sendLangchainChat({ content, ...extra });
+		if (res.code === 0) {
+			(res.data || [])
+				.filter((m) => m.role === 'ai')
+				.forEach((m) => messages.value.push(formatMessage(m)));
+			scrollToBottom();
+		}
+	} catch (e) {
+		uni.showToast({ title: '发送失败', icon: 'none' });
+	} finally {
+		const elapsed = Date.now() - loadingStart;
+		setTimeout(() => { loading.value = false; }, Math.max(0, 450 - elapsed));
+	}
 };
 
 const handleSend = async () => {
@@ -653,6 +778,87 @@ onMounted(() => {
 
 .txn-reply-bubble {
 	margin-top: 8px;
+}
+
+.confirm-card {
+	background: #fff;
+	border-radius: 16px;
+	padding: 14px;
+	border: 1px solid #f1f5f9;
+	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+	min-width: 240px;
+	max-width: 100%;
+}
+
+.confirm-title {
+	font-size: 14px;
+	color: #0f172a;
+	display: block;
+	margin-bottom: 12px;
+}
+
+.confirm-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px dashed #f1f5f9;
+}
+
+.confirm-item:first-of-type {
+	border-top: none;
+	padding-top: 0;
+}
+
+.confirm-item-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.confirm-item-name {
+	font-size: 14px;
+	font-weight: bold;
+	color: #0f172a;
+	display: block;
+}
+
+.confirm-item-meta {
+	font-size: 12px;
+	color: #64748b;
+	display: block;
+	margin-top: 2px;
+}
+
+.confirm-actions {
+	margin-top: 10px;
+	display: flex;
+	justify-content: flex-end;
+}
+
+.confirm-btn {
+	padding: 6px 14px;
+	border-radius: 8px;
+	font-size: 13px;
+	white-space: nowrap;
+}
+
+.confirm-btn-ok {
+	background: #ffd541;
+	color: #0f172a;
+	font-weight: 600;
+}
+
+.confirm-btn-cancel {
+	background: #f1f5f9;
+	color: #64748b;
+}
+
+.confirm-resolved {
+	display: block;
+	margin-top: 8px;
+	font-size: 12px;
+	color: #94a3b8;
 }
 
 .card-body {

@@ -33,15 +33,15 @@ function _parseBuffer(buffer, handlers) {
 	return rest;
 }
 
-/** H5 SSE 流式对话：onStatus / onToken / onDone / onError */
-export async function sendLangchainChatStream(content, handlers = {}) {
+/** H5 SSE 流式对话：onStatus / onToken / onDone / onError；extra 可带 confirm/bill_id/action */
+export async function sendLangchainChatStream(content, handlers = {}, extra = {}) {
 	if (!isLangchainStreamSupported()) {
 		throw new Error('当前环境不支持流式（需要浏览器 fetch + ReadableStream）');
 	}
 	const response = await fetch(API_URL + '/api/account/langchain/chat/stream/', {
 		method: 'POST',
 		headers: _streamAuthHeaders(),
-		body: JSON.stringify({ content }),
+		body: JSON.stringify({ content, ...extra }),
 	});
 	if (!response.ok) {
 		handlers.onError?.({ message: '请求失败' });

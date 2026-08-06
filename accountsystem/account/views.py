@@ -16,7 +16,11 @@ from django.utils import timezone
 from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
-from .services.langchain_chat import create_ai_chat_message, create_user_chat_message
+from .services.langchain_chat import (
+    create_ai_chat_message,
+    create_user_chat_message,
+    parse_confirm_payload,
+)
 from .ai.llm.schemas import AGENT_ERROR_REPLY
 
 class GetIconsView(APIView):
@@ -668,11 +672,16 @@ class LangchainChatView(APIView):
             return HttpResult.fail("用户未登录")
         
         content = request.data.get('content')
+        confirm = parse_confirm_payload(request.data)
+        if confirm is None and "confirm" in (request.data or {}):
+            return HttpResult.fail("确认参数无效")
+        if confirm is not None and not content:
+            content = "确认" if confirm.get("confirm") else "取消"
         user_msg, err = _chat_turn_user_message(user, content)
         if err:
             return err
 
-        ai_data = extract_accounting_info(content, user=user)
+        ai_data = extract_accounting_info(content, user=user, confirm=confirm)
         ai_msg = create_ai_chat_message(user, content, ai_data)
 
         # 返回最新的两条消息（用户和 AI）
@@ -704,6 +713,11 @@ class LangchainChatStreamView(APIView):
             return HttpResult.fail("用户未登录")
 
         content = request.data.get("content")
+        confirm = parse_confirm_payload(request.data)
+        if confirm is None and "confirm" in (request.data or {}):
+            return HttpResult.fail("确认参数无效")
+        if confirm is not None and not content:
+            content = "确认" if confirm.get("confirm") else "取消"
         user_msg, err = _chat_turn_user_message(user, content)
         if err:
             return err
@@ -720,7 +734,7 @@ class LangchainChatStreamView(APIView):
             loop = asyncio.new_event_loop()
             ai_data = None
             try:
-                agen = astream_accounting(content, user=user)
+                agen = astream_accounting(content, user=user, confirm=confirm)
                 while True:
                     try:
                         event = loop.run_until_complete(agen.__anext__())

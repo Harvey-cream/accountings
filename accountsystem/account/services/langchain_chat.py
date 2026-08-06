@@ -19,10 +19,27 @@ def safe_db_text(text):
 def create_ai_chat_message(user, content, ai_data):
     """
     根据 Agent 返回的 ai_data 持久化 AI 消息：
+    - need_confirm：改删确认卡片
     - 已有 record_id：Tool 已写库，只挂聊天卡片
     - money > 0 且无 record_id：兼容旧路径，经 expense_service 写入
     - 否则：仅保存文本回复
     """
+    if ai_data.get("need_confirm"):
+        extra = {
+            "need_confirm": True,
+            "action": ai_data.get("confirm_action") or "",
+            "candidates": ai_data.get("candidates") or [],
+            "resolved": False,
+        }
+        return LangchainChatMessage.objects.create(
+            user=user,
+            role="ai",
+            type="confirm",
+            content=safe_db_text(ai_data.get("reply", "")),
+            extra_data=json.dumps(extra, ensure_ascii=False),
+            record=None,
+        )
+
     try:
         money_val = float(ai_data.get("money", 0))
     except (TypeError, ValueError):
@@ -98,3 +115,25 @@ def create_user_chat_message(user, content):
         type="text",
         content=safe_db_text(content),
     )
+
+
+def parse_confirm_payload(data) -> dict | None:
+    """前端确认卡片回传：confirm 缺省为 None（普通对话）。"""
+    if not isinstance(data, dict) or "confirm" not in data:
+        return None
+    raw = data.get("confirm")
+    if isinstance(raw, str):
+        raw = raw.strip().lower() in ("1", "true", "yes")
+    payload = {"confirm": bool(raw)}
+    if payload["confirm"] is False:
+        return payload
+    bill_id = data.get("bill_id")
+    action = (data.get("action") or "").strip()
+    try:
+        payload["bill_id"] = int(bill_id)
+    except (TypeError, ValueError):
+        return None
+    if action not in ("update", "delete"):
+        return None
+    payload["action"] = action
+    return payload

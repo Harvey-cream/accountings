@@ -1,7 +1,7 @@
 """执行层：按 task_type 调用对应业务 Agent.run，写回统一结果。
 
 各业务 Agent 自有管道；executor 只做调度与 state 回写，不假定具体构图。
-结果形状 {output, intermediate_steps}，供 to_api_dict / SSE 复用。
+结果形状 {output, intermediate_steps[, confirm]}，供 to_api_dict / SSE 复用。
 """
 
 from __future__ import annotations
@@ -18,12 +18,14 @@ _RUNNERS = {
 
 
 def execute(state: AgentState) -> AgentState:
-    runner = _RUNNERS.get(state.get("task_type") or "bill", bill.run)
-    result = runner(
-        state.get("user_input") or "",
-        state.get("user"),
-        history=state.get("memory_messages") or [],
-    )
+    task = state.get("task_type") or "bill"
+    runner = _RUNNERS.get(task, bill.run)
+    kwargs = {
+        "history": state.get("memory_messages") or [],
+    }
+    if task == "bill" and state.get("confirm") is not None:
+        kwargs["confirm"] = state.get("confirm")
+    result = runner(state.get("user_input") or "", state.get("user"), **kwargs)
     state["tool_results"] = result.get("intermediate_steps") or []
     state["final_response"] = result
     return state

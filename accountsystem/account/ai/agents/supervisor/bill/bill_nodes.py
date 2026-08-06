@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
@@ -16,17 +15,12 @@ from .bill_prompt import (
     BILL_LOCATOR_SYSTEM,
     BILL_SYSTEM,
     BILL_TARGET_HINT,
-    CONFIRM_MANY,
-    CONFIRM_ONE,
-    CONFIRM_OPTION,
     INTENT_GUIDE,
     NOT_FOUND,
 )
 from .bill_schemas import BillIntent, BillLocator
 from .bill_state import BillAgentState
 
-_ID_RE = re.compile(r"#\s*(\d+)")
-_AFFIRM = ("确认", "确定", "是的", "对的", "没错", "可以", "好的", "删吧", "改吧", "就它", "yes", "ok")
 _MAX_CANDIDATES = 5
 
 
@@ -34,40 +28,12 @@ _MAX_CANDIDATES = 5
 
 
 def context_prepare_node(state: BillAgentState) -> dict:
-    """合并历史与本轮输入；若上一轮是确认问句且用户应答肯定，则续跑原操作。"""
+    """合并历史与本轮输入。
+
+    结构化确认（前端卡片点确认）已由外壳写入 intent/target_bill/confirmed，这里只追加消息。
+    """
     text = (state.get("input") or "").strip()
-    update: dict = {"messages": [HumanMessage(content=text)], "loops": 0}
-
-    pending = _pending_confirm(state.get("messages") or [], text)
-    if pending:
-        update["intent"] = pending["intent"]
-        update["target_bill"] = {"id": pending["bill_id"]}
-        update["confirmed"] = True
-    return update
-
-
-def _pending_confirm(history: list, text: str) -> dict | None:
-    """从上一条助手确认问句里回收账单编号与动作，等价于一次 resume。"""
-    if not any(word in text for word in _AFFIRM):
-        return None
-
-    asked = ""
-    for msg in reversed(history):
-        if isinstance(msg, AIMessage):
-            asked = extract_content(msg)
-            break
-    if not asked:
-        return None
-
-    # 多选场景下用户会自己带编号，优先取用户这句里的
-    match = _ID_RE.search(text) or _ID_RE.search(asked)
-    if not match:
-        return None
-
-    intent = "delete" if "删除" in asked else "update" if "修改" in asked else ""
-    if not intent:
-        return None
-    return {"bill_id": int(match.group(1)), "intent": intent}
+    return {"messages": [HumanMessage(content=text)], "loops": 0}
 
 
 # ----- 2. intent_router -----
@@ -183,53 +149,30 @@ def _tool_rows(raw) -> list[dict]:
 
 
 def human_confirm_node(state: BillAgentState) -> dict:
-    """高危操作前的口头确认。
-
-    接口层没有 resume 端点，确认问句作为本轮回复返回；用户下一轮应答“确认”时，
-    context_prepare 从问句里回收 #id 续跑，效果等同 interrupt/resume。
-    """
-    action = ACTION_LABEL.get(state.get("intent") or "", "操作")
+    """高危操作前输出确认卡片数据，等前端点确认/取消后续跑。"""
+    intent = state.get("intent") or ""
+    action = ACTION_LABEL.get(intent, "操作")
     candidates = state.get("candidates") or []
     target = state.get("target_bill") or {}
+    rows = candidates or ([target] if target else [])
 
-    if len(candidates) > 1:
-        options = "；".join(_option_text(row) for row in candidates)
-        question = CONFIRM_MANY.format(count=len(candidates), action=action, options=options)
+    if len(rows) > 1:
+        question = f"找到 {len(rows)} 笔相近的账单，请点选要{action}的那一笔～"
     else:
-        row = candidates[0] if candidates else target
-        question = CONFIRM_ONE.format(
-            action=action,
-            date=row.get("date") or "",
-            remark=row.get("remark") or row.get("category") or "这笔",
-            amount=_money(row.get("amount")),
-            bill_id=row.get("id") or target.get("id") or "",
-        )
+        question = f"确认{action}这笔账单吗？"
 
     return {
         "messages": [AIMessage(content=question)],
         "result": {
             "success": True,
             "message": question,
-            "data": {"need_confirm": True, "candidates": candidates or [target]},
+            "data": {
+                "need_confirm": True,
+                "action": intent,
+                "candidates": rows,
+            },
         },
     }
-
-
-def _option_text(row: dict) -> str:
-    return CONFIRM_OPTION.format(
-        date=row.get("date") or "",
-        remark=row.get("remark") or row.get("category") or "",
-        amount=_money(row.get("amount")),
-        bill_id=row.get("id") or "",
-    )
-
-
-def _money(value) -> str:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return str(value or "")
-    return str(int(number)) if number.is_integer() else f"{number:g}"
 
 
 # ----- 7. result_formatter -----

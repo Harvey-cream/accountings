@@ -18,6 +18,8 @@ class AgentState(TypedDict, total=False):
 
     # --- 输入 ---
     user_input: str
+    # 前端确认卡片回传：{confirm: bool, bill_id?: int, action?: "update"|"delete"}
+    confirm: dict
 
     # --- 路由结果 ---
     task_type: str      # bill / analysis / budget

@@ -28,16 +28,13 @@ BILL_LOCATOR_SYSTEM = """从用户这句话里抽出用于检索账单的条件�
 INTENT_GUIDE = {
     "create": "本轮任务：新增账单，调用 create_bill。信息不全（缺金额）时先口头追问。",
     "query": "本轮任务：查询账单，调用 query_bills；用户给了关键词/分类时改用 search_bills。",
-    "update": "本轮任务：修改账单。目标账单已定位，直接用其 id 调用 update_bill，不要再搜索。",
+    "update": "本轮任务：修改账单。目标账单已定位且用户已确认，直接用其 id 调用 update_bill，不要再搜索。改动内容以历史对话里用户原话为准。",
     "delete": "本轮任务：删除账单。目标账单已定位且用户已确认，直接用其 id 调用 delete_bill。",
 }
 
 # 已定位的账单以 system 便签注入，避免模型重复搜索
 BILL_TARGET_HINT = "已定位到目标账单：{bill}。请直接使用其中的 id 执行本轮操作。"
 
-CONFIRM_ONE = "确认{action}{date} {remark} {amount}元这笔账单吗（账单#{bill_id}）？回复“确认”我就去办～"
-CONFIRM_MANY = "找到 {count} 笔相近的账单，你要{action}哪一笔呀？{options}（回复“确认 #编号”就行～）"
-CONFIRM_OPTION = "{date} {remark} {amount}元（账单#{bill_id}）"
 NOT_FOUND = "没找到符合条件的账单呢，换个关键词或日期再说一次吧～"
 
 ACTION_LABEL = {"update": "修改", "delete": "删除"}

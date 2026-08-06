@@ -1,6 +1,6 @@
-"""View ???LCEL ? orchestrator ? to_api_dict / SSE?
+"""View ? LCEL ? orchestrator ? to_api_dict / SSE?
 
-??? orchestrator ??Supervisor ?????????? agents/*?
+??????Supervisor ??? Agent ? agents/*?
 """
 
 from __future__ import annotations
@@ -17,17 +17,17 @@ from account.ai.llm.schemas import AGENT_ERROR_REPLY
 from account.ai.orchestrator import run_orchestrator
 
 _STATUS = {
-    "create_bill": "??????...",
-    "update_bill": "???????...",
-    "query_bills": "???????...",
-    "search_bills": "???????...",
-    "delete_bill": "???????...",
-    "analyze_expense": "??????...",
-    "compare_periods": "????????...",
-    "create_budget": "???????...",
-    "update_budget": "???????...",
-    "query_budget": "???????...",
-    "budget_advice": "?????????...",
+    "create_bill": "????...",
+    "update_bill": "?????...",
+    "query_bills": "?????...",
+    "search_bills": "?????...",
+    "delete_bill": "?????...",
+    "analyze_expense": "????...",
+    "compare_periods": "??????...",
+    "create_budget": "?????...",
+    "update_budget": "?????...",
+    "query_budget": "?????...",
+    "budget_advice": "???????...",
 }
 
 
@@ -39,11 +39,19 @@ def _tool_call_name(tc) -> str:
 
 def _prepare(payload: dict) -> dict:
     text = payload.get("text") or payload.get("input") or ""
-    return {"input": text, "user": payload.get("user")}
+    return {
+        "input": text,
+        "user": payload.get("user"),
+        "confirm": payload.get("confirm"),
+    }
 
 
 def _run_orchestrator(state: dict) -> dict:
-    return run_orchestrator(state.get("input") or "", user=state.get("user"))
+    return run_orchestrator(
+        state.get("input") or "",
+        user=state.get("user"),
+        confirm=state.get("confirm"),
+    )
 
 
 _agent_chain = (
@@ -53,21 +61,27 @@ _agent_chain = (
 )
 
 
-async def _yield_text_events(text: str, steps: list) -> AsyncIterator[dict]:
+async def _yield_text_events(result: dict) -> AsyncIterator[dict]:
+    text = result.get("output") or ""
+    steps = result.get("intermediate_steps") or []
+    # ???????????????? done ??
+    if result.get("confirm", {}).get("need_confirm"):
+        yield {"type": "agent_result", "data": result}
+        return
     for tc, _ in steps:
-        yield {"type": "status", "text": _STATUS.get(_tool_call_name(tc), "??????...")}
+        yield {"type": "status", "text": _STATUS.get(_tool_call_name(tc), "???...")}
     for i in range(0, len(text), 2):
         part = text[i : i + 2]
         if part:
             yield {"type": "token", "text": part}
             await asyncio.sleep(0.02)
-    yield {"type": "agent_result", "data": {"output": text, "intermediate_steps": steps}}
+    yield {"type": "agent_result", "data": result}
 
 
-def extract_accounting_info(text, user=None):
+def extract_accounting_info(text, user=None, confirm=None):
     """Sync path for mini-program fallback."""
     try:
-        return _agent_chain.invoke({"text": text, "user": user})
+        return _agent_chain.invoke({"text": text, "user": user, "confirm": confirm})
     except Exception as e:
         log_agent_exc("AGENT", e, input=(text or "")[:60])
         out = chat(AGENT_ERROR_REPLY)
@@ -75,11 +89,11 @@ def extract_accounting_info(text, user=None):
         return out
 
 
-async def astream_accounting(text, user=None) -> AsyncIterator[dict]:
+async def astream_accounting(text, user=None, confirm=None) -> AsyncIterator[dict]:
     """SSE: status / token / agent_result / error (H5 main path)."""
     try:
-        result = await asyncio.to_thread(run_orchestrator, text or "", user)
-        async for event in _yield_text_events(result["output"], result["intermediate_steps"]):
+        result = await asyncio.to_thread(run_orchestrator, text or "", user, None, confirm)
+        async for event in _yield_text_events(result):
             yield event
     except Exception as e:
         log_agent_exc("AGENT", e, input=(text or "")[:60])

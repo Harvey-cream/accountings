@@ -47,6 +47,14 @@ def to_api_dict(agent_result: dict) -> dict:
     steps = agent_result.get("intermediate_steps") or []
     output = (agent_result.get("output") or "").strip()
 
+    confirm = agent_result.get("confirm") or {}
+    if confirm.get("need_confirm"):
+        out = chat_response(output or "确认一下这笔操作吧～")
+        out["need_confirm"] = True
+        out["confirm_action"] = confirm.get("action") or ""
+        out["candidates"] = confirm.get("candidates") or []
+        return out
+
     bill = _last_created_bill(steps)
     if bill:
         bill_type = bill.get("type") or "expense"

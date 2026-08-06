@@ -22,6 +22,6 @@ class BillAgentState(TypedDict, total=False):
     target_bill: dict | None  # 已定位的目标账单，至少含 id
     candidates: list[dict]  # 搜到多笔时的候选列表
     need_confirm: bool  # 改删前是否还需向用户确认
-    confirmed: bool  # 用户是否已口头确认（续跑时由 context_prepare 置 True）
+    confirmed: bool  # 前端确认卡片点确认后由外壳置 True
     loops: int  # bill_agent 已循环次数，防无限 tool 调用
     result: dict | None  # 提前结束的统一出参 {success, message, data}
