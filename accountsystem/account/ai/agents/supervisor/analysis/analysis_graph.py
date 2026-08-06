@@ -5,6 +5,7 @@ from __future__ import annotations
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from account.ai.knowledge.tools import build_knowledge_tools
 from account.ai.tools.finance_tools import build_analysis_tools
 
 from .analysis_nodes import (
@@ -20,7 +21,8 @@ from .analysis_state import AnalysisAgentState
 
 def build_analysis_graph(user):
     """按用户构建分析工作流；工具在此处绑定用户。"""
-    tools = build_analysis_tools(user)
+    # 分析域工具 + 只读的内部知识库工具（消费分析建议）
+    tools = [*build_analysis_tools(user), *build_knowledge_tools()]
 
     graph = StateGraph(AnalysisAgentState)
     graph.add_node("context_prepare", context_prepare_node)

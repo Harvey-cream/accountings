@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 
 from langchain_core.runnables import RunnableLambda
 
-from account.ai.knowledge import kb
+from account.ai.knowledge import prewarm_knowledge
 from account.ai.llm.llm_utils import log_agent_exc
 from account.ai.llm.response import chat, to_api_dict
 from account.ai.llm.schemas import AGENT_ERROR_REPLY
@@ -102,4 +102,4 @@ async def astream_accounting(text, user=None, confirm=None) -> AsyncIterator[dic
 
 def prewarm_runtime():
     """Warm up knowledge base on app start."""
-    kb.prewarm()
+    prewarm_knowledge()

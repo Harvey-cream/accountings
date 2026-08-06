@@ -126,6 +126,7 @@ def make_analysis_agent_node(tools: list, model=llm):
             f"category={params.get('category')!r}, "
             f"period_label={params.get('period_label')!r}。"
             "请直接按上述参数发起对应 tool call，不要追问。"
+            "如需给出消费优化建议，可再调用 search_finance_knowledge 检索内部知识作为依据。"
         )
         reply = agent_llm.invoke([SystemMessage(content=hint), *(state.get("messages") or [])])
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}

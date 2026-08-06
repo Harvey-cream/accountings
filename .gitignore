@@ -41,7 +41,9 @@ accountsystem/venv/
 # 证书文件
 accountsystem/nginx/certs/
 
-# 向量库本地数据（运行时自动生成，勿提交）
+# 向量库本地数据（运行时/离线构建生成，勿提交；线上自行 build_index）
 accountsystem/account/ai/knowledge/chroma_data/
+accountsystem/account/ai/knowledge/chroma_db/
 accountsystem/account/utils/chroma_data/
 **/chroma_data/
+**/chroma_db/

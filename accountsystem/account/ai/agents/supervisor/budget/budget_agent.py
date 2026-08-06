@@ -1,16 +1,14 @@
-"""Budget Agent：预算域独立管道（本文件自有 LCEL + LangGraph，不与其他 Agent 共用）。"""
+"""Budget Agent 外壳：LCEL → Budget Workflow → 结果适配。"""
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableLambda
-from langgraph.prebuilt import create_react_agent
 
-from account.ai.llm.llm import AGENT_MAX_ITERATIONS, llm
+from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.llm.llm_utils import extract_content
-from account.ai.tools.finance_tools import build_budget_tools
 
-from .budget_prompt import BUDGET_SYSTEM
+from .budget_graph import build_budget_graph
 
 
 def _tool_call_id(tc) -> str:
@@ -20,7 +18,6 @@ def _tool_call_id(tc) -> str:
 
 
 def _graph_to_result(graph_state: dict) -> dict:
-    """Budget 结果适配：messages -> {output, intermediate_steps}。"""
     messages = graph_state.get("messages") or []
     pending = {}
     steps = []
@@ -33,25 +30,27 @@ def _graph_to_result(graph_state: dict) -> dict:
             if tc is not None:
                 content = msg.content if isinstance(msg.content, str) else str(msg.content)
                 steps.append((tc, content))
-    output = extract_content(messages[-1]).strip() if messages else ""
+    output = (graph_state.get("final_response") or "").strip()
+    if not output and messages:
+        output = extract_content(messages[-1]).strip()
     return {"output": output, "intermediate_steps": steps}
 
 
+def _to_graph_input(payload: dict) -> dict:
+    user = payload.get("user")
+    return {
+        "input": payload.get("input") or "",
+        "messages": list(payload.get("history") or []),
+        "user_id": getattr(user, "id", None),
+        "loops": 0,
+        "need_input": False,
+    }
+
+
 def _build_chain(user):
-    """预算域专属管道：input -> budget graph(create/update/query) -> result。"""
-    budget_graph = create_react_agent(
-        llm,
-        build_budget_tools(user),
-        prompt=BUDGET_SYSTEM,
-    )
     return (
-        RunnableLambda(
-            lambda s: {
-                "messages": list(s.get("history") or [])
-                + [HumanMessage(content=s.get("input") or "")]
-            }
-        )
-        | budget_graph
+        RunnableLambda(_to_graph_input)
+        | build_budget_graph(user)
         | RunnableLambda(_graph_to_result)
     )
 
@@ -59,6 +58,6 @@ def _build_chain(user):
 def run(user_input: str, user=None, history=None) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
-        {"input": user_input or "", "history": history or []},
-        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 2, 10)},
+        {"input": user_input or "", "history": history or [], "user": user},
+        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
     )
