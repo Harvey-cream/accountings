@@ -1,8 +1,6 @@
-
-
 # 记账本 (Accounting)
 
-一个功能完善的个人记账小程序，支持收支记录、预算管理、资产管理、AI智能助手等功能。
+个人社交记账应用：收支 / 预算 / 资产，以及 **多 Agent（福娃鸭）** 自然语言记账与分析。
 
 ## 功能特性
 
@@ -13,11 +11,15 @@
 - 发票管理
 - 30天收支报表统计
 
-### 🤖 AI 智能助手
-- 基于 LangChain + LLM 的智能对话
-- 自然语言记账 ("咖啡花了18元")
-- 智能查询账单 ("本月花了多少钱")
-- 产品使用问答
+### 🤖 AI 多 Agent（福娃鸭）
+- **Orchestrator + Supervisor** 意图路由：`bill` / `analysis` / `budget`
+- 三域独立 **LangGraph Workflow**（互不共用链）
+  - Bill：记账 / 查改删；改删前定位 + 确认卡
+  - Analysis：汇总 / 分类 / 对比 + 口语洞察
+  - Budget：设查预算；规则校验 + 层级策略（先总后分类）
+- **LangChain Tools → Service → MySQL**（Agent 不直碰 ORM）
+- 内部知识库 RAG（LlamaIndex 入库 + Chroma）；`search_finance_knowledge` 挂 Analysis / Budget
+- 同步对话 + H5 SSE 流式
 
 ### 👥 社交功能
 - 发布动态
@@ -38,33 +40,51 @@
 ### 后端
 - Python 3.10
 - Django + Django REST Framework
-- MySQL 数据库
-- Redis 缓存
-- LangChain + Chroma 向量库
-- Docker 部署
+- MySQL / Redis
+- LangChain（LCEL / Tools）+ LangGraph（子 Agent Workflow）
+- LlamaIndex（知识入库）+ Chroma + DashScope Embedding
+- Docker / Nginx / Gunicorn
 
 ### 前端
 - UniApp (Vue 3)
-- 微信小程序
+- 微信小程序 / H5
 
 ## 项目结构
 
 ```
-accountsystem/          # Django 后端
-├── account/           # 核心记账模块
-├── user/              # 用户模块
-├── comment/           # 社交评论模块
-├── system/            # 系统消息模块
-├── common/            # 公共组件
-└── config/            # 配置管理
+accountsystem/                 # Django 后端
+├── account/                   # 核心记账域
+│   ├── ai/                    # 福娃鸭 Multi-Agent
+│   │   ├── agent/             # View 入口（LCEL / SSE）
+│   │   ├── orchestrator/      # 寒暄短路 · 记忆 · 路由 · 执行
+│   │   ├── agents/supervisor/ # Supervisor + bill/analysis/budget 子 Agent
+│   │   ├── tools/finance_tools/
+│   │   ├── knowledge/         # RAG：data · ingestion · index · retriever · tools
+│   │   └── llm/
+│   ├── services/              # AI 业务能力（碰 ORM）
+│   └── views.py
+├── user/                      # 用户 · JWT · SM2 · OSS
+├── comment/                   # 社区
+├── system/                    # 系统消息
+├── common/                    # 中间件 · 公共组件
+└── config/                    # dotenv · 配置加载
 
-uni_accounting/         # UniApp 前端
+uni_accounting/                # UniApp 前端
 └── src/
-    ├── pages/         # 页面组件
-    ├── components/    # 通用组件
-    ├── api/          # API 请求
-    ├── store/       # 状态管理
-    └── utils/        # 工具函数
+    ├── pages/                 # 页面（含 page_langchain AI 对话）
+    ├── components/
+    ├── api/
+    ├── store/
+    └── utils/                 # 含 langchain_stream.js（SSE）
+```
+
+调用链（简图）：
+
+```
+Client → View → agent.py → orchestrator
+  → Supervisor(task_type)
+  → Bill / Analysis / Budget Workflow
+  → finance_tools (+ knowledge tool) → services → MySQL
 ```
 
 ## 快速开始
@@ -73,13 +93,14 @@ uni_accounting/         # UniApp 前端
 
 1. 安装依赖：
 ```bash
+cd accountsystem
 pip install -r requirements.txt
 ```
 
 2. 配置环境变量：
 ```bash
 cp .env.example .env
-# 编辑 .env 配置数据库、Redis 等
+# 编辑 .env：数据库 YAML、LLM、DashScope 等
 ```
 
 3. 运行迁移：
@@ -92,7 +113,12 @@ python manage.py migrate
 python manage.py shell -c "from common.initia import init_all; init_all()"
 ```
 
-5. 启动服务：
+5. （可选）构建内部知识库向量（`chroma_db/` 不入库，线上/本地各自构建）：
+```bash
+python -m account.ai.knowledge.ingestion.build_index
+```
+
+6. 启动服务：
 ```bash
 python manage.py runserver 0.0.0.0:8899
 ```
@@ -107,15 +133,19 @@ npm run dev:mp-weixin
 
 ## 配置说明
 
-主要环境变量：
+主要环境变量（见 `accountsystem/.env.example`）：
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| DATABASE_URL | MySQL 数据库连接 | localhost:3306 |
-| REDIS_URL | Redis 连接地址 | localhost:6379 |
-| LLM_BASE_URL | LLM API 地址 | http://localhost:11434 |
-| LLM_MODEL | 模型名称 | qwen:7b |
-| OLLAMA_BASE_URL | Ollama 服务地址 | http://localhost:11434 |
+| DJANGO_ENV | 运行环境 debug / production | debug |
+| LLM_AGENT_BASE_URL | LLM（OpenAI 兼容）地址 | https://gpt-agent.cc/v1 |
+| LLM_AGENT_API_KEY | LLM API Key | — |
+| LLM_AGENT_MODEL | 模型名 | gpt-5.4 |
+| DASHSCOPE_API_KEY | 知识库 Embedding（阿里云） | — |
+| DASHSCOPE_EMBEDDING_MODEL | Embedding 模型 | text-embedding-v2 |
+| KNOWLEDGE_CHROMA_DIR | 向量库持久化目录（可选） | account/ai/knowledge/chroma_db |
+
+数据库 / Redis 等仍在 `config/settings_*.yaml` 中配置。
 
 ## 许可证
 
