@@ -14,6 +14,7 @@ from account.ai.llm.schemas import DEFAULT_CHAT_REPLY, TextReply
 
 from .executor import execute
 from .memory import load_chat_memory
+from .open_task_router import is_open_planning
 from .router import decide
 from .state import AgentState, new_state
 
@@ -59,6 +60,12 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
     state["memory_messages"] = memory_messages
     state["memory_text"] = memory_text
     state["messages"] = list(memory_messages)
-    decide(state)
+
+    # 顶层任务分流：开放式规划 → CrewAI；其余 → 原 Supervisor 决策（保持不变）
+    if is_open_planning(text, memory_text):
+        state["task_type"] = "open_planning"
+        state["current_agent"] = "finance_planner"
+    else:
+        decide(state)
     execute(state)
     return state["final_response"]

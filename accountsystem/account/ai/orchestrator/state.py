@@ -22,8 +22,8 @@ class AgentState(TypedDict, total=False):
     confirm: dict
 
     # --- 路由结果 ---
-    task_type: str      # bill / analysis / budget
-    current_agent: str  # 当前执行的业务 Agent 名
+    task_type: str      # bill / analysis / budget / open_planning
+    current_agent: str  # 当前执行的业务 Agent 名（open_planning 时为 finance_planner）
 
     # --- 执行上下文 ---
     messages: list          # 预留 / 也可承载本轮 memory 历史

@@ -17,5 +17,13 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5175,
     strictPort: true,
+    // H5 开发：浏览器请求 /api → 转发到本地 Django
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8030',
+        changeOrigin: true,
+      },
+    },
   },
 });
+
