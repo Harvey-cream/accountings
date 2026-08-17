@@ -65,6 +65,49 @@ def create_bill_tool(user) -> StructuredTool:
     )
 
 
+# ----- batch_create_bills -----
+
+
+class BillDraftInput(BaseModel):
+    amount: float = Field(..., gt=0, description="金额，必须大于 0")
+    category: str = Field(default="其他", description="分类名称，如餐饮、交通")
+    date: str | None = Field(default=None, description="日期 YYYY-MM-DD，缺省为今天")
+    description: str = Field(default="", description="备注说明，如早饭")
+    bill_type: str = Field(default="expense", description="expense/income，默认支出")
+
+
+class BatchCreateBillInput(BaseModel):
+    items: list[BillDraftInput] = Field(..., min_length=1, description="待创建的多笔账单")
+
+
+def batch_create_bills_tool(user) -> StructuredTool:
+    def batch_create_bills(items: list[dict]) -> str:
+        drafts = [BillDraftInput.model_validate(i) for i in items]
+        return run_service(
+            lambda: expense_service.batch_create_expense(
+                user,
+                [
+                    {
+                        "amount": d.amount,
+                        "bill_type": d.bill_type,
+                        "category_name": d.category,
+                        "remark": d.description,
+                        "obs_date": _parse_date(d.date),
+                    }
+                    for d in drafts
+                ],
+            ),
+            ok_message="账单已批量创建",
+        )
+
+    return StructuredTool.from_function(
+        func=batch_create_bills,
+        name="batch_create_bills",
+        description="一次记多笔账单（如“早饭10，午饭25，晚饭30”）。整批同事务，失败全部回滚。",
+        args_schema=BatchCreateBillInput,
+    )
+
+
 # ----- update_bill -----
 
 
@@ -215,6 +258,7 @@ def delete_bill_tool(user) -> StructuredTool:
 def build_bill_tools(user) -> list[StructuredTool]:
     return [
         create_bill_tool(user),
+        batch_create_bills_tool(user),
         update_bill_tool(user),
         query_bills_tool(user),
         search_bills_tool(user),

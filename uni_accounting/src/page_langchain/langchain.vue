@@ -70,25 +70,30 @@
 						<view v-if="msg.type === 'transaction' && msg.content" class="bubble txn-reply-bubble">
 							<text class="text-content">{{ displayText(msg) }}</text>
 						</view>
-						<!-- 改删确认卡片：点确认/取消，布尔回传 -->
+						<!-- 写操作确认卡片：账单/资产/发票共用，点确认/取消后回传 -->
 						<view v-if="msg.type === 'confirm'" class="confirm-card">
 							<text v-if="msg.content" class="confirm-title">{{ displayText(msg) }}</text>
 							<view
-								v-for="item in (msg.candidates || [])"
-								:key="item.id"
+								v-for="(item, i) in (msg.candidates || [])"
+								:key="item.id || i"
 								class="confirm-item"
 							>
 								<view class="confirm-item-main">
-									<text class="confirm-item-name">{{ item.remark || item.category || '账单' }}</text>
-									<text class="confirm-item-meta">{{ item.date }} · {{ formatConfirmAmount(item) }}</text>
+									<text class="confirm-item-name">{{ confirmItemName(msg, item) }}</text>
+									<text class="confirm-item-meta">{{ confirmItemMeta(msg, item) }}</text>
 								</view>
 								<view
-									v-if="!msg.resolved"
+									v-if="!msg.resolved && !isTargetlessConfirm(msg)"
 									class="confirm-btn confirm-btn-ok"
 									@click="handleConfirmAction(msg, true, item)"
 								>确认{{ actionLabel(msg.action) }}</view>
 							</view>
 							<view v-if="!msg.resolved" class="confirm-actions">
+								<view
+									v-if="isTargetlessConfirm(msg)"
+									class="confirm-btn confirm-btn-ok"
+									@click="handleConfirmAction(msg, true)"
+								>确认{{ actionLabel(msg.action) }}</view>
 								<view class="confirm-btn confirm-btn-cancel" @click="handleConfirmAction(msg, false)">取消</view>
 							</view>
 							<text v-else class="confirm-resolved">已处理</text>
@@ -342,13 +347,47 @@ const formatMessage = (msg) => {
 	return formatted;
 };
 
-const actionLabel = (action) => (action === 'update' ? '修改' : action === 'delete' ? '删除' : '操作');
+const ACTION_LABELS = {
+	update: '修改',
+	delete: '删除',
+	create: '新建',
+	adjust_balance: '调整',
+	batch_create: '记账'
+};
+const actionLabel = (action) => ACTION_LABELS[action] || '操作';
+
+// 这些写操作没有既有目标对象，确认时不需要 target_id，只出一个确认按钮
+const isTargetlessConfirm = (msg) => {
+	const entity = msg?.entity || 'bill';
+	return (entity === 'bill' && msg?.action === 'batch_create')
+		|| (entity === 'asset' && msg?.action === 'create');
+};
+
+const formatMoney = (n) => (n % 1 === 0 ? String(n) : n.toFixed(2));
 
 const formatConfirmAmount = (item) => {
 	const n = Number(item?.amount);
 	if (Number.isNaN(n)) return '';
-	const prefix = item?.type === 'income' ? '+' : '-';
-	return `${prefix}${n % 1 === 0 ? n : n.toFixed(2)}元`;
+	const prefix = (item?.type || item?.bill_type) === 'income' ? '+' : '-';
+	return `${prefix}${formatMoney(n)}元`;
+};
+
+const confirmItemName = (msg, item) => {
+	const entity = msg?.entity || 'bill';
+	if (entity === 'asset') return item.name || '账户';
+	if (entity === 'invoice') return item.name || '发票抬头';
+	return item.remark || item.description || item.category || '账单';
+};
+
+const confirmItemMeta = (msg, item) => {
+	const entity = msg?.entity || 'bill';
+	if (entity === 'asset') {
+		// 负债余额后端已带负号
+		const n = Number(item.balance);
+		return [item.asset_type, Number.isNaN(n) ? '' : `${formatMoney(n)}元`].filter(Boolean).join(' · ');
+	}
+	if (entity === 'invoice') return item.tax_id || '';
+	return [item.date, formatConfirmAmount(item)].filter(Boolean).join(' · ');
 };
 
 const markConfirmResolved = (msg) => {
@@ -358,14 +397,14 @@ const markConfirmResolved = (msg) => {
 	}
 };
 
-/** 确认卡片：confirm 布尔 + bill_id + action 回传后端 */
+/** 确认卡片：confirm 布尔 + entity/action/target_id + message_id 回传后端 */
 const handleConfirmAction = async (msg, ok, item = null) => {
 	if (loading.value || msg.resolved) return;
 	const extra = ok
-		? { confirm: true, bill_id: item?.id, action: msg.action }
-		: { confirm: false };
-	if (ok && (extra.bill_id == null || !extra.action)) {
-		return uni.showToast({ title: '缺少账单信息', icon: 'none' });
+		? { confirm: true, entity: msg.entity || 'bill', action: msg.action, target_id: item?.id, message_id: msg.id }
+		: { confirm: false, message_id: msg.id };
+	if (ok && (!extra.action || (extra.target_id == null && !isTargetlessConfirm(msg)))) {
+		return uni.showToast({ title: '缺少确认信息', icon: 'none' });
 	}
 
 	const content = ok ? `确认${actionLabel(msg.action)}` : '取消';

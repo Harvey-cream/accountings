@@ -12,11 +12,21 @@ MUTATION_INTENTS = ("update", "delete")
 
 
 def route_by_intent(state: BillAgentState) -> str:
-    """create/query 直接执行；update/delete 先过定位与确认。"""
-    return "mutation_check" if state.get("intent") in MUTATION_INTENTS else "bill_agent"
+    """create/query 直接执行；批量记账先拆草稿；update/delete 先过定位与确认。"""
+    intent = state.get("intent")
+    if intent == "batch_create":
+        return "batch_parse"
+    return "mutation_check" if intent in MUTATION_INTENTS else "bill_agent"
 
 
 def route_after_mutation_check(state: BillAgentState) -> str:
+    if state.get("result"):
+        return "result_formatter"
+    return "human_confirm" if state.get("need_confirm") else "bill_agent"
+
+
+def route_after_batch_parse(state: BillAgentState) -> str:
+    """拆不出草稿就直接收尾；未确认先出汇总卡片；已确认交给 bill_agent 批量落库。"""
     if state.get("result"):
         return "result_formatter"
     return "human_confirm" if state.get("need_confirm") else "bill_agent"

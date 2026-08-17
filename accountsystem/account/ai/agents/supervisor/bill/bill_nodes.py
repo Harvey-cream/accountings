@@ -5,12 +5,21 @@ from __future__ import annotations
 import json
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from pydantic import ValidationError
 
 from account.ai.llm.llm import llm
-from account.ai.llm.llm_utils import extract_content, log_agent_exc
+from account.ai.llm.llm_utils import (
+    extract_content,
+    log_agent_exc,
+    nested_structured_output,
+)
 
 from .bill_prompt import (
     ACTION_LABEL,
+    BATCH_EMPTY,
+    BILL_BATCH_HINT,
+    BILL_BATCH_RETRY_HINT,
+    BILL_BATCH_SYSTEM,
     BILL_INTENT_SYSTEM,
     BILL_LOCATOR_SYSTEM,
     BILL_SYSTEM,
@@ -18,10 +27,30 @@ from .bill_prompt import (
     INTENT_GUIDE,
     NOT_FOUND,
 )
-from .bill_schemas import BillIntent, BillLocator
+from .bill_schemas import BillBatch, BillIntent, BillLocator
 from .bill_state import BillAgentState
 
 _MAX_CANDIDATES = 5
+_MAX_DRAFTS = 20
+_BATCH_MAX_RETRIES = 1
+
+
+def _origin_text(state: BillAgentState) -> str:
+    """本轮真正要处理的用户诉求。确认回合回历史里取用户原话。
+
+    是否确认只看 state.confirmed（前端布尔回传），不解析文案。
+    确认回合的 input 是前端占位句，messages 里刚追加的那条就是它，跳过即可。
+    """
+    text = (state.get("input") or "").strip()
+    if not state.get("confirmed"):
+        return text
+    for msg in reversed(state.get("messages") or []):
+        if not isinstance(msg, HumanMessage):
+            continue
+        content = extract_content(msg).strip()
+        if content and content != text:
+            return content
+    return text
 
 
 # ----- 1. context_prepare -----
@@ -59,7 +88,66 @@ def make_intent_router_node(model=llm):
     return intent_router_node
 
 
-# ----- 3. bill_agent -----
+# ----- 3. batch_parse -----
+
+
+def _parse_drafts(parser, text: str) -> list[dict]:
+    """拆多笔草稿。嵌套数组的结构化输出偶发只回空对象，故按 schema 失败有限重试。"""
+    messages: list = [
+        SystemMessage(content=BILL_BATCH_SYSTEM),
+        HumanMessage(content=text),
+    ]
+    for attempt in range(_BATCH_MAX_RETRIES + 1):
+        try:
+            batch = parser.invoke(messages)
+            drafts = [d.model_dump() for d in batch.items if d.amount > 0][:_MAX_DRAFTS]
+            if drafts:
+                return drafts
+            detail = "items 为空或金额缺失"
+        except ValidationError as e:
+            detail = str(e)[:200]
+        except Exception as e:
+            # 调用层失败（超时/网络等）：不可修复，直接放弃
+            log_agent_exc("BILL_BATCH", e, input=text[:60])
+            return []
+
+        log_agent_exc(
+            "BILL_BATCH",
+            ValueError(f"invalid BillBatch attempt={attempt}: {detail}"),
+            input=text[:60],
+        )
+        if attempt >= _BATCH_MAX_RETRIES:
+            break
+        messages.append(HumanMessage(content=BILL_BATCH_RETRY_HINT))
+    return []
+
+
+def make_batch_parse_node(model=llm):
+    """把一句话拆成多笔草稿；未确认先出汇总卡片，确认后把草稿作为便签交给 bill_agent。"""
+    parser = nested_structured_output(model, BillBatch)
+
+    def batch_parse_node(state: BillAgentState) -> dict:
+        text = _origin_text(state)
+        drafts = _parse_drafts(parser, text)
+
+        if not drafts:
+            return {"result": {"success": False, "message": BATCH_EMPTY, "data": {}}}
+        if not state.get("confirmed"):
+            return {"drafts": drafts, "need_confirm": True}
+        return {
+            "drafts": drafts,
+            "need_confirm": False,
+            "messages": [
+                SystemMessage(
+                    content=BILL_BATCH_HINT.format(items=json.dumps(drafts, ensure_ascii=False))
+                )
+            ],
+        }
+
+    return batch_parse_node
+
+
+# ----- 4. bill_agent -----
 
 
 def make_bill_agent_node(tools: list, model=llm):
@@ -88,7 +176,7 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         if target.get("id"):
             return _located(state, target)
 
-        text = state.get("input") or ""
+        text = _origin_text(state)
         try:
             hint = locator.invoke(
                 [SystemMessage(content=BILL_LOCATOR_SYSTEM), HumanMessage(content=text)]
@@ -152,14 +240,19 @@ def human_confirm_node(state: BillAgentState) -> dict:
     """高危操作前输出确认卡片数据，等前端点确认/取消后续跑。"""
     intent = state.get("intent") or ""
     action = ACTION_LABEL.get(intent, "操作")
-    candidates = state.get("candidates") or []
-    target = state.get("target_bill") or {}
-    rows = candidates or ([target] if target else [])
 
-    if len(rows) > 1:
-        question = f"找到 {len(rows)} 笔相近的账单，请点选要{action}的那一笔～"
+    if intent == "batch_create":
+        rows = state.get("drafts") or []
+        total = sum(float(d.get("amount") or 0) for d in rows)
+        question = f"一共 {len(rows)} 笔，合计 {total:g} 元，确认都记下来吗？"
     else:
-        question = f"确认{action}这笔账单吗？"
+        candidates = state.get("candidates") or []
+        target = state.get("target_bill") or {}
+        rows = candidates or ([target] if target else [])
+        if len(rows) > 1:
+            question = f"找到 {len(rows)} 笔相近的账单，请点选要{action}的那一笔～"
+        else:
+            question = f"确认{action}这笔账单吗？"
 
     return {
         "messages": [AIMessage(content=question)],
@@ -168,6 +261,7 @@ def human_confirm_node(state: BillAgentState) -> dict:
             "message": question,
             "data": {
                 "need_confirm": True,
+                "entity": "bill",
                 "action": intent,
                 "candidates": rows,
             },

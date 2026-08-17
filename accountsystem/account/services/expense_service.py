@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -90,6 +91,37 @@ def create_expense(
         "icon": icon_code,
         "remark": record.remark or "",
         "date": str(record.date),
+    }
+
+
+def batch_create_expense(user, items: list[dict]) -> dict:
+    """一次记多笔账单。整批在同一事务内创建，任一笔失败则全部回滚。
+
+    items 每项：{amount, bill_type?, category_name?, remark?, obs_date?}
+    """
+    if not items:
+        raise ServiceError("没有可记录的账单")
+
+    created: list[dict] = []
+    with transaction.atomic():
+        for item in items:
+            created.append(
+                create_expense(
+                    user,
+                    amount=item.get("amount"),
+                    bill_type=item.get("bill_type") or "expense",
+                    category_name=item.get("category_name") or "其他",
+                    remark=item.get("remark") or "",
+                    obs_date=item.get("obs_date"),
+                )
+            )
+    expense_total = sum(r["amount"] for r in created if r["type"] == "expense")
+    income_total = sum(r["amount"] for r in created if r["type"] == "income")
+    return {
+        "count": len(created),
+        "expense_total": expense_total,
+        "income_total": income_total,
+        "records": created,
     }
 
 

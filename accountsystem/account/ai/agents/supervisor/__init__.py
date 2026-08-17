@@ -4,11 +4,14 @@
   supervisor/
     supervisor_agent.py / supervisor_prompt.py / supervisor_schemas.py
     bill/       # 账单子 Agent
-    analysis/   # 分析子 Agent
     budget/     # 预算子 Agent
+    asset/      # 资产子 Agent
+    invoice/    # 发票子 Agent
+
+分析能力不再作为独立 Workflow：analysis_tools 由 CrewAI 的 Financial Analyst 使用。
 """
 
-from . import analysis, bill, budget
+from . import asset, bill, budget, invoice
 from .supervisor_agent import route
 from .supervisor_schemas import RouteDecision, TaskType
 
@@ -17,6 +20,7 @@ __all__ = [
     "RouteDecision",
     "TaskType",
     "bill",
-    "analysis",
     "budget",
+    "asset",
+    "invoice",
 ]

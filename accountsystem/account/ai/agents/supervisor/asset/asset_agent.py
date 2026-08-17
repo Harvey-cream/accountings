@@ -1,6 +1,6 @@
-"""Bill Agent 外壳：LCEL 管道 → Bill Workflow(StateGraph) → 结果适配。
+"""Asset Agent 外壳：LCEL 管道 → Asset Workflow(StateGraph) → 结果适配。
 
-图与节点在 bill_graph / bill_nodes 里，本文件只负责入参整形与出参兼容。
+图与节点在 asset_graph / asset_nodes 里，本文件只负责入参整形与出参兼容。
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ from langchain_core.runnables import RunnableLambda
 from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.llm.llm_utils import extract_content
 
-from .bill_graph import build_bill_graph
+from .asset_graph import build_asset_graph
 
-_CONFIRM_ACTIONS = {"update", "delete"}
-_TARGETLESS_ACTIONS = {"batch_create"}
+_CONFIRM_ACTIONS = {"create", "update", "delete", "adjust_balance"}
+_TARGETLESS_ACTIONS = {"create"}
 
 
 def _tool_call_id(tc) -> str:
@@ -24,7 +24,7 @@ def _tool_call_id(tc) -> str:
 
 
 def _graph_to_result(graph_state: dict) -> dict:
-    """Bill 结果适配：messages + result -> {output, intermediate_steps[, confirm]}。"""
+    """Asset 结果适配：messages + result -> {output, intermediate_steps[, confirm]}。"""
     messages = graph_state.get("messages") or []
     pending = {}
     steps = []
@@ -46,7 +46,7 @@ def _graph_to_result(graph_state: dict) -> dict:
     if data.get("need_confirm"):
         out["confirm"] = {
             "need_confirm": True,
-            "entity": "bill",
+            "entity": "asset",
             "action": data.get("action") or "",
             "candidates": data.get("candidates") or [],
         }
@@ -65,28 +65,25 @@ def _to_graph_input(payload: dict) -> dict:
     }
     confirm = payload.get("confirm") or {}
     action = str(confirm.get("action") or "").strip()
-    if confirm.get("confirm") is not True:
+    if confirm.get("confirm") is not True or action not in _CONFIRM_ACTIONS:
         return state
 
+    target_id = confirm.get("target_id")
     if action in _TARGETLESS_ACTIONS:
-        # 批量记账没有目标 id，草稿由 batch_parse 从历史原话里重新拆出
         state["intent"] = action
         state["confirmed"] = True
-        return state
-
-    bill_id = confirm.get("target_id", confirm.get("bill_id"))
-    if bill_id is not None and action in _CONFIRM_ACTIONS:
+    elif target_id is not None:
         state["intent"] = action
-        state["target_bill"] = {"id": int(bill_id)}
+        state["target_account"] = {"id": int(target_id)}
         state["confirmed"] = True
     return state
 
 
 def _build_chain(user):
-    """账单域专属管道：input -> bill workflow -> result。"""
+    """资产域专属管道：input -> asset workflow -> result。"""
     return (
         RunnableLambda(_to_graph_input)
-        | build_bill_graph(user)
+        | build_asset_graph(user)
         | RunnableLambda(_graph_to_result)
     )
 

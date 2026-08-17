@@ -18,18 +18,21 @@ class AgentState(TypedDict, total=False):
 
     # --- 输入 ---
     user_input: str
-    # 前端确认卡片回传：{confirm: bool, bill_id?: int, action?: "update"|"delete"}
+    # 前端确认卡片回传：{confirm: bool, entity?: "bill"|"asset"|"invoice",
+    #                   target_id?: int, action?: str}
     confirm: dict
 
     # --- 路由结果 ---
-    task_type: str      # bill / analysis / budget / open_planning
-    current_agent: str  # 当前执行的业务 Agent 名（open_planning 时为 finance_planner）
+    task_type: str      # bill / budget / asset / invoice / open_planning / workflow_plan
+    current_agent: str  # 当前执行的业务 Agent 名（open_planning=finance_planner；跨域计划=task_planner）
 
     # --- 执行上下文 ---
     messages: list          # 预留 / 也可承载本轮 memory 历史
     memory_messages: list   # 最近对话（含可选摘要），喂给子 Agent
     memory_text: str        # 短文本上下文，喂给 Supervisor
     tool_results: list      # intermediate_steps: [(tool_call, observation), ...]
+    workflow_plan: list     # Task Planner 产出的任务计划（WorkflowTask dict 列表，按执行序）
+    workflow_results: dict  # {task_id: 该 Workflow 的 result dict}，多 Workflow 共享上下文
 
     # --- 输出 ---
     final_response: dict    # {"output": str, "intermediate_steps": list}

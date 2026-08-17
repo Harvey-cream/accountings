@@ -14,7 +14,7 @@ _router_llm = llm.with_structured_output(RouteDecision)
 
 
 def route(user_input: str, context: str = "") -> RouteDecision:
-    """把用户输入路由到 bill / analysis / budget。失败时兜底到 bill。"""
+    """把用户输入路由到 bill / budget / asset / invoice。失败时兜底到 bill。"""
     try:
         human = user_input or ""
         if context:

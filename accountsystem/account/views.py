@@ -20,6 +20,7 @@ from .services.langchain_chat import (
     create_ai_chat_message,
     create_user_chat_message,
     parse_confirm_payload,
+    resolve_confirm_card,
 )
 from .ai.llm.schemas import AGENT_ERROR_REPLY
 
@@ -630,11 +631,18 @@ class GetBudgetView(APIView):
             return HttpResult.fail(f"获取预算失败: {str(e)}")
 
 
+_CONFIRM_DONE_REPLY = "这条确认已经处理过啦～"
+
+
 def _chat_turn_user_message(user, content):
     """校验并保存用户消息，失败时返回 (None, error_response)。"""
     if not content:
         return None, HttpResult.fail("消息内容不能为空")
     return create_user_chat_message(user, content), None
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 class LangchainChatView(APIView):
@@ -675,6 +683,8 @@ class LangchainChatView(APIView):
         confirm = parse_confirm_payload(request.data)
         if confirm is None and "confirm" in (request.data or {}):
             return HttpResult.fail("确认参数无效")
+        if confirm is not None and not resolve_confirm_card(user, confirm.get("message_id")):
+            return HttpResult.fail(_CONFIRM_DONE_REPLY)
         if confirm is not None and not content:
             content = "确认" if confirm.get("confirm") else "取消"
         user_msg, err = _chat_turn_user_message(user, content)
@@ -716,14 +726,17 @@ class LangchainChatStreamView(APIView):
         confirm = parse_confirm_payload(request.data)
         if confirm is None and "confirm" in (request.data or {}):
             return HttpResult.fail("确认参数无效")
+        if confirm is not None and not resolve_confirm_card(user, confirm.get("message_id")):
+            # 走 SSE 契约返回，否则前端 fetch 拿到非流式响应会一直等不到 done
+            return StreamingHttpResponse(
+                iter([_sse({"type": "error", "message": _CONFIRM_DONE_REPLY})]),
+                content_type="text/event-stream; charset=utf-8",
+            )
         if confirm is not None and not content:
             content = "确认" if confirm.get("confirm") else "取消"
         user_msg, err = _chat_turn_user_message(user, content)
         if err:
             return err
-
-        def _sse(payload: dict) -> str:
-            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
         def generate():
             import asyncio

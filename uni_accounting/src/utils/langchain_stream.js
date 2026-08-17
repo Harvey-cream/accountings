@@ -33,7 +33,7 @@ function _parseBuffer(buffer, handlers) {
 	return rest;
 }
 
-/** H5 SSE 流式对话：onStatus / onToken / onDone / onError；extra 可带 confirm/bill_id/action */
+/** H5 SSE 流式对话：onStatus / onToken / onDone / onError；extra 可带 confirm/entity/action/target_id/message_id */
 export async function sendLangchainChatStream(content, handlers = {}, extra = {}) {
 	if (!isLangchainStreamSupported()) {
 		throw new Error('当前环境不支持流式（需要浏览器 fetch + ReadableStream）');

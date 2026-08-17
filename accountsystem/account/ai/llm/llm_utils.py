@@ -3,6 +3,16 @@
 import traceback
 
 
+def nested_structured_output(model, schema):
+    """给"含对象数组"的 Schema 用的结构化输出。
+
+    当前 LLM 端点默认的 json_schema 通道在嵌套对象数组上不可用：会稳定返回
+    [{}, {}, {}] 这样的空元素，导致必填字段校验全挂。改走 function_calling
+    通道后同样输入可稳定解析。扁平 Schema 仍用默认通道即可。
+    """
+    return model.with_structured_output(schema, method="function_calling")
+
+
 def log_agent_exc(tag: str, exc: BaseException, **context) -> None:
     """打印 Agent 异常：类型、repr、可选上下文、完整堆栈。"""
     ctx = " ".join(f"{k}={v!r}" for k, v in context.items())
