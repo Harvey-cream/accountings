@@ -5,10 +5,8 @@
 （分析已不再是独立 Workflow，analysis_tools 归 CrewAI 的 Financial Analyst）；
 其余一律回落，由原 Supervisor 决策，保持固定业务链路不变。
 
-两级判定：
-1. is_probably_open：本地关键词/长度门控，只决定"要不要花一次 LLM"，不决定最终路由。
-2. route_open_task：LLM + TaskRoute schema 校验；schema 失败有限重试（最多 2 次），
-   仍失败再安全降级。网络/调用异常不重试，直接降级。
+当前直接使用 simple 档 LLM + TaskRoute schema 校验完成判定，
+不再依赖本地关键词/长度前置门控，以避免在真正分类前提前错杀请求。
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from account.ai.llm.llm import llm
+from account.ai.llm.llm import get_llm
 from account.ai.llm.llm_utils import log_agent_exc
 
 _ALLOWED_TASK_TYPES = frozenset({"bill", "budget", "asset", "invoice", "open_planning"})
@@ -36,14 +34,6 @@ class TaskRoute(BaseModel):
     )
     reason: str = Field(default="", description="一句话分类依据")
 
-
-_OPEN_HINTS = (
-    "规划", "计划", "方案", "报告", "综合", "整体", "未来", "长期",
-    "一年", "全年", "半年", "季度", "财富", "理财", "优化建议", "怎么规划",
-    "如何安排", "帮我制定",
-    # 消费分析已归 CrewAI，关键词一并纳入门控
-    "分析", "统计", "趋势", "花了多少", "花销", "对比",
-)
 
 _OPEN_TASK_SYSTEM = """你是财务助手的任务分流器。判断用户请求是"固定业务"还是"交给分析规划团队的开放任务"。
 
@@ -67,19 +57,6 @@ _RETRY_HINT = (
 )
 
 _FALLBACK = TaskRoute(task_type="bill", reason="fallback-non-open")
-
-
-def is_probably_open(text: str) -> bool:
-    """轻量门控：命中规划关键词、或较长的复合诉求，才值得进 LLM 判定。
-
-    只做成本过滤，不决定最终业务路由：
-    - False → 直接交给 Supervisor（零额外 LLM）
-    - True  → 再调 LLM + schema 校验，才可能进 open_planning
-    """
-    t = text or ""
-    if any(h in t for h in _OPEN_HINTS):
-        return True
-    return len(t) >= 18
 
 
 def _validate_task_route(raw: Any) -> TaskRoute | None:
@@ -132,7 +109,7 @@ def route_open_task(user_input: str, context: str = "") -> TaskRoute:
         SystemMessage(content=_OPEN_TASK_SYSTEM),
         HumanMessage(content=human),
     ]
-    router_llm = llm.with_structured_output(TaskRoute)
+    router_llm = get_llm("simple").with_structured_output(TaskRoute)
 
     for attempt in range(_MAX_SCHEMA_RETRIES + 1):
         decision: Any = None
@@ -158,14 +135,11 @@ def route_open_task(user_input: str, context: str = "") -> TaskRoute:
         )
         if attempt >= _MAX_SCHEMA_RETRIES:
             break
-        # 仅对 schema 失败反馈重试：把非法输出和约束塞回对话
         messages.append(HumanMessage(content=f"{_RETRY_HINT}\n上一轮输出：{detail}"))
 
     return _FALLBACK
 
 
 def is_open_planning(user_input: str, context: str = "") -> bool:
-    """给 orchestrator 用的便捷判断：门控通过且 schema 校验后确认为 open_planning。"""
-    if not is_probably_open(user_input):
-        return False
+    """给 orchestrator 用的便捷判断：直接用 LLM + schema 校验判断是否为 open_planning。"""
     return route_open_task(user_input, context).task_type == "open_planning"

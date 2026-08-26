@@ -11,7 +11,7 @@ import threading
 from django.core.cache import cache
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from account.ai.llm.llm import llm
+from account.ai.llm.llm import get_llm
 from account.ai.llm.llm_utils import extract_content, log_agent_exc
 from account.models import LangchainChatMessage
 
@@ -160,7 +160,7 @@ def _compress_blob(blob: str) -> str:
     if len(blob) <= 120:
         return blob.replace("\n", "；")
     raw = extract_content(
-        llm.invoke(
+        get_llm("simple").invoke(
             "将下列历史对话压成不超过80字的中文摘要，保留金额、分类、账单意图等关键事实，不要客套：\n\n"
             + blob[:2000]
         )

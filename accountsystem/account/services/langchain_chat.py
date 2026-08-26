@@ -16,96 +16,158 @@ def safe_db_text(text):
     return str(text).replace("**", "")
 
 
-def create_ai_chat_message(user, content, ai_data):
-    """
-    根据 Agent 返回的 ai_data 持久化 AI 消息：
-    - need_confirm：改删确认卡片
-    - 已有 record_id：Tool 已写库，只挂聊天卡片
-    - money > 0 且无 record_id：兼容旧路径，经 expense_service 写入
-    - 否则：仅保存文本回复
-    """
-    if ai_data.get("need_confirm"):
-        extra = {
-            "need_confirm": True,
-            "entity": ai_data.get("confirm_entity") or "bill",
-            "action": ai_data.get("confirm_action") or "",
-            "candidates": ai_data.get("candidates") or [],
-            "resolved": False,
-        }
-        return LangchainChatMessage.objects.create(
-            user=user,
-            role="ai",
-            type="confirm",
-            content=safe_db_text(ai_data.get("reply", "")),
-            extra_data=json.dumps(extra, ensure_ascii=False),
-            record=None,
-        )
+def _create_confirm_message(user, ai_data):
+    confirmations = ai_data.get("confirmations") or []
+    primary = confirmations[0] if confirmations else {}
+    extra = {
+        "need_confirm": True,
+        "entity": ai_data.get("confirm_entity") or primary.get("entity") or "bill",
+        "action": ai_data.get("confirm_action") or primary.get("action") or "",
+        "candidates": ai_data.get("candidates") or primary.get("candidates") or [],
+        "confirmations": confirmations,
+        "plan_tasks": ai_data.get("plan_tasks") or [],
+        "resolved": False,
+    }
+    return LangchainChatMessage.objects.create(
+        user=user,
+        role="ai",
+        type="confirm",
+        content=safe_db_text(ai_data.get("reply", "")),
+        extra_data=json.dumps(extra, ensure_ascii=False),
+        record=None,
+    )
 
+
+def _create_transaction_message(user, content, card):
+    payload = card.get("payload") or {}
     try:
-        money_val = float(ai_data.get("money", 0))
+        money_val = float(payload.get("money", 0))
     except (TypeError, ValueError):
         money_val = 0
 
-    record_id = ai_data.get("record_id")
+    record_id = card.get("record_id")
     associated_record = None
-    icon_code = ai_data.get("icon") or "notes-o"
+    icon_code = card.get("icon") or "notes-o"
 
     if record_id:
         associated_record = TransactionRecord.objects.filter(id=record_id, user=user).first()
         if associated_record and money_val <= 0:
             money_val = float(associated_record.amount)
 
-    if money_val > 0 or associated_record is not None:
-        ai_type = "transaction"
-        cat_name = ai_data.get("category", "其他")
-        if associated_record is None:
-            bill_type = "expense" if ai_data.get("type") == "支出" else "income"
-            try:
-                created = create_expense(
-                    user,
-                    amount=Decimal(str(money_val)),
-                    bill_type=bill_type,
-                    category_name=cat_name,
-                    remark=ai_data.get("remark", content) or "",
-                )
-                record_id = created["id"]
-                icon_code = created.get("icon") or icon_code
-                associated_record = TransactionRecord.objects.filter(id=record_id).first()
-            except ServiceError as e:
-                print(f"自动记账存入失败: {e.message}")
-            except Exception as e:
-                print(f"自动记账存入失败: {e}")
+    if associated_record is None and money_val > 0:
+        cat_name = payload.get("category", "其他")
+        bill_type = "expense" if payload.get("type") == "支出" else "income"
+        try:
+            created = create_expense(
+                user,
+                amount=Decimal(str(money_val)),
+                bill_type=bill_type,
+                category_name=cat_name,
+                remark=payload.get("remark", content) or "",
+            )
+            record_id = created["id"]
+            icon_code = created.get("icon") or icon_code
+            associated_record = TransactionRecord.objects.filter(id=record_id).first()
+        except ServiceError as e:
+            print(f"自动记账存入失败: {e.message}")
+        except Exception as e:
+            print(f"自动记账存入失败: {e}")
 
-        if associated_record is not None:
-            cat_name = associated_record.category.name if associated_record.category_id else cat_name
-            type_label = "支出" if associated_record.type == "expense" else "收入"
-            money_val = float(associated_record.amount)
-        else:
-            type_label = ai_data.get("type") or "支出"
-
-        extra_data = {
-            "amount": f"{'-' if type_label == '支出' else '+'}{money_val:.2f}",
-            "category": cat_name,
-            "remark": ai_data.get("remark", ""),
-            "date": timezone.now().strftime("%Y年%m月%d日"),
-            "icon": icon_code,
-            "iconColor": "#64748b",
-            "bgColor": "#f1f5f9",
-            "record_id": record_id,
-        }
+    if associated_record is not None:
+        cat_name = associated_record.category.name if associated_record.category_id else payload.get("category", "其他")
+        type_label = "支出" if associated_record.type == "expense" else "收入"
+        money_val = float(associated_record.amount)
     else:
-        ai_type = "text"
-        extra_data = None
-        associated_record = None
+        cat_name = payload.get("category", "其他")
+        type_label = payload.get("type") or "支出"
 
+    extra_data = {
+        "amount": f"{'-' if type_label == '支出' else '+'}{money_val:.2f}",
+        "category": cat_name,
+        "remark": payload.get("remark", ""),
+        "date": timezone.now().strftime("%Y年%m月%d日"),
+        "icon": icon_code,
+        "iconColor": "#64748b",
+        "bgColor": "#f1f5f9",
+        "record_id": record_id,
+    }
     return LangchainChatMessage.objects.create(
         user=user,
         role="ai",
-        type=ai_type,
-        content=safe_db_text(ai_data.get("reply", "")),
-        extra_data=json.dumps(extra_data, ensure_ascii=False) if extra_data else None,
+        type="transaction",
+        content="",
+        extra_data=json.dumps(extra_data, ensure_ascii=False),
         record=associated_record,
     )
+
+
+def _create_budget_message(user, card):
+    payload = card.get("payload") or {}
+    budget_type = "月预算" if payload.get("budget_type") == "month" else "年预算"
+    category = payload.get("category") or "总预算"
+    extra_data = {
+        "budget_id": payload.get("budget_id"),
+        "amount": f"{float(payload.get('amount') or 0):.2f}",
+        "budget_type": budget_type,
+        "period": payload.get("period") or "",
+        "category": category,
+        "is_total": bool(payload.get("is_total")),
+    }
+    return LangchainChatMessage.objects.create(
+        user=user,
+        role="ai",
+        type="budget",
+        content=safe_db_text(payload.get("reply", "预算已更新")),
+        extra_data=json.dumps(extra_data, ensure_ascii=False),
+        record=None,
+    )
+
+
+def create_ai_chat_messages(user, content, ai_data):
+    """
+    根据 Agent 返回的 ai_data 持久化 AI 消息：
+    - need_confirm：改删确认卡片
+    - cards：文本总结 + 多张结构化卡片
+    - 兼容旧路径：单账单或纯文本
+    """
+    if ai_data.get("need_confirm"):
+        return [_create_confirm_message(user, ai_data)]
+
+    cards = ai_data.get("cards") or []
+    messages = []
+    reply = safe_db_text(ai_data.get("reply", ""))
+    if reply:
+        messages.append(
+            LangchainChatMessage.objects.create(
+                user=user,
+                role="ai",
+                type="text",
+                content=reply,
+                extra_data=None,
+                record=None,
+            )
+        )
+
+    for card in cards:
+        card_type = card.get("type")
+        if card_type == "transaction":
+            messages.append(_create_transaction_message(user, content, card))
+        elif card_type == "budget":
+            messages.append(_create_budget_message(user, card))
+
+    if messages:
+        return messages
+
+    return [
+        LangchainChatMessage.objects.create(
+            user=user,
+            role="ai",
+            type="text",
+            content=safe_db_text(ai_data.get("reply", "")),
+            extra_data=None,
+            record=None,
+        )
+    ]
 
 
 def create_user_chat_message(user, content):
@@ -128,8 +190,8 @@ _CONFIRM_ACTIONS = {
 _TARGETLESS_CONFIRMS = {("bill", "batch_create"), ("asset", "create")}
 
 
-def resolve_confirm_card(user, message_id=None) -> bool:
-    """把确认卡片标记为已处理并落库，返回 False 表示此前已处理过。
+def resolve_confirm_card(user, message_id=None) -> tuple[bool, dict | None]:
+    """把确认卡片标记为已处理并落库，返回 (是否可继续, extra_data)。
 
     调用方拿到 False 必须拒绝本轮执行：确认状态只存在于前端内存时，用户刷新页面
     后按钮会复活，再点一次批量记账、新建账户这类写操作就会重复落库。
@@ -142,19 +204,19 @@ def resolve_confirm_card(user, message_id=None) -> bool:
         else qs.order_by("-create_time", "-id").first()
     )
     if card is None:
-        return True
+        return True, None
 
     try:
         extra = json.loads(card.extra_data or "{}")
     except (TypeError, ValueError):
         extra = {}
     if extra.get("resolved"):
-        return False
+        return False, extra
 
     extra["resolved"] = True
     card.extra_data = json.dumps(extra, ensure_ascii=False)
     card.save(update_fields=["extra_data"])
-    return True
+    return True, extra
 
 
 def parse_confirm_payload(data) -> dict | None:

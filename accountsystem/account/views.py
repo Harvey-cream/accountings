@@ -17,7 +17,7 @@ from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import datetime, timedelta
 from .services.langchain_chat import (
-    create_ai_chat_message,
+    create_ai_chat_messages,
     create_user_chat_message,
     parse_confirm_payload,
     resolve_confirm_card,
@@ -726,12 +726,17 @@ class LangchainChatStreamView(APIView):
         confirm = parse_confirm_payload(request.data)
         if confirm is None and "confirm" in (request.data or {}):
             return HttpResult.fail("确认参数无效")
-        if confirm is not None and not resolve_confirm_card(user, confirm.get("message_id")):
-            # 走 SSE 契约返回，否则前端 fetch 拿到非流式响应会一直等不到 done
-            return StreamingHttpResponse(
-                iter([_sse({"type": "error", "message": _CONFIRM_DONE_REPLY})]),
-                content_type="text/event-stream; charset=utf-8",
-            )
+        confirm_extra = None
+        if confirm is not None:
+            ok, confirm_extra = resolve_confirm_card(user, confirm.get("message_id"))
+            if not ok:
+                # 走 SSE 契约返回，否则前端 fetch 拿到非流式响应会一直等不到 done
+                return StreamingHttpResponse(
+                    iter([_sse({"type": "error", "message": _CONFIRM_DONE_REPLY})]),
+                    content_type="text/event-stream; charset=utf-8",
+                )
+            if confirm_extra:
+                confirm["confirm_extra"] = confirm_extra
         if confirm is not None and not content:
             content = "确认" if confirm.get("confirm") else "取消"
         user_msg, err = _chat_turn_user_message(user, content)
@@ -773,8 +778,8 @@ class LangchainChatStreamView(APIView):
 
             if ai_data is None:
                 ai_data = chat(AGENT_ERROR_REPLY)
-            ai_msg = create_ai_chat_message(user, content, ai_data)
-            serializer = LangchainChatMessageSerializer([user_msg, ai_msg], many=True)
+            ai_msgs = create_ai_chat_messages(user, content, ai_data)
+            serializer = LangchainChatMessageSerializer([user_msg, *ai_msgs], many=True)
             yield _sse({"type": "done", "code": 0, "data": serializer.data})
 
         response = StreamingHttpResponse(generate(), content_type="text/event-stream; charset=utf-8")

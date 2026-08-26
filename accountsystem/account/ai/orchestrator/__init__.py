@@ -20,6 +20,7 @@ from .open_task_router import is_open_planning
 from .router import decide
 from .state import AgentState, new_state
 from .task_planner import is_probably_multi, plan_workflows
+from .task_schema import WorkflowPlan
 
 __all__ = ["run_orchestrator", "AgentState", "new_state"]
 
@@ -46,13 +47,24 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
         if confirm.get("confirm") is False:
             return {"output": _CANCEL_REPLY, "intermediate_steps": []}
         if confirm.get("confirm") is True:
-            entity = str(confirm.get("entity") or "bill")
-            task = entity if entity in _CONFIRM_ENTITIES else "bill"
             state = new_state(text, user=user, conversation_id=conversation_id)
             memory_messages, memory_text = load_chat_memory(user, text)
             state["memory_messages"] = memory_messages
             state["memory_text"] = memory_text
             state["messages"] = list(memory_messages)
+
+            confirm_extra = confirm.get("confirm_extra") or {}
+            plan_tasks = confirm_extra.get("plan_tasks") or []
+            if plan_tasks:
+                state["task_type"] = "workflow_plan"
+                state["current_agent"] = "task_planner"
+                state["confirm"] = {**confirm, "confirmed_plan": True}
+                plan = WorkflowPlan.model_validate({"tasks": plan_tasks})
+                execute_plan(state, plan)
+                return state["final_response"]
+
+            entity = str(confirm.get("entity") or "bill")
+            task = entity if entity in _CONFIRM_ENTITIES else "bill"
             state["task_type"] = task
             state["current_agent"] = task
             state["confirm"] = confirm
@@ -78,7 +90,7 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
         return state["final_response"]
 
     # 2) 疑似跨域组合 → Task Planner 产出计划，按依赖序执行多个 Workflow
-    if is_probably_multi(text):
+    if is_probably_multi(text, memory_text):
         plan = plan_workflows(text, memory_text)
         if plan is not None and len(plan.tasks) > 1:
             state["task_type"] = "workflow_plan"

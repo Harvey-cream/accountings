@@ -1,0 +1,13 @@
+venv/
+venv312/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.env
+*.log
+# 前端静态产物与上传文件：运行时由 volume 挂载（nginx ./static、./media），无需打进镜像
+static/
+media/

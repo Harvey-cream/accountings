@@ -24,12 +24,10 @@
 			<view class="chat-list">
 				<view class="top-spacer"></view>
 				<view v-for="msg in messages" :key="msg.id" :class="['message-item', msg.role === 'user' ? 'user-msg' : 'ai-msg']">
-					<!-- Avatar -->
 					<view class="avatar">
 						<image :src="msg.role === 'user' ? '/static/default_avatar.png' : '/static/logo.png'" mode="aspectFill" />
 					</view>
 					<view class="content-box">
-						<!-- Text Message -->
 						<view v-if="msg.type === 'text' || msg.type === 'text_image'" class="bubble">
 							<text v-if="msg.content" class="text-content">{{ displayText(msg) }}</text>
 							<text v-else-if="streamingAiId === msg.id && streamingStatus" class="streaming-hint">{{ streamingStatus }}</text>
@@ -70,37 +68,63 @@
 						<view v-if="msg.type === 'transaction' && msg.content" class="bubble txn-reply-bubble">
 							<text class="text-content">{{ displayText(msg) }}</text>
 						</view>
-						<!-- 写操作确认卡片：账单/资产/发票共用，点确认/取消后回传 -->
+						<view v-if="msg.type === 'budget'" class="budget-card">
+							<view class="budget-head">
+								<text class="budget-title">预算已更新</text>
+								<text class="budget-type">{{ msg.budget_type }}</text>
+							</view>
+							<view class="budget-amount-row">
+								<text class="budget-amount">{{ msg.amount }} 元</text>
+							</view>
+							<view class="budget-meta-row">
+								<text class="budget-meta">{{ msg.category }}</text>
+								<text class="budget-meta">{{ msg.period }}</text>
+							</view>
+							<view v-if="msg.content" class="bubble txn-reply-bubble">
+								<text class="text-content">{{ displayText(msg) }}</text>
+							</view>
+						</view>
 						<view v-if="msg.type === 'confirm'" class="confirm-card">
 							<text v-if="msg.content" class="confirm-title">{{ displayText(msg) }}</text>
-							<view
-								v-for="(item, i) in (msg.candidates || [])"
-								:key="item.id || i"
-								class="confirm-item"
-							>
-								<view class="confirm-item-main">
-									<text class="confirm-item-name">{{ confirmItemName(msg, item) }}</text>
-									<text class="confirm-item-meta">{{ confirmItemMeta(msg, item) }}</text>
+							<template v-if="msg.confirmations && msg.confirmations.length">
+								<view v-for="(conf, cidx) in msg.confirmations" :key="`${msg.id}-conf-${cidx}`" class="confirm-group">
+									<text class="confirm-group-title">{{ confirmationGroupTitle(conf) }}</text>
+									<template v-if="(conf.candidates || []).length">
+										<view v-for="(item, i) in conf.candidates" :key="item.id || `${cidx}-${i}`" class="confirm-item">
+											<view class="confirm-item-main">
+												<text class="confirm-item-name">{{ confirmItemName(conf, item) }}</text>
+												<text class="confirm-item-meta">{{ confirmItemMeta(conf, item) }}</text>
+											</view>
+										</view>
+									</template>
+									<view v-else-if="conf.payload" class="confirm-item budget-preview-item">
+										<view class="confirm-item-main">
+											<text class="confirm-item-name">{{ confirmBudgetName(conf.payload) }}</text>
+											<text class="confirm-item-meta">{{ confirmBudgetMeta(conf.payload) }}</text>
+										</view>
+									</view>
 								</view>
+							</template>
+							<template v-else>
 								<view
-									v-if="!msg.resolved && !isTargetlessConfirm(msg)"
-									class="confirm-btn confirm-btn-ok"
-									@click="handleConfirmAction(msg, true, item)"
-								>确认{{ actionLabel(msg.action) }}</view>
-							</view>
+									v-for="(item, i) in (msg.candidates || [])"
+									:key="item.id || i"
+									class="confirm-item"
+								>
+									<view class="confirm-item-main">
+										<text class="confirm-item-name">{{ confirmItemName(msg, item) }}</text>
+										<text class="confirm-item-meta">{{ confirmItemMeta(msg, item) }}</text>
+									</view>
+								</view>
+							</template>
 							<view v-if="!msg.resolved" class="confirm-actions">
-								<view
-									v-if="isTargetlessConfirm(msg)"
-									class="confirm-btn confirm-btn-ok"
-									@click="handleConfirmAction(msg, true)"
-								>确认{{ actionLabel(msg.action) }}</view>
+								<view class="confirm-btn confirm-btn-ok" @click="handleConfirmAction(msg, true)">确认{{ actionLabel(confirmPrimaryAction(msg)) }}</view>
 								<view class="confirm-btn confirm-btn-cancel" @click="handleConfirmAction(msg, false)">取消</view>
 							</view>
 							<text v-else class="confirm-resolved">已处理</text>
 						</view>
 					</view>
 				</view>
-				<!-- Spacer for fixed bottom panel -->
 				<view v-if="loading" class="message-item ai-msg">
 					<view class="avatar">
 						<image src="/static/logo.png" mode="aspectFill" />
@@ -117,32 +141,30 @@
 			</view>
 		</scroll-view>
 
-		<!-- Bottom Interaction Area -->
 		<view class="bottom-panel">
 			<view class="input-container">
 				<view class="voice-icon">
 					<van-icon name="audio" size="24" color="#333" />
 				</view>
-				<input 
-					type="text" 
+				<input
+					type="text"
 					v-model="inputValue"
-					placeholder="发送消息给福娃鸭" 
-					class="main-input" 
+					placeholder="发送消息给福娃鸭"
+					class="main-input"
 					placeholder-style="color: #999"
 					@confirm="handleSend"
 				/>
-				<van-icon 
-					v-if="inputValue" 
-					name="send-gift-o" 
-					size="24" 
-					color="#ffd541" 
-					style="margin-left: 10px;" 
+				<van-icon
+					v-if="inputValue"
+					name="send-gift-o"
+					size="24"
+					color="#ffd541"
+					style="margin-left: 10px;"
 					@click="handleSend"
 				/>
 			</view>
 		</view>
 
-		<!-- Edit Bill Popup -->
 		<van-popup v-model:show="showEdit" position="bottom" round class="edit-popup">
 			<view class="popup-header">
 				<text class="popup-title">修改账单</text>
@@ -202,7 +224,26 @@ const displayText = (msg) => {
 	return msg?.role === 'ai' ? text.replace(/\*\*/g, '') : text;
 };
 
-// Edit Logic
+const applyDoneMessages = (aiId, event) => {
+	const aiMsgs = (event.data || []).filter((m) => m.role === 'ai');
+	const idx = messages.value.findIndex((m) => m.id === aiId);
+	if (idx < 0) return;
+	const streamed = messages.value[idx].content;
+	const [primary, ...rest] = aiMsgs;
+	if (primary) {
+		const formatted = formatMessage(primary);
+		if (formatted.type === 'text') {
+			formatted.content = streamed || formatted.content;
+		}
+		messages.value[idx] = formatted;
+	} else {
+		messages.value.splice(idx, 1);
+	}
+	rest.forEach((m, offset) => {
+		messages.value.splice(idx + 1 + offset, 0, formatMessage(m));
+	});
+};
+
 const showEdit = ref(false);
 const currentMsg = ref(null);
 const editForm = ref({
@@ -213,7 +254,6 @@ const editForm = ref({
 
 const openEdit = (msg) => {
 	currentMsg.value = msg;
-	// 去掉金额前面的符号
 	const cleanAmount = msg.amount.replace(/[+-]/, '');
 	editForm.value = {
 		amount: cleanAmount,
@@ -229,7 +269,7 @@ const onDateChange = (e) => {
 
 const handleUpdate = async () => {
 	if (!editForm.value.amount) return uni.showToast({ title: '请输入金额', icon: 'none' });
-	
+
 	try {
 		const res = await updateBill({
 			id: currentMsg.value.record_id,
@@ -238,11 +278,10 @@ const handleUpdate = async () => {
 			date: editForm.value.date,
 			type: currentMsg.value.amount.startsWith('-') ? 'expense' : 'income'
 		});
-		
+
 		if (res.code === 0) {
 			uni.showToast({ title: '修改成功' });
 			showEdit.value = false;
-			// 更新本地列表数据
 			const prefix = currentMsg.value.amount.startsWith('-') ? '-' : '+';
 			currentMsg.value.amount = `${prefix}${parseFloat(editForm.value.amount).toFixed(2)}`;
 			currentMsg.value.remark = editForm.value.remark;
@@ -263,7 +302,6 @@ const handleDelete = (msg) => {
 					const delRes = await deleteBill({ id: msg.record_id });
 					if (delRes.code === 0) {
 						uni.showToast({ title: '删除成功' });
-						// 这里只是从 UI 上隐藏，或者您可以重新获取列表
 						messages.value = messages.value.filter(m => m.id !== msg.id);
 					}
 				} catch (e) {
@@ -339,8 +377,8 @@ const formatMessage = (msg) => {
 		content: msg.role === 'ai' ? (msg.content || '').replace(/\*\*/g, '') : msg.content,
 		image: msg.image_url
 	};
-	
-	if ((msg.type === 'transaction' || msg.type === 'confirm') && msg.extra_data) {
+
+	if ((msg.type === 'transaction' || msg.type === 'confirm' || msg.type === 'budget') && msg.extra_data) {
 		const extra = typeof msg.extra_data === 'string' ? JSON.parse(msg.extra_data) : msg.extra_data;
 		Object.assign(formatted, extra);
 	}
@@ -356,11 +394,17 @@ const ACTION_LABELS = {
 };
 const actionLabel = (action) => ACTION_LABELS[action] || '操作';
 
-// 这些写操作没有既有目标对象，确认时不需要 target_id，只出一个确认按钮
+const confirmPrimaryAction = (msg) => {
+	if (msg?.action) return msg.action;
+	if (msg?.confirmations?.length) return msg.confirmations[0]?.action || 'update';
+	return 'update';
+};
+
 const isTargetlessConfirm = (msg) => {
 	const entity = msg?.entity || 'bill';
 	return (entity === 'bill' && msg?.action === 'batch_create')
-		|| (entity === 'asset' && msg?.action === 'create');
+		|| (entity === 'asset' && msg?.action === 'create')
+		|| entity === 'budget';
 };
 
 const formatMoney = (n) => (n % 1 === 0 ? String(n) : n.toFixed(2));
@@ -372,22 +416,39 @@ const formatConfirmAmount = (item) => {
 	return `${prefix}${formatMoney(n)}元`;
 };
 
+const confirmationGroupTitle = (conf) => {
+	if (conf?.entity === 'budget') return '预算调整';
+	if (conf?.entity === 'asset') return '资产变更';
+	if (conf?.entity === 'invoice') return '发票操作';
+	return '账单确认';
+};
+
 const confirmItemName = (msg, item) => {
 	const entity = msg?.entity || 'bill';
 	if (entity === 'asset') return item.name || '账户';
 	if (entity === 'invoice') return item.name || '发票抬头';
+	if (entity === 'budget') return item.category || '预算';
 	return item.remark || item.description || item.category || '账单';
 };
 
 const confirmItemMeta = (msg, item) => {
 	const entity = msg?.entity || 'bill';
 	if (entity === 'asset') {
-		// 负债余额后端已带负号
 		const n = Number(item.balance);
 		return [item.asset_type, Number.isNaN(n) ? '' : `${formatMoney(n)}元`].filter(Boolean).join(' · ');
 	}
 	if (entity === 'invoice') return item.tax_id || '';
+	if (entity === 'budget') {
+		const amount = Number(item.amount);
+		return [item.period, item.budget_type, Number.isNaN(amount) ? '' : `${formatMoney(amount)}元`].filter(Boolean).join(' · ');
+	}
 	return [item.date, formatConfirmAmount(item)].filter(Boolean).join(' · ');
+};
+
+const confirmBudgetName = (payload) => payload?.category || (payload?.is_total ? '总预算' : '预算');
+const confirmBudgetMeta = (payload) => {
+	const amount = Number(payload?.amount);
+	return [payload?.period, payload?.budget_type === 'year' ? '年预算' : '月预算', Number.isNaN(amount) ? '' : `${formatMoney(amount)}元`].filter(Boolean).join(' · ');
 };
 
 const markConfirmResolved = (msg) => {
@@ -397,17 +458,22 @@ const markConfirmResolved = (msg) => {
 	}
 };
 
-/** 确认卡片：confirm 布尔 + entity/action/target_id + message_id 回传后端 */
-const handleConfirmAction = async (msg, ok, item = null) => {
+const handleConfirmAction = async (msg, ok) => {
 	if (loading.value || msg.resolved) return;
+	const primary = msg?.confirmations?.[0] || msg;
 	const extra = ok
-		? { confirm: true, entity: msg.entity || 'bill', action: msg.action, target_id: item?.id, message_id: msg.id }
+		? {
+			confirm: true,
+			entity: primary?.entity || msg.entity || 'bill',
+			action: primary?.action || msg.action,
+			message_id: msg.id
+		}
 		: { confirm: false, message_id: msg.id };
-	if (ok && (!extra.action || (extra.target_id == null && !isTargetlessConfirm(msg)))) {
-		return uni.showToast({ title: '缺少确认信息', icon: 'none' });
-	}
+		if (ok && !extra.action) {
+			return uni.showToast({ title: '缺少确认信息', icon: 'none' });
+		}
 
-	const content = ok ? `确认${actionLabel(msg.action)}` : '取消';
+	const content = ok ? `确认${actionLabel(extra.action)}` : '取消';
 	markConfirmResolved(msg);
 	messages.value.push({
 		id: `local-user-${Date.now()}`,
@@ -440,16 +506,7 @@ const handleConfirmAction = async (msg, ok, item = null) => {
 				onDone: (event) => {
 					streamingAiId.value = null;
 					streamingStatus.value = '';
-					const aiMsg = (event.data || []).find((m) => m.role === 'ai');
-					const idx = messages.value.findIndex((m) => m.id === aiId);
-					if (aiMsg && idx >= 0) {
-						const streamed = messages.value[idx].content;
-						const formatted = formatMessage(aiMsg);
-						if (formatted.type === 'text') {
-							formatted.content = streamed || formatted.content;
-						}
-						messages.value[idx] = formatted;
-					}
+					applyDoneMessages(aiId, event);
 					scrollToBottom();
 				},
 				onError: () => {
@@ -485,7 +542,7 @@ const handleConfirmAction = async (msg, ok, item = null) => {
 
 const handleSend = async () => {
 	if (!inputValue.value.trim() || loading.value) return;
-	
+
 	const content = inputValue.value.trim();
 	const loadingStart = Date.now();
 	inputValue.value = '';
@@ -497,7 +554,6 @@ const handleSend = async () => {
 	});
 	scrollToBottom();
 
-	// H5：流式主路径；小程序/App：降级同步 POST
 	if (isLangchainStreamSupported()) {
 		const aiId = `local-ai-${Date.now()}`;
 		streamingAiId.value = aiId;
@@ -520,16 +576,7 @@ const handleSend = async () => {
 				onDone: (event) => {
 					streamingAiId.value = null;
 					streamingStatus.value = '';
-					const aiMsg = (event.data || []).find((m) => m.role === 'ai');
-					const idx = messages.value.findIndex((m) => m.id === aiId);
-					if (aiMsg && idx >= 0) {
-						const streamed = messages.value[idx].content;
-						const formatted = formatMessage(aiMsg);
-						if (formatted.type === 'text') {
-							formatted.content = streamed || formatted.content;
-						}
-						messages.value[idx] = formatted;
-					}
+					applyDoneMessages(aiId, event);
 					scrollToBottom();
 				},
 				onError: () => {
@@ -555,8 +602,8 @@ const handleSend = async () => {
 			res.data
 				.filter(msg => msg.role === 'ai')
 				.forEach(msg => {
-				messages.value.push(formatMessage(msg));
-			});
+					messages.value.push(formatMessage(msg));
+				});
 			scrollToBottom();
 		}
 	} catch (e) {
@@ -594,25 +641,24 @@ onMounted(() => {
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
-	background: #fff; /* Main background changed to white */
+	background: #fff;
 	position: relative;
 }
 
-/* --- Top Section --- */
 .top-section {
 	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	z-index: 100;
-	background-color: #ffd541; /* Matching save_accouting.vue */
-	padding: 14px 20px 10px; 
+	background-color: #ffd541;
+	padding: 14px 20px 10px;
 	display: flex;
 	flex-direction: column;
 }
 
 .top-spacer {
-	height: 100px; /* Fixed space for header to avoid overlap */
+	height: 100px;
 }
 
 .header-bar {
@@ -663,33 +709,6 @@ onMounted(() => {
 	margin-left: 4px;
 }
 
-.trial-banner {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 8px 15px;
-	background: rgba(255, 255, 255, 0.9);
-	border-radius: 12px;
-	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.trial-content {
-	display: flex;
-	align-items: center;
-}
-
-.mini-logo {
-	width: 20px;
-	height: 20px;
-	margin-right: 8px;
-}
-
-.trial-text {
-	font-size: 13px;
-	color: #333;
-}
-
-/* --- Chat Content --- */
 .chat-container {
 	flex: 1;
 	min-height: 0;
@@ -805,28 +824,80 @@ onMounted(() => {
 	font-weight: bold;
 }
 
-.transaction-card {
+.budget-card,
+.transaction-card,
+.confirm-card {
 	background: #fff;
 	border-radius: 16px;
 	padding: 16px;
 	border: 1px solid #f1f5f9;
 	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-	min-width: 240px; /* Further increase width as requested */
+	min-width: 240px;
 	max-width: 100%;
 }
 
+.budget-card {
+	background: linear-gradient(180deg, #fffdf5 0%, #fff7db 100%);
+	border-color: #fde7a4;
+	box-shadow: 0 4px 15px rgba(245, 158, 11, 0.08);
+}
+
+.budget-head,
+.card-footer,
+.confirm-actions {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.budget-head {
+	margin-bottom: 10px;
+}
+
+.budget-title,
+.cat-title,
+.confirm-item-name,
+.confirm-group-title {
+	font-size: 15px;
+	font-weight: bold;
+	color: #0f172a;
+}
+
+.budget-title {
+	color: #92400e;
+}
+
+.budget-type {
+	font-size: 12px;
+	color: #b45309;
+	background: rgba(245, 158, 11, 0.12);
+	padding: 3px 8px;
+	border-radius: 999px;
+}
+
+.budget-amount-row,
 .txn-reply-bubble {
 	margin-top: 8px;
 }
 
-.confirm-card {
-	background: #fff;
-	border-radius: 16px;
-	padding: 14px;
-	border: 1px solid #f1f5f9;
-	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-	min-width: 240px;
-	max-width: 100%;
+.budget-amount {
+	font-size: 24px;
+	font-weight: bold;
+	color: #111827;
+}
+
+.budget-meta-row {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.budget-meta,
+.confirm-item-meta,
+.date-text,
+.confirm-resolved {
+	font-size: 12px;
+	color: #64748b;
 }
 
 .confirm-title {
@@ -834,6 +905,18 @@ onMounted(() => {
 	color: #0f172a;
 	display: block;
 	margin-bottom: 12px;
+}
+
+.confirm-group + .confirm-group {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px dashed #f1f5f9;
+}
+
+.confirm-group-title {
+	display: block;
+	font-size: 13px;
+	margin-bottom: 8px;
 }
 
 .confirm-item {
@@ -850,29 +933,10 @@ onMounted(() => {
 	padding-top: 0;
 }
 
-.confirm-item-main {
+.confirm-item-main,
+.cat-details {
 	flex: 1;
 	min-width: 0;
-}
-
-.confirm-item-name {
-	font-size: 14px;
-	font-weight: bold;
-	color: #0f172a;
-	display: block;
-}
-
-.confirm-item-meta {
-	font-size: 12px;
-	color: #64748b;
-	display: block;
-	margin-top: 2px;
-}
-
-.confirm-actions {
-	margin-top: 10px;
-	display: flex;
-	justify-content: flex-end;
 }
 
 .confirm-btn {
@@ -893,13 +957,6 @@ onMounted(() => {
 	color: #64748b;
 }
 
-.confirm-resolved {
-	display: block;
-	margin-top: 8px;
-	font-size: 12px;
-	color: #94a3b8;
-}
-
 .card-body {
 	display: flex;
 	align-items: center;
@@ -916,18 +973,6 @@ onMounted(() => {
 	margin-right: 12px;
 }
 
-.cat-details {
-	flex: 1;
-}
-
-.cat-title {
-	font-size: 15px;
-	font-weight: bold;
-	color: #0f172a;
-	display: block;
-	white-space: nowrap; /* Avoid title wrapping */
-}
-
 .cat-sub {
 	font-size: 12px;
 	color: #64748b;
@@ -937,21 +982,13 @@ onMounted(() => {
 	font-size: 18px;
 	font-weight: bold;
 	color: #0f172a;
-	white-space: nowrap; /* Keep amount on one line */
-	margin-left: 10px; /* Add some space between title and amount */
+	white-space: nowrap;
+	margin-left: 10px;
 }
 
 .card-footer {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
 	padding-top: 12px;
 	border-top: 1px dashed #f1f5f9;
-}
-
-.date-text {
-	font-size: 12px;
-	color: #94a3b8;
 }
 
 .card-actions {
@@ -979,7 +1016,6 @@ onMounted(() => {
 	font-size: 12px;
 	color: #0f172a;
 }
-
 
 .typing-bubble {
 	display: inline-flex;
@@ -1015,7 +1051,6 @@ onMounted(() => {
 	}
 }
 
-/* --- Bottom Interaction --- */
 .bottom-panel {
 	position: fixed;
 	bottom: 0;
@@ -1029,7 +1064,7 @@ onMounted(() => {
 }
 
 .bottom-spacer {
-	height: 120px; /* Enough space for the fixed panel */
+	height: 120px;
 }
 
 .input-container {
@@ -1050,7 +1085,6 @@ onMounted(() => {
 	font-size: 15px;
 }
 
-/* Edit Popup Styles */
 .edit-popup {
 	padding: 20px;
 }
@@ -1104,11 +1138,5 @@ onMounted(() => {
 	font-weight: bold;
 	border-radius: 25px;
 	border: none;
-}
-
-.bottom-tip {
-	text-align: center;
-	font-size: 11px;
-	color: #94a3b8;
 }
 </style>

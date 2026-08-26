@@ -141,6 +141,7 @@ class LangchainChatMessage(models.Model):
         ('text', '纯文本'),
         ('text_image', '图文'),
         ('transaction', '账单卡片'),
+        ('budget', '预算卡片'),
         ('confirm', '确认卡片'),
     )
     id = models.AutoField(primary_key=True, verbose_name="消息ID")

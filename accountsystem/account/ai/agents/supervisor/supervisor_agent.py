@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from account.ai.llm.llm import llm
+from account.ai.llm.llm import get_llm
 from account.ai.llm.llm_utils import log_agent_exc
 
 from .supervisor_prompt import SUPERVISOR_SYSTEM
 from .supervisor_schemas import RouteDecision
 
-_router_llm = llm.with_structured_output(RouteDecision)
+_router_llm = get_llm("simple").with_structured_output(RouteDecision)
 
 
 def route(user_input: str, context: str = "") -> RouteDecision:

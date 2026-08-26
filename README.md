@@ -38,7 +38,7 @@
 ## 技术栈
 
 ### 后端
-- Python 3.10
+- Python 3.12
 - Django + Django REST Framework
 - MySQL / Redis
 - LangChain（LCEL / Tools）+ LangGraph（子 Agent Workflow）

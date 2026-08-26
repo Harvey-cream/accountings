@@ -34,7 +34,7 @@ A feature-rich personal accounting mini-program supporting income/expenses recor
 ## Technology Stack
 
 ### Backend
-- Python 3.10
+- Python 3.12
 - Django + Django REST Framework
 - MySQL database
 - Redis cache
