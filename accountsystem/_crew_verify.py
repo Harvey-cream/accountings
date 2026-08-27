@@ -10,7 +10,6 @@ from account.ai.agents.crew.finance_planner import planner  # noqa: E402
 from account.ai.agents.crew.finance_planner.crew import run_finance_planner  # noqa: E402
 from account.ai.agents.crew.finance_planner.planner_schema import TaskSpec  # noqa: E402
 from account.ai.llm.response import to_api_dict  # noqa: E402
-from account.ai.orchestrator.open_task_router import is_probably_open  # noqa: E402
 
 
 def roles(specs):

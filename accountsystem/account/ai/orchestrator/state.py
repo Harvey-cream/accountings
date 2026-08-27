@@ -24,7 +24,7 @@ class AgentState(TypedDict, total=False):
 
     # --- 路由结果 ---
     task_type: str      # bill / budget / asset / invoice / open_planning / workflow_plan
-    current_agent: str  # 当前执行的业务 Agent 名（open_planning=finance_planner；跨域计划=task_planner）
+    current_agent: str  # 当前执行的业务 Agent 名（open_planning=finance_planner；跨域计划=unified_planner）
 
     # --- 执行上下文 ---
     messages: list          # 预留 / 也可承载本轮 memory 历史

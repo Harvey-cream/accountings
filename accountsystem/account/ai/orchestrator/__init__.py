@@ -16,11 +16,10 @@ from account.ai.llm.schemas import DEFAULT_CHAT_REPLY, TextReply
 
 from .executor import execute, execute_plan
 from .memory import load_chat_memory
-from .open_task_router import is_open_planning
 from .router import decide
 from .state import AgentState, new_state
-from .task_planner import is_probably_multi, plan_workflows
 from .task_schema import WorkflowPlan
+from .unified_planner import build_route_plan
 
 __all__ = ["run_orchestrator", "AgentState", "new_state"]
 
@@ -57,7 +56,7 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
             plan_tasks = confirm_extra.get("plan_tasks") or []
             if plan_tasks:
                 state["task_type"] = "workflow_plan"
-                state["current_agent"] = "task_planner"
+                state["current_agent"] = "unified_planner"
                 state["confirm"] = {**confirm, "confirmed_plan": True}
                 plan = WorkflowPlan.model_validate({"tasks": plan_tasks})
                 execute_plan(state, plan)
@@ -81,31 +80,27 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
     state["memory_text"] = memory_text
     state["messages"] = list(memory_messages)
 
-    # 顶层任务分流（三层）：
-    # 1) 开放式规划 → CrewAI
-    if is_open_planning(text, memory_text):
-        state["task_type"] = "open_planning"
-        state["current_agent"] = "finance_planner"
+    # 顶层统一 Planner：一次理解请求，再选择执行模式
+    plan = build_route_plan(text, memory_text)
+    if plan is not None:
+        if plan.mode == "open_planning":
+            state["task_type"] = "open_planning"
+            state["current_agent"] = "finance_planner"
+            execute(state)
+            return state["final_response"]
+        if plan.mode == "multi":
+            state["task_type"] = "workflow_plan"
+            state["current_agent"] = "unified_planner"
+            execute_plan(state, WorkflowPlan(tasks=plan.tasks))
+            return state["final_response"]
+        task = plan.tasks[0]
+        state["task_type"] = task.type
+        state["current_agent"] = task.type
+        state["user_input"] = task.goal or text
         execute(state)
         return state["final_response"]
 
-    # 2) 疑似跨域组合 → Task Planner 产出计划，按依赖序执行多个 Workflow
-    if is_probably_multi(text, memory_text):
-        plan = plan_workflows(text, memory_text)
-        if plan is not None and len(plan.tasks) > 1:
-            state["task_type"] = "workflow_plan"
-            state["current_agent"] = "task_planner"
-            execute_plan(state, plan)
-            return state["final_response"]
-        if plan is not None:
-            # 规划结论是单任务：直接采纳，省一次 Supervisor 调用
-            state["task_type"] = plan.tasks[0].type
-            state["current_agent"] = plan.tasks[0].type
-            execute(state)
-            return state["final_response"]
-        # 规划失败 → 回落 Supervisor
-
-    # 3) 简单固定业务 → 原 Supervisor 快速路由（保持不变）
+    # 统一 Planner 失败时才回退旧 Supervisor，保证兼容性
     decide(state)
     execute(state)
     return state["final_response"]
