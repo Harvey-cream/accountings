@@ -19,11 +19,11 @@ execute_plan 有两种行为模式：
 
 from __future__ import annotations
 
-import re
-
 from account.ai.agents.crew.finance_planner import run_finance_planner
 from account.ai.agents.supervisor import asset, bill, budget, invoice
 
+from .result_adapter import adapt_workflow_result
+from .result_aggregator import aggregate_plan_results
 from .state import AgentState
 from .task_schema import WorkflowPlan, topo_sort
 
@@ -51,50 +51,62 @@ _PREV_RESULT_MAX_CHARS = 800
 # 单任务执行：交给某个业务 Agent 跑一次
 # ============================================================
 
-def execute(state: AgentState) -> AgentState:
-    """
-    单任务执行：
-      - open_planning → 交给 CrewAI 协作节点（Finance Planner）
-      - 其他 → 从 _RUNNERS 查对应业务 Agent（bill/budget/asset/invoice）
-    结果写回 state.tool_results 和 state.final_response。
-    """
-    task = state.get("task_type") or "bill"
+def _task_input(task, results: dict, user_input: str) -> str:
+    """组装任务输入：优先使用自包含 goal，再补充依赖任务摘要。"""
+    text = (getattr(task, "goal", "") or "").strip() or user_input
+    prev = [
+        (results[dep].get("output") or "").strip()
+        for dep in getattr(task, "depends_on", [])
+        if dep in results
+    ]
+    prev = [p for p in prev if p]
+    if prev:
+        joined = "\n\n".join(p[:_PREV_RESULT_MAX_CHARS] for p in prev)
+        text = f"{text}\n\n参考前序任务结果：\n{joined}"
+    return text
 
-    # 开放式规划任务：交给 CrewAI 协作节点（不走 LangGraph Workflow）
-    if task == "open_planning":
-        result = run_finance_planner(
-            state.get("user_input") or "",
+
+def _execute_task(state: AgentState, task, results: dict) -> dict:
+    task_type = task.type
+    user_input = _task_input(task, results, state.get("user_input") or "")
+    if task_type == "open_planning":
+        return run_finance_planner(
+            user_input,
             state.get("user"),
             history=state.get("memory_messages") or [],
         )
-        state["tool_results"] = result.get("intermediate_steps") or []
-        state["final_response"] = result
-        return state
+    runner = _RUNNERS.get(task_type, bill.run)
+    kwargs = {"history": state.get("memory_messages") or []}
+    confirm = state.get("confirm")
+    if task_type in _CONFIRM_TASKS and confirm is not None:
+        kwargs["confirm"] = confirm
+    return runner(user_input, state.get("user"), **kwargs)
 
-    runner = _RUNNERS.get(task, bill.run)
-    kwargs = {
-        "history": state.get("memory_messages") or [],
-    }
-    if task in _CONFIRM_TASKS and state.get("confirm") is not None:
-        kwargs["confirm"] = state.get("confirm")
-    result = runner(state.get("user_input") or "", state.get("user"), **kwargs)
-    state["tool_results"] = result.get("intermediate_steps") or []
-    state["final_response"] = result
-    return state
+
+def execute(state: AgentState) -> AgentState:
+    """兼容单任务调用：包装为一个 Plan 后进入统一执行入口。"""
+    task_type = state.get("task_type") or "bill"
+    task = type("CompatTask", (), {
+        "id": task_type,
+        "type": task_type,
+        "goal": state.get("user_input") or "",
+        "depends_on": [],
+    })()
+    return execute_plan(state, WorkflowPlan(tasks=[task]))
 
 
 # ============================================================
 # 跨计划辅助函数：上下文拼装 + 预览数据提取
 # ============================================================
 
-def _task_input(task, results: dict, multi: bool, user_input: str) -> str:
+def _task_input(task, results: dict, user_input: str) -> str:
     """
     组装某个子任务的输入文本：
       - 多任务场景：用 task.goal（自包含目标），避免其他域的诉求干扰
       - 单任务场景：直接用原始 user_input，避免 goal 里丢失细节
       - 有依赖时，把前序任务的 output 截断后附加进去，作为上下文
     """
-    text = (task.goal or "").strip() if multi else ""
+    text = (task.goal or "").strip() or user_input
     text = text or user_input
     prev = [
         (results[dep].get("output") or "").strip()
@@ -108,88 +120,32 @@ def _task_input(task, results: dict, multi: bool, user_input: str) -> str:
     return text
 
 
-def _extract_bill_candidates(goal: str) -> list[dict]:
-    """
-    从 bill 任务的 goal 文本里，用正则抠出"名称+金额"对，
-    生成账单候选列表（用于确认卡预览，不落库）。
-    会过滤掉名称里含"预算/余额/资产/发票"的干扰匹配。
-    """
-    pattern = re.compile(r"([一-龥A-Za-z]+?)(\d+(?:\.\d+)?)元?")
-    candidates = []
-    for name, amount in pattern.findall(goal or ""):
-        if any(token in name for token in ("预算", "余额", "资产", "发票")):
-            continue
-        candidates.append(
-            {
-                "amount": float(amount),
-                "category": "餐饮",
-                "date": None,
-                "description": name,
-                "bill_type": "expense",
-            }
-        )
-    return candidates
-
-
-def _extract_budget_payload(goal: str) -> dict | None:
-    """
-    从 budget 任务的 goal 文本里，用正则抠出金额和周期，
-    生成预算预览参数（用于确认卡预览，不落库）。
-    """
-    if "预算" not in (goal or ""):
-        return None
-    amount_match = re.search(r"(\d+(?:\.\d+)?)元", goal or "") or re.search(r"(\d+(?:\.\d+)?)", goal or "")
-    period_match = re.search(r"(20\d{2}-\d{2}|20\d{2})", goal or "")
-    if not amount_match:
-        return None
-    period = period_match.group(1) if period_match else ""
-    return {
-        "amount": float(amount_match.group(1)),
-        "budget_type": "year" if len(period) == 4 else "month",
-        "period": period,
-        "category": "总预算",
-        "is_total": True,
-    }
-
-
 def _build_plan_confirmation(ordered) -> dict | None:
-    """
-    基于 WorkflowPlan 的 task.goal 静态解析，生成"计划级确认卡"预览数据。
-    不执行任何写操作，只把 bill 的账单候选和 budget 的预览参数拼进 confirmations。
-    确认卡里的数据来自"计划文本解析"，不是"真实执行结果"。
-    """
+    """Build confirmation data directly from structured Task.input."""
     confirmations = []
     for task in ordered:
+        task_input = task.input or {}
         if task.type == "bill":
-            candidates = _extract_bill_candidates(task.goal)
-            if candidates:
-                confirmations.append(
-                    {
-                        "need_confirm": True,
-                        "entity": "bill",
-                        "action": "batch_create",
-                        "candidates": candidates,
-                        "task_id": task.id,
-                    }
-                )
-        elif task.type == "budget":
-            payload = _extract_budget_payload(task.goal)
-            if payload:
-                confirmations.append(
-                    {
-                        "need_confirm": True,
-                        "entity": "budget",
-                        "action": "update",
-                        "payload": payload,
-                        "task_id": task.id,
-                    }
-                )
+            items = task_input.get("items") or []
+            if items:
+                confirmations.append({
+                    "need_confirm": True,
+                    "entity": "bill",
+                    "action": "batch_create",
+                    "candidates": items,
+                    "task_id": task.id,
+                })
+        elif task.type == "budget" and task_input:
+            confirmations.append({
+                "need_confirm": True,
+                "entity": "budget",
+                "action": "update",
+                "payload": task_input,
+                "task_id": task.id,
+            })
     if not confirmations:
         return None
-    return {
-        "need_confirm": True,
-        "confirmations": confirmations,
-    }
+    return {"need_confirm": True, "confirmations": confirmations}
 
 
 # ============================================================
@@ -209,14 +165,15 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
     """
     ordered = topo_sort(plan)
     if not ordered:
-        return execute(state)
+        return state
 
-    state["workflow_plan"] = [t.model_dump() for t in ordered]
+    state["workflow_plan"] = [t.model_dump() if hasattr(t, "model_dump") else {
+        "id": t.id, "type": t.type, "goal": t.goal, "depends_on": t.depends_on
+    } for t in ordered]
 
-    # 预览模式：多任务 + 含可确认写操作 + 尚未经用户确认 → 先出确认卡
+    # 预览模式：计划包含可确认写操作且尚未经用户确认时，统一返回计划级确认卡
     if (
-        len(ordered) > 1
-        and any(task.type in _CONFIRM_TASKS for task in ordered)
+        any(task.type in _CONFIRM_TASKS for task in ordered)
         and not ((state.get("confirm") or {}).get("confirmed_plan"))
     ):
         confirm = _build_plan_confirmation(ordered)
@@ -230,17 +187,23 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
             }
             return state
 
-    multi = len(ordered) > 1
     user_input = state.get("user_input") or ""
     history = state.get("memory_messages") or []
 
     results: dict = {}
     outputs: list[str] = []
     steps: list = []
+    task_results = []
     for task in ordered:
-        runner = _RUNNERS.get(task.type, bill.run)
-        result = runner(_task_input(task, results, multi, user_input), state.get("user"), history=history)
+        result = _execute_task(state, task, results)
         results[task.id] = result
+        step_result = adapt_workflow_result(
+            result,
+            plan_id=str(state.get("conversation_id") or "plan"),
+            step_id=task.id,
+            step_type=task.type,
+        )
+        task_results.append(step_result)
 
         out = (result.get("output") or "").strip()
         if out:
@@ -249,8 +212,14 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
 
     state["workflow_results"] = results
     state["tool_results"] = steps
+    plan_result = aggregate_plan_results(
+        task_results,
+        plan_id=str(state.get("conversation_id") or "plan"),
+    )
+    state["plan_result"] = plan_result
     state["final_response"] = {
-        "output": "\n\n".join(outputs),
+        "output": plan_result.summary or "本次计划已处理",
+        "plan_result": plan_result.model_dump(mode="json"),
         "intermediate_steps": steps,
     }
     return state

@@ -32,7 +32,9 @@ class AgentState(TypedDict, total=False):
     memory_text: str        # 短文本上下文，喂给 Supervisor
     tool_results: list      # intermediate_steps: [(tool_call, observation), ...]
     workflow_plan: list     # Task Planner 产出的任务计划（WorkflowTask dict 列表，按执行序）
-    workflow_results: dict  # {task_id: 该 Workflow 的 result dict}，多 Workflow 共享上下文
+    workflow_results: dict  # {task_id: 该 Workflow 的旧兼容 result dict}
+    step_result: Any        # single Workflow 的标准化 StepResult
+    plan_result: Any        # multi Workflow 的标准化 PlanResult
 
     # --- 输出 ---
     final_response: dict    # {"output": str, "intermediate_steps": list}

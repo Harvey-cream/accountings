@@ -10,7 +10,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-WorkflowType = Literal["bill", "budget", "asset", "invoice"]
+from .protocol import JsonObject
+
+WorkflowType = Literal["bill", "budget", "asset", "invoice", "open_planning"]
 
 
 class WorkflowTask(BaseModel):
@@ -21,6 +23,10 @@ class WorkflowTask(BaseModel):
     goal: str = Field(
         default="",
         description="该任务要达成的目标，须自包含（含金额、时间范围等必要信息）",
+    )
+    input: JsonObject = Field(
+        default_factory=dict,
+        description="供确认与 Workflow 使用的结构化业务参数，不包含用户或数据库内部字段",
     )
     depends_on: list[str] = Field(
         default_factory=list, description="依赖的前序任务 id 列表"

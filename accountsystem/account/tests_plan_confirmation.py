@@ -13,13 +13,24 @@ class PlanConfirmationTests(SimpleTestCase):
                 WorkflowTask(
                     id="meals",
                     type="bill",
-                    goal="记录早饭20元和晚饭30元",
-                ),
+                    goal="记录早饭和晚饭支出",
+                    input={
+                        "items": [
+                            {"amount": 80, "description": "早饭", "category": "餐饮", "bill_type": "expense"},
+                            {"amount": 30, "description": "晚饭", "category": "餐饮", "bill_type": "expense"},
+                        ]
+                    },                ),
                 WorkflowTask(
                     id="budget",
                     type="budget",
-                    goal="设置总预算7500元",
-                ),
+                    goal="更新本月总预算",
+                    input={
+                        "amount": 7900,
+                        "budget_type": "month",
+                        "period": "2026-08",
+                        "category": None,
+                        "is_total": True,
+                    },                ),
             ]
         )
 
@@ -29,7 +40,10 @@ class PlanConfirmationTests(SimpleTestCase):
             [item["entity"] for item in confirmation["confirmations"]],
             ["bill", "budget"],
         )
-        self.assertEqual(confirmation["confirmations"][1]["payload"]["amount"], 7500.0)
+        self.assertEqual(confirmation["confirmations"][0]["candidates"][0]["amount"], 80)
+        self.assertEqual(confirmation["confirmations"][0]["candidates"][1]["description"], "晚饭")
+        self.assertEqual(confirmation["confirmations"][1]["payload"]["amount"], 7900)
+        self.assertEqual(confirmation["confirmations"][1]["payload"]["period"], "2026-08")
 
     def test_confirmed_plan_does_not_require_preview_again(self):
         from account.ai.orchestrator import executor

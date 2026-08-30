@@ -1,9 +1,22 @@
 """Structured protocol shared by the unified multi-agent planner."""
 
+# ============================================================
+# 承载状态的"数据结构"（Pydantic 模型）
+# ============================================================
+# | 模型                | 作用                                   | 关键字段                                          |
+# |---------------------|----------------------------------------|--------------------------------------------------|
+# | PlanStep            | 计划里的一个步骤（含依赖、状态）        | step_id/step_type/action/goal/depends_on/status  |
+# | Plan                | 整个计划                               | plan_id/version/status/steps/metadata            |
+# | StepContext         | 执行某步时的上下文                     | completed_results/input/planning_request         |
+# | StepError           | 错误对象                               | code/message/details                             |
+# | ConfirmationRequest | 确认请求                               | prompt/token/payload                             |
+# | StepResult          | 步骤执行结果（最关键）                 | status/success/data/confirmation/error/intermediate_steps |
+# ============================================================
+
 from __future__ import annotations
 
 from enum import Enum, StrEnum
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.types import JsonValue
@@ -120,6 +133,7 @@ class StepResult(ProtocolModel):
     error: StepError | None = None
     confirmation: ConfirmationRequest | None = None
     message: str = ""
+    summary: str = ""
     intermediate_steps: list[JsonValue] = Field(default_factory=list)
 
     @model_validator(mode="after")

@@ -12,50 +12,40 @@ from account.ai.llm.llm_utils import log_agent_exc, nested_structured_output
 
 from .task_schema import WorkflowTask, WorkflowPlan, topo_sort
 
-RouteMode = Literal["single", "multi", "open_planning"]
+
 _MAX_SCHEMA_RETRIES = 1
 
 
 class RoutePlan(BaseModel):
-    mode: RouteMode
-    tasks: list[WorkflowTask] = Field(default_factory=list)
+    tasks: list[WorkflowTask] = Field(min_length=1)
     reason: str = ""
 
     @model_validator(mode="after")
-    def validate_mode(self) -> "RoutePlan":
-        if self.mode == "single" and len(self.tasks) != 1:
-            raise ValueError("single route plans require exactly one task")
-        if self.mode == "multi" and len(self.tasks) < 2:
-            raise ValueError("multi route plans require at least two tasks")
-        if self.mode == "open_planning" and self.tasks:
-            raise ValueError("open planning route plans cannot contain workflow tasks")
-        if self.mode != "open_planning":
-            plan = WorkflowPlan(tasks=self.tasks)
-            if topo_sort(plan) is None:
-                raise ValueError("route plan contains invalid dependencies")
+    def validate_tasks(self) -> "RoutePlan":
+        workflow_plan = WorkflowPlan(tasks=self.tasks)
+        if topo_sort(workflow_plan) is None:
+            raise ValueError("route plan contains invalid dependencies")
         return self
 
 
-_PLANNER_SYSTEM = """你是财务助手的统一顶层规划器。一次理解用户请求，并输出 RoutePlan。
+_PLANNER_SYSTEM = """你是财务助手的统一顶层规划器。一次理解用户请求，并输出一个包含一个或多个 Task 的 Plan。
 
-可用固定业务 Workflow：
+可用 Task 类型：
 - bill：记账、收支、账单查询/修改/删除
 - budget：预算设置、更新、查询、建议
 - asset：资产账户、余额、净资产、负债
 - invoice：发票抬头、税号、开票信息
-
-输出模式：
-- single：只涉及一个固定业务任务，tasks 必须有且只有一个任务
-- multi：同时涉及两个或以上固定业务任务，tasks 至少两个任务
-- open_planning：消费统计、趋势、综合分析或开放式长期规划，tasks 必须为空
+- open_planning：消费统计、趋势、综合分析或开放式长期规划
 
 规则：
-1. 一次记多笔账仍是一个 bill task；账单与预算同时出现必须是 multi。
-2. 固定业务组合优先输出 multi，不要误判为 open_planning。
-3. 只有需要统计、趋势、综合推理或规划报告时才输出 open_planning。
-4. 每个 task.goal 必须自包含，包含金额、分类、时间等必要信息。
-5. 只有真实存在数据依赖时才填写 depends_on；没有依赖就留空。
-6. 只输出符合 schema 的结构化结果，不回答用户。"""
+1. 单域请求输出一个 Task，复合请求输出多个 Task；Task 数量决定执行规模。
+2. 只有需要统计、趋势、综合推理或规划报告时才使用 open_planning Task。
+3. 固定业务组合不要改成 open_planning；账单与预算同时出现时输出 bill 和 budget 两个 Task。
+4. goal 只描述任务目标；input 必须放入从用户输入中明确得到的金额、描述、分类、周期等业务参数。
+5. bill 的 input 使用 items 列表，每项可包含 amount、description、category、bill_type、date；budget 的 input 使用 amount、budget_type、period、category、is_total，其中月 period 必须是 YYYY-MM，年 period 必须是 YYYY，未明确时可以省略 period。
+6. asset/invoice 也将用户明确提供的业务参数放入 input。input 不允许包含 user_id、数据库主键、created_at 或内部状态。
+7. 只有真实存在数据依赖时才填写 depends_on；没有依赖就留空。
+8. 只输出符合 schema 的结构化 Plan，不回答用户。"""
 
 
 def build_route_plan(user_input: str, context: str = "") -> RoutePlan | None:
@@ -74,5 +64,5 @@ def build_route_plan(user_input: str, context: str = "") -> RoutePlan | None:
         except Exception as exc:
             log_agent_exc("UNIFIED_PLANNER", exc, input=(user_input or "")[:60], attempt=attempt)
         if attempt < _MAX_SCHEMA_RETRIES:
-            messages.append(HumanMessage(content="请严格输出符合 RoutePlan schema 的结果；open_planning 的 tasks 必须为空。"))
+            messages.append(HumanMessage(content="请严格输出符合 Plan schema 的结果；tasks 至少包含一个 Task，开放分析也必须放入 open_planning Task。"))
     return None

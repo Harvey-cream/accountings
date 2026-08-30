@@ -55,8 +55,8 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
             confirm_extra = confirm.get("confirm_extra") or {}
             plan_tasks = confirm_extra.get("plan_tasks") or []
             if plan_tasks:
-                state["task_type"] = "workflow_plan"
-                state["current_agent"] = "unified_planner"
+                state["task_type"] = "plan"
+                state["current_agent"] = "executor"
                 state["confirm"] = {**confirm, "confirmed_plan": True}
                 plan = WorkflowPlan.model_validate({"tasks": plan_tasks})
                 execute_plan(state, plan)
@@ -83,21 +83,9 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
     # 顶层统一 Planner：一次理解请求，再选择执行模式
     plan = build_route_plan(text, memory_text)
     if plan is not None:
-        if plan.mode == "open_planning":
-            state["task_type"] = "open_planning"
-            state["current_agent"] = "finance_planner"
-            execute(state)
-            return state["final_response"]
-        if plan.mode == "multi":
-            state["task_type"] = "workflow_plan"
-            state["current_agent"] = "unified_planner"
-            execute_plan(state, WorkflowPlan(tasks=plan.tasks))
-            return state["final_response"]
-        task = plan.tasks[0]
-        state["task_type"] = task.type
-        state["current_agent"] = task.type
-        state["user_input"] = task.goal or text
-        execute(state)
+        state["task_type"] = "plan"
+        state["current_agent"] = "executor"
+        execute_plan(state, WorkflowPlan(tasks=plan.tasks))
         return state["final_response"]
 
     # 统一 Planner 失败时才回退旧 Supervisor，保证兼容性

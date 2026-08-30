@@ -207,6 +207,33 @@ class AgentProtocolTests(SimpleTestCase):
             }
         )
 
-        self.assertEqual(result["reply"], "已完成记账和预算设置")
-        self.assertEqual([card["type"] for card in result["cards"]], ["transaction", "budget"])
-        self.assertEqual(result["cards"][1]["payload"]["amount"], 7500.0)
+    def test_result_protocol_covers_bill_and_budget(self):
+        from account.ai.orchestrator.result_aggregator import aggregate_plan_results
+
+        result = aggregate_plan_results([
+            StepResult(
+                plan_id="plan-1",
+                step_id="bill",
+                step_type=StepType.BILL,
+                action="execute",
+                status=StepStatus.COMPLETED,
+                success=True,
+                message="已记录早饭20元、晚饭30元，共50元",
+                summary="已记录早饭20元、晚饭30元，共50元",
+            ),
+            StepResult(
+                plan_id="plan-1",
+                step_id="budget",
+                step_type=StepType.BUDGET,
+                action="execute",
+                status=StepStatus.COMPLETED,
+                success=True,
+                data={"amount": 7500},
+                message="本月总预算已设置为7500元",
+                summary="本月总预算已设置为7500元",
+            ),
+        ], plan_id="plan-1")
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(len(result.task_results), 2)
+        self.assertIn("7500", result.summary)

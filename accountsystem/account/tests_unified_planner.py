@@ -8,26 +8,43 @@ from account.ai.orchestrator.unified_planner import RoutePlan, build_route_plan
 
 
 class UnifiedPlannerTests(SimpleTestCase):
-    def test_route_plan_validates_all_modes(self):
+    def test_route_plan_is_task_collection(self):
         bill = WorkflowTask(id="bill", type="bill", goal="记录晚饭30元")
         budget = WorkflowTask(id="budget", type="budget", goal="设置预算7500元")
 
-        self.assertEqual(RoutePlan(mode="single", tasks=[bill]).mode, "single")
-        self.assertEqual(RoutePlan(mode="multi", tasks=[bill, budget]).mode, "multi")
-        self.assertEqual(RoutePlan(mode="open_planning").tasks, [])
+        self.assertEqual(len(RoutePlan(tasks=[bill]).tasks), 1)
+        self.assertEqual(len(RoutePlan(tasks=[bill, budget]).tasks), 2)
+        self.assertEqual(
+            RoutePlan(
+                tasks=[WorkflowTask(id="analysis", type="open_planning", goal="分析消费趋势")]
+            ).tasks[0].type,
+            "open_planning",
+        )
 
-    def test_route_plan_rejects_invalid_mode_task_counts(self):
+    def test_route_plan_rejects_empty_or_invalid_dependencies(self):
         bill = WorkflowTask(id="bill", type="bill", goal="记录晚饭30元")
         with self.assertRaises(ValidationError):
-            RoutePlan(mode="single", tasks=[])
+            RoutePlan(tasks=[])
         with self.assertRaises(ValidationError):
-            RoutePlan(mode="multi", tasks=[bill])
-        with self.assertRaises(ValidationError):
-            RoutePlan(mode="open_planning", tasks=[bill])
+            RoutePlan(tasks=[WorkflowTask(id="budget", type="budget", goal="预算", depends_on=["missing"])])
 
-    def test_build_route_plan_uses_one_top_level_model(self):
+    def test_budget_input_uses_explicit_amount_not_year(self):
+        plan = RoutePlan(
+            tasks=[
+                WorkflowTask(
+                    id="budget",
+                    type="budget",
+                    goal="更新本月总预算",
+                    input={"amount": 7900, "budget_type": "month", "period": "2026-08", "is_total": True},
+                )
+            ]
+        )
+
+        self.assertEqual(plan.tasks[0].input["amount"], 7900)
+        self.assertEqual(plan.tasks[0].input["period"], "2026-08")
+
+
         expected = RoutePlan(
-            mode="multi",
             tasks=[
                 WorkflowTask(id="meals", type="bill", goal="记录早饭20元和晚饭30元"),
                 WorkflowTask(id="budget", type="budget", goal="设置总预算7500元"),
