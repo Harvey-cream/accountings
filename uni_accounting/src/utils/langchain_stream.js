@@ -15,9 +15,10 @@ function _streamAuthHeaders() {
 }
 
 function _dispatchEvent(event, handlers) {
-	const { onStatus, onToken, onDone, onError } = handlers;
+	const { onStatus, onToken, onDone, onError, onAgentEvent } = handlers;
 	if (event.type === 'status') onStatus?.(event.text);
 	else if (event.type === 'token') onToken?.(event.text);
+	else if (event.type === 'agent_event') onAgentEvent?.(event.event);
 	else if (event.type === 'done') onDone?.(event);
 	else if (event.type === 'error') onError?.(event);
 }
@@ -33,7 +34,7 @@ function _parseBuffer(buffer, handlers) {
 	return rest;
 }
 
-/** H5 SSE 流式对话：onStatus / onToken / onDone / onError；extra 可带 confirm/entity/action/target_id/message_id */
+/** H5 SSE 流式对话：onStatus / onToken / onAgentEvent / onDone / onError；extra 可带 confirm/entity/action/target_id/message_id */
 export async function sendLangchainChatStream(content, handlers = {}, extra = {}) {
 	if (!isLangchainStreamSupported()) {
 		throw new Error('当前环境不支持流式（需要浏览器 fetch + ReadableStream）');

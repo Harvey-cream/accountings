@@ -207,6 +207,30 @@ class AgentProtocolTests(SimpleTestCase):
             }
         )
 
+    def test_workflow_result_preserves_analysis_view_in_step_and_plan(self):
+        from account.ai.orchestrator.result_adapter import adapt_workflow_result
+        from account.ai.orchestrator.result_aggregator import aggregate_plan_results
+
+        view = {
+            "summary": {"text": "本月餐饮偏高"},
+            "sections": [{"title": "消费分析", "items": [{"text": "餐饮占比过高"}]}],
+        }
+        step = adapt_workflow_result(
+            {
+                "output": "本月餐饮偏高",
+                "analysis_view": view,
+                "crew_result": {"summary": "本月餐饮偏高"},
+            },
+            plan_id="plan-1",
+            step_id="plan_funds",
+            step_type=StepType.OPEN_PLANNING,
+        )
+        plan = aggregate_plan_results([step], plan_id="plan-1")
+
+        self.assertEqual(step.data["analysis_view"], view)
+        self.assertEqual(plan.analysis_view, view)
+        self.assertEqual(to_api_dict({"plan_result": plan.model_dump(mode="json")})["analysis_view"], view)
+
     def test_result_protocol_covers_bill_and_budget(self):
         from account.ai.orchestrator.result_aggregator import aggregate_plan_results
 

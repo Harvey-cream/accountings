@@ -12,8 +12,10 @@ def _result_response(plan_result: dict) -> dict:
         for item in task_results
         if item.get("summary") or item.get("message")
     ]
+    analysis_view = plan_result.get("analysis_view") or {}
     return {
         "reply": plan_result.get("summary") or "\n".join(summaries) or DEFAULT_CHAT_REPLY,
+        "analysis_view": analysis_view,
         "plan_result": plan_result,
     }
 
@@ -28,6 +30,7 @@ def to_api_dict(agent_result: dict) -> dict:
                 "status": "success" if agent_result["step_result"].get("success") else "failed",
                 "task_results": [agent_result["step_result"]],
                 "summary": agent_result["step_result"].get("summary") or "",
+                "analysis_view": agent_result.get("analysis_view") or {},
             }
         )
 
@@ -37,6 +40,8 @@ def to_api_dict(agent_result: dict) -> dict:
         out["need_confirm"] = True
         out["confirmations"] = agent_result["confirm"].get("confirmations") or []
         out["plan_tasks"] = agent_result.get("plan_tasks") or []
+        out["trace_id"] = agent_result.get("trace_id") or ""
+        out["plan_id"] = agent_result.get("plan_id") or ""
         return out
 
     return chat_response(agent_result.get("output") or DEFAULT_CHAT_REPLY)

@@ -131,6 +131,46 @@ class TransactionInvoice(models.Model):
         verbose_name = "发票助手"
         db_table = "transaction_invoice"
 
+class AgentTrace(models.Model):
+    """一次用户请求的 Trace Root。"""
+    STATUS_CHOICES = (
+        ("running", "运行中"),
+        ("waiting_confirmation", "等待确认"),
+        ("completed", "已完成"),
+        ("failed", "失败"),
+        ("partial", "部分完成"),
+    )
+
+    trace_id = models.CharField(max_length=64, unique=True, db_index=True)
+    plan_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    user_id = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default="running")
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "agent_trace"
+        ordering = ["-created_at", "-id"]
+
+
+class AgentTraceEvent(models.Model):
+    """Agent 执行 Trace 事件。"""
+    trace_id = models.CharField(max_length=64, db_index=True)
+    plan_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    task_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    event_type = models.CharField(max_length=64, db_index=True)
+    agent = models.CharField(max_length=128, blank=True, default="")
+    message = models.TextField(blank=True, default="")
+    data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "agent_trace_event"
+        ordering = ["created_at", "id"]
+
+
 class LangchainChatMessage(models.Model):
     """AI 记账对话记录"""
     ROLE_CHOICES = (

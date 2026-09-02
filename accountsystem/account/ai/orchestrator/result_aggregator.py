@@ -14,6 +14,7 @@ class PlanResult(BaseModel):
     status: Literal["success", "partial", "failed"]
     task_results: list[StepResult] = Field(default_factory=list)
     summary: str = ""
+    analysis_view: dict = Field(default_factory=dict)
     intermediate_steps: list = Field(default_factory=list)
 
 
@@ -41,10 +42,20 @@ def aggregate_plan_results(
     intermediate_steps = [
         step for item in task_results for step in item.intermediate_steps
     ]
+    analysis_view = next(
+        (
+            item.data.get("analysis_view")
+            for item in task_results
+            if isinstance(item.data.get("analysis_view"), dict)
+            and item.data.get("analysis_view")
+        ),
+        {},
+    )
     return PlanResult(
         plan_id=plan_id,
         status=status,
         task_results=task_results,
         summary=summary,
+        analysis_view=analysis_view,
         intermediate_steps=intermediate_steps,
     )

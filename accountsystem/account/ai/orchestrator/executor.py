@@ -22,6 +22,7 @@ from __future__ import annotations
 from account.ai.agents.crew.finance_planner import run_finance_planner
 from account.ai.agents.supervisor import asset, bill, budget, invoice
 
+from .events import EventEmitter
 from .result_adapter import adapt_workflow_result
 from .result_aggregator import aggregate_plan_results
 from .state import AgentState
@@ -46,6 +47,26 @@ _CONFIRM_TASKS = frozenset({"bill", "asset", "invoice"})
 # 前序任务结果注入下一任务时的最大字符数，防止 prompt 无限膨胀
 _PREV_RESULT_MAX_CHARS = 800
 
+_AGENT_NAMES = {
+    "bill": "bill",
+    "budget": "budget",
+    "asset": "asset",
+    "invoice": "invoice",
+    "open_planning": "finance_planner",
+}
+
+
+def _emit(emitter, event_type, *, trace_id, plan_id, task_id="", agent="", message=""):
+    if emitter is not None:
+        emitter.emit(
+            event_type,
+            trace_id=trace_id,
+            plan_id=plan_id,
+            task_id=task_id,
+            agent=agent,
+            message=message,
+        )
+
 
 # ============================================================
 # 单任务执行：交给某个业务 Agent 跑一次
@@ -66,7 +87,15 @@ def _task_input(task, results: dict, user_input: str) -> str:
     return text
 
 
-def _execute_task(state: AgentState, task, results: dict) -> dict:
+def _execute_task(
+    state: AgentState,
+    task,
+    results: dict,
+    *,
+    trace_id: str = "",
+    plan_id: str = "",
+    event_emitter: EventEmitter | None = None,
+) -> dict:
     task_type = task.type
     user_input = _task_input(task, results, state.get("user_input") or "")
     if task_type == "open_planning":
@@ -74,6 +103,10 @@ def _execute_task(state: AgentState, task, results: dict) -> dict:
             user_input,
             state.get("user"),
             history=state.get("memory_messages") or [],
+            trace_id=trace_id,
+            plan_id=plan_id,
+            task_id=task.id,
+            event_emitter=event_emitter,
         )
     runner = _RUNNERS.get(task_type, bill.run)
     kwargs = {"history": state.get("memory_messages") or []}
@@ -83,7 +116,13 @@ def _execute_task(state: AgentState, task, results: dict) -> dict:
     return runner(user_input, state.get("user"), **kwargs)
 
 
-def execute(state: AgentState) -> AgentState:
+def execute(
+    state: AgentState,
+    *,
+    trace_id: str = "",
+    event_emitter: EventEmitter | None = None,
+    runtime_plan_id: str = "",
+) -> AgentState:
     """兼容单任务调用：包装为一个 Plan 后进入统一执行入口。"""
     task_type = state.get("task_type") or "bill"
     task = type("CompatTask", (), {
@@ -92,7 +131,13 @@ def execute(state: AgentState) -> AgentState:
         "goal": state.get("user_input") or "",
         "depends_on": [],
     })()
-    return execute_plan(state, WorkflowPlan(tasks=[task]))
+    return execute_plan(
+        state,
+        WorkflowPlan(tasks=[task]),
+        trace_id=trace_id,
+        event_emitter=event_emitter,
+        runtime_plan_id=runtime_plan_id,
+    )
 
 
 # ============================================================
@@ -152,7 +197,14 @@ def _build_plan_confirmation(ordered) -> dict | None:
 # 跨域计划执行：按依赖顺序跑多个 Workflow
 # ============================================================
 
-def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
+def execute_plan(
+    state: AgentState,
+    plan: WorkflowPlan,
+    *,
+    trace_id: str = "",
+    runtime_plan_id: str = "",
+    event_emitter: EventEmitter | None = None,
+) -> AgentState:
     """
     跨 Workflow 计划执行：
     阶段 1（预览）：
@@ -171,6 +223,8 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
         "id": t.id, "type": t.type, "goal": t.goal, "depends_on": t.depends_on
     } for t in ordered]
 
+    plan_id = str(state.get("conversation_id") or runtime_plan_id or "plan")
+
     # 预览模式：计划包含可确认写操作且尚未经用户确认时，统一返回计划级确认卡
     if (
         any(task.type in _CONFIRM_TASKS for task in ordered)
@@ -183,9 +237,19 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
                 "output": "请确认以下操作：",
                 "confirm": confirm,
                 "plan_tasks": state["workflow_plan"],
+                "trace_id": trace_id,
+                "plan_id": plan_id,
                 "intermediate_steps": [],
             }
             return state
+
+    _emit(
+        event_emitter,
+        "plan.started",
+        trace_id=trace_id,
+        plan_id=plan_id,
+        message="开始执行计划",
+    )
 
     user_input = state.get("user_input") or ""
     history = state.get("memory_messages") or []
@@ -195,11 +259,66 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
     steps: list = []
     task_results = []
     for task in ordered:
-        result = _execute_task(state, task, results)
+        agent_name = _AGENT_NAMES[task.type]
+        _emit(
+            event_emitter,
+            "task.started",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            task_id=task.id,
+            agent=agent_name,
+            message=f"开始处理{task.type}",
+        )
+        _emit(
+            event_emitter,
+            "agent.started",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            task_id=task.id,
+            agent=agent_name,
+            message=f"{agent_name} 开始执行",
+        )
+        try:
+            result = _execute_task(
+                state,
+                task,
+                results,
+                trace_id=trace_id,
+                plan_id=plan_id,
+                event_emitter=event_emitter,
+            )
+        except Exception:
+            _emit(
+                event_emitter,
+                "agent.failed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{agent_name} 执行失败",
+            )
+            _emit(
+                event_emitter,
+                "task.failed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{task.type} 处理失败",
+            )
+            _emit(
+                event_emitter,
+                "plan.failed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                message="计划执行失败",
+            )
+            raise
+
         results[task.id] = result
         step_result = adapt_workflow_result(
             result,
-            plan_id=str(state.get("conversation_id") or "plan"),
+            plan_id=plan_id,
             step_id=task.id,
             step_type=task.type,
         )
@@ -209,12 +328,51 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
         if out:
             outputs.append(out)
         steps.extend(result.get("intermediate_steps") or [])
+        if step_result.success:
+            _emit(
+                event_emitter,
+                "agent.completed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{agent_name} 执行完成",
+            )
+            _emit(
+                event_emitter,
+                "task.completed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{task.type} 处理完成",
+            )
+        else:
+            _emit(
+                event_emitter,
+                "agent.failed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{agent_name} 执行失败",
+            )
+            _emit(
+                event_emitter,
+                "task.failed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+                message=f"{task.type} 处理失败",
+            )
+            break
 
     state["workflow_results"] = results
     state["tool_results"] = steps
     plan_result = aggregate_plan_results(
         task_results,
-        plan_id=str(state.get("conversation_id") or "plan"),
+        plan_id=plan_id,
     )
     state["plan_result"] = plan_result
     state["final_response"] = {
@@ -222,4 +380,20 @@ def execute_plan(state: AgentState, plan: WorkflowPlan) -> AgentState:
         "plan_result": plan_result.model_dump(mode="json"),
         "intermediate_steps": steps,
     }
+    if plan_result.status == "success":
+        _emit(
+            event_emitter,
+            "plan.completed",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            message="计划执行完成",
+        )
+    else:
+        _emit(
+            event_emitter,
+            "plan.failed",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            message="计划执行失败",
+        )
     return state

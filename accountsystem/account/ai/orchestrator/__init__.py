@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from account.ai.agent.func import quick_agent_greeting_prompt
 from account.ai.llm import prompt
 from account.ai.llm.llm import llm
@@ -15,6 +17,7 @@ from account.ai.llm.llm_utils import extract_content
 from account.ai.llm.schemas import DEFAULT_CHAT_REPLY, TextReply
 
 from .executor import execute, execute_plan
+from .events import EventEmitter
 from .memory import load_chat_memory
 from .router import decide
 from .state import AgentState, new_state
@@ -37,8 +40,19 @@ def _try_greeting(text: str) -> str | None:
     return TextReply(reply=raw or DEFAULT_CHAT_REPLY).reply
 
 
-def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=None) -> dict:
+def run_orchestrator(
+    user_input: str,
+    user=None,
+    conversation_id=None,
+    confirm=None,
+    *,
+    trace_id: str | None = None,
+    event_emitter: EventEmitter | None = None,
+    plan_id: str | None = None,
+) -> dict:
     text = user_input or ""
+    trace_id = trace_id or str(uuid4())
+    plan_id = plan_id or str(conversation_id or trace_id)
     confirm = confirm or None
 
     # 前端确认卡片：取消直接短路；确认按卡片所属业务域直达该 Workflow，跳过寒暄与 Supervisor
@@ -59,7 +73,13 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
                 state["current_agent"] = "executor"
                 state["confirm"] = {**confirm, "confirmed_plan": True}
                 plan = WorkflowPlan.model_validate({"tasks": plan_tasks})
-                execute_plan(state, plan)
+                execute_plan(
+                    state,
+                    plan,
+                    trace_id=trace_id,
+                    event_emitter=event_emitter,
+                    runtime_plan_id=plan_id,
+                )
                 return state["final_response"]
 
             entity = str(confirm.get("entity") or "bill")
@@ -67,7 +87,12 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
             state["task_type"] = task
             state["current_agent"] = task
             state["confirm"] = confirm
-            execute(state)
+            execute(
+                state,
+                trace_id=trace_id,
+                event_emitter=event_emitter,
+                runtime_plan_id=plan_id,
+            )
             return state["final_response"]
 
     greeting = _try_greeting(text)
@@ -85,10 +110,21 @@ def run_orchestrator(user_input: str, user=None, conversation_id=None, confirm=N
     if plan is not None:
         state["task_type"] = "plan"
         state["current_agent"] = "executor"
-        execute_plan(state, WorkflowPlan(tasks=plan.tasks))
+        execute_plan(
+            state,
+            WorkflowPlan(tasks=plan.tasks),
+            trace_id=trace_id,
+            event_emitter=event_emitter,
+            runtime_plan_id=plan_id,
+        )
         return state["final_response"]
 
     # 统一 Planner 失败时才回退旧 Supervisor，保证兼容性
     decide(state)
-    execute(state)
+    execute(
+        state,
+        trace_id=trace_id,
+        event_emitter=event_emitter,
+        runtime_plan_id=plan_id,
+    )
     return state["final_response"]

@@ -13,7 +13,37 @@ from account.ai.llm.llm_utils import log_agent_exc
 
 from .schemas import CrewResult
 
+
+def _build_analysis_view(result: CrewResult) -> dict:
+    summary = (result.summary or "").strip()
+    analysis = [str(item).strip() for item in (result.analysis or []) if str(item).strip()]
+    suggestions = [str(item).strip() for item in (result.suggestions or []) if str(item).strip()]
+    sections = []
+    if analysis:
+        sections.append({
+            "title": "消费分析",
+            "content": "",
+            "items": [{"text": item} for item in analysis],
+        })
+    if suggestions:
+        sections.append({
+            "title": "规划建议",
+            "content": "",
+            "items": [{"text": item} for item in suggestions],
+        })
+    view = {
+        "summary": {"text": summary},
+        "sections": sections,
+    }
+    return view
+
 _FALLBACK_REPLY = "暂时无法生成规划，可以尝试查询消费或预算"
+_ROLE_MESSAGES = {
+    "financial_analyst": ("正在分析消费结构", "消费结构分析完成"),
+    "budget_planner": ("正在评估预算情况", "预算评估完成"),
+    "knowledge_researcher": ("正在检索财务知识", "财务知识检索完成"),
+    "financial_advisor": ("正在生成规划建议", "规划建议已生成"),
+}
 
 
 def _history_to_text(history) -> str:
@@ -54,12 +84,50 @@ def _format_report(result: CrewResult) -> str:
     return text or _FALLBACK_REPLY
 
 
+def _emit_role(emitter, event_type, *, trace_id, plan_id, task_id, role):
+    if emitter is None:
+        return
+    message = _ROLE_MESSAGES.get(role, (f"正在执行{role}", f"{role}执行完成"))
+    text = message[0] if event_type == "agent.started" else message[1]
+    emitter.emit(
+        event_type,
+        trace_id=trace_id,
+        plan_id=plan_id,
+        task_id=task_id,
+        agent=role,
+        message=text,
+        data={"parent_agent": "finance_planner", "role": role},
+    )
+
+
+def _task_callback(emitter, *, trace_id, plan_id, task_id, role):
+    def callback(_output):
+        _emit_role(
+            emitter,
+            "agent.completed",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            task_id=task_id,
+            role=role,
+        )
+
+    return callback
+
+
 def _steps(specs) -> list[dict]:
-    """Crew 执行轨迹，供未来 SSE 展示参与过的角色。"""
     return [{"agent": spec.role, "status": "completed"} for spec in specs]
 
 
-def run_finance_planner(user_input: str, user=None, history=None) -> dict:
+def run_finance_planner(
+    user_input: str,
+    user=None,
+    history=None,
+    *,
+    trace_id: str = "",
+    plan_id: str = "",
+    task_id: str = "",
+    event_emitter=None,
+) -> dict:
     """运行开放式财务规划 Crew。任何异常/依赖缺失都优雅降级，绝不抛出。"""
     try:
         from crewai import Crew, Process
@@ -72,6 +140,14 @@ def run_finance_planner(user_input: str, user=None, history=None) -> dict:
         specs = plan_tasks(user_input, history_text)
         agents = build_agents([s.role for s in specs], user)
         tasks = build_tasks(specs, agents, user_input, history_text)
+        for spec, task in zip(specs, tasks):
+            task.callback = _task_callback(
+                event_emitter,
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task_id,
+                role=spec.role,
+            )
 
         crew = Crew(
             agents=list(agents.values()),
@@ -83,6 +159,7 @@ def run_finance_planner(user_input: str, user=None, history=None) -> dict:
         result = _extract_crew_result(crew_output)
         return {
             "output": _format_report(result),
+            "analysis_view": _build_analysis_view(result),
             "intermediate_steps": _steps(specs),
             "crew_result": result.model_dump(),
         }

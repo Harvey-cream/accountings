@@ -70,6 +70,8 @@ def _data(result: dict) -> JsonObject:
         data.update(raw_data)
     if result.get("crew_result") is not None:
         data["crew_result"] = _json_safe(result["crew_result"])
+    if result.get("analysis_view") is not None:
+        data["analysis_view"] = _json_object(result["analysis_view"])
     return data
 
 

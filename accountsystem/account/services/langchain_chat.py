@@ -13,7 +13,7 @@ from .expense_service import create_expense
 def safe_db_text(text):
     if text is None:
         return ""
-    return str(text).replace("**", "")
+    return str(text)
 
 
 def _create_confirm_message(user, ai_data):
@@ -26,6 +26,8 @@ def _create_confirm_message(user, ai_data):
         "candidates": ai_data.get("candidates") or primary.get("candidates") or [],
         "confirmations": confirmations,
         "plan_tasks": ai_data.get("plan_tasks") or [],
+        "trace_id": ai_data.get("trace_id") or "",
+        "plan_id": ai_data.get("plan_id") or "",
         "resolved": False,
     }
     return LangchainChatMessage.objects.create(
@@ -136,6 +138,10 @@ def create_ai_chat_messages(user, content, ai_data):
     cards = ai_data.get("cards") or []
     messages = []
     reply = safe_db_text(ai_data.get("reply", ""))
+    analysis_view = ai_data.get("analysis_view") or None
+    extra_payload = None
+    if analysis_view:
+        extra_payload = json.dumps({"analysis_view": analysis_view}, ensure_ascii=False)
     if reply:
         messages.append(
             LangchainChatMessage.objects.create(
@@ -143,7 +149,7 @@ def create_ai_chat_messages(user, content, ai_data):
                 role="ai",
                 type="text",
                 content=reply,
-                extra_data=None,
+                extra_data=extra_payload,
                 record=None,
             )
         )
