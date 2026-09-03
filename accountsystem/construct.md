@@ -166,7 +166,7 @@ account/
 
 | 层次 | 技术 | 职责 |
 |------|------|------|
-| 外层入口 | `ai/agent/agent.py` | 寒暄短路、调 orchestrator、接 API/SSE |
+| 外层入口 | `ai/gateway/agent.py` | 寒暄短路、调 orchestrator、接 API/SSE |
 | 调度 | orchestrator + Supervisor | 意图路由到 bill/analysis/budget，不碰业务 |
 | 业务管道 | 各 `agents/*/*_agent.py` 自有 LCEL + 图 | 域内构图与 chain，互不共用；bill 为 StateGraph Workflow |
 | 工具 | LangChain `StructuredTool` | 参数 Schema、统一 JSON 返回 |
@@ -280,8 +280,8 @@ START → context_prepare → intent_router → parameter_validator
 
 | 路径 | 职责 |
 |------|------|
-| `ai/agent/agent.py` | View 入口：`extract_accounting_info` / `astream_accounting` / `prewarm_runtime` |
-| `ai/agent/func.py` | 寒暄规则匹配 |
+| `ai/gateway/agent.py` | View 入口：`extract_accounting_info` / `astream_accounting` / `prewarm_runtime` |
+| `ai/gateway/func.py` | 寒暄规则匹配 |
 | `ai/orchestrator/state.py` | `AgentState`：贯穿调度的统一状态（含 memory_messages） |
 | `ai/orchestrator/memory.py` | 最近 3 轮原文；更早对话后台压缩写 cache，热路径不阻塞 |
 | `ai/orchestrator/router.py` | `decide`：调 Supervisor 写回 task_type/current_agent |

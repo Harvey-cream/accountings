@@ -5,7 +5,7 @@ from decimal import Decimal
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
 from .serializers import LangchainChatMessageSerializer
 from django.http import StreamingHttpResponse
-from .ai.agent.agent import extract_accounting_info, astream_accounting
+from .ai.gateway.agent import extract_accounting_info, astream_accounting
 from .ai.llm.response import chat, to_api_dict
 from common.initia import NORMAL_ICONS
 from user.models import User, UserPointRecord

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from account.ai.agent.func import quick_agent_greeting_prompt
+from account.ai.gateway.func import quick_agent_greeting_prompt
 from account.ai.llm import prompt
 from account.ai.llm.llm import llm
 from account.ai.llm.llm_utils import extract_content

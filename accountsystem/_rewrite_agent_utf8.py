@@ -194,7 +194,7 @@ text = "\n".join(lines)
 text = text.encode("utf-8").decode("unicode_escape").encode("latin1").decode("utf-8") if False else text
 # lines already contain real \uXXXX as two-char backslash-u in source of THIS generator;
 # when THIS file is executed, Python interprets \u in the string literals above.
-Path("account/ai/agent/agent.py").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-b = Path("account/ai/agent/agent.py").read_bytes()
+Path("account/ai/gateway/agent.py").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+b = Path("account/ai/gateway/agent.py").read_bytes()
 print("has_duck_utf8", b"\xe9\xb8\xad\xe9\xb8\xad" in b)
-print("line150", Path("account/ai/agent/agent.py").read_text(encoding="utf-8").splitlines()[149])
+print("line150", Path("account/ai/gateway/agent.py").read_text(encoding="utf-8").splitlines()[149])
