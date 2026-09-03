@@ -24,6 +24,7 @@ def _create_confirm_message(user, ai_data):
         "entity": ai_data.get("confirm_entity") or primary.get("entity") or "bill",
         "action": ai_data.get("confirm_action") or primary.get("action") or "",
         "candidates": ai_data.get("candidates") or primary.get("candidates") or [],
+        "payload": ai_data.get("payload") or primary.get("payload") or {},
         "confirmations": confirmations,
         "plan_tasks": ai_data.get("plan_tasks") or [],
         "trace_id": ai_data.get("trace_id") or "",
@@ -189,6 +190,7 @@ def create_user_chat_message(user, content):
 # 各业务域允许经确认卡片回传的写操作
 _CONFIRM_ACTIONS = {
     "bill": {"update", "delete", "batch_create"},
+    "budget": {"update"},
     "asset": {"create", "update", "delete", "adjust_balance"},
     "invoice": {"update", "delete"},
 }

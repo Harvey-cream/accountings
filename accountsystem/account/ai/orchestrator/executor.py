@@ -1,17 +1,10 @@
 """
 Executor 执行层模块
 ================================================================
-作用：根据 orchestrator 分流定下的 task_type，真正调用业务 Agent 执行业务，
-      并把结果统一写回 state.final_response。
+作用：根据统一 WorkflowPlan，按依赖顺序调用具体业务 Agent，并把结果
+      统一写回 state.final_response。
 
-本模块做两件事：
-  A. execute()      —— 单任务执行（bill / budget / asset / invoice / open_planning）
-  B. execute_plan() —— 跨域计划执行（Task Planner 拆出的多 Workflow，按依赖序跑）
-
-execute_plan 有两种行为模式：
-  - 预览模式（未确认）：多任务且含写操作时，先出"计划级确认卡"，不真正执行
-  - 执行模式（已确认）：用户点确认后（confirmed_plan=True），才依序真正跑 Workflow
-
+execute_plan 是唯一正式执行入口，覆盖单任务、多任务和确认恢复场景。
 输出形状统一为 {output, intermediate_steps[, confirm][, plan_tasks]}，
 供 to_api_dict / SSE / 消息落库复用。
 ================================================================
@@ -42,7 +35,7 @@ _RUNNERS = {
 }
 
 # 带 human_confirm 机制、能接收确认卡片回传的业务域
-_CONFIRM_TASKS = frozenset({"bill", "asset", "invoice"})
+_CONFIRM_TASKS = frozenset({"bill", "budget", "asset", "invoice"})
 
 # 前序任务结果注入下一任务时的最大字符数，防止 prompt 无限膨胀
 _PREV_RESULT_MAX_CHARS = 800
@@ -113,32 +106,10 @@ def _execute_task(
     confirm = state.get("confirm")
     if task_type in _CONFIRM_TASKS and confirm is not None:
         kwargs["confirm"] = confirm
+    if task_type in {"asset", "invoice"}:
+        task_input = getattr(task, "input", {}) or {}
+        kwargs["task_input"] = task_input
     return runner(user_input, state.get("user"), **kwargs)
-
-
-def execute(
-    state: AgentState,
-    *,
-    trace_id: str = "",
-    event_emitter: EventEmitter | None = None,
-    runtime_plan_id: str = "",
-) -> AgentState:
-    """兼容单任务调用：包装为一个 Plan 后进入统一执行入口。"""
-    task_type = state.get("task_type") or "bill"
-    task = type("CompatTask", (), {
-        "id": task_type,
-        "type": task_type,
-        "goal": state.get("user_input") or "",
-        "depends_on": [],
-    })()
-    return execute_plan(
-        state,
-        WorkflowPlan(tasks=[task]),
-        trace_id=trace_id,
-        event_emitter=event_emitter,
-        runtime_plan_id=runtime_plan_id,
-    )
-
 
 # ============================================================
 # 跨计划辅助函数：上下文拼装 + 预览数据提取
@@ -188,6 +159,19 @@ def _build_plan_confirmation(ordered) -> dict | None:
                 "payload": task_input,
                 "task_id": task.id,
             })
+        elif task.type in {"asset", "invoice"}:
+            action = str(task_input.get("action") or "").strip()
+            if action in {"create", "update", "delete", "adjust_balance"} and (
+                task.type == "asset" or action in {"update", "delete"}
+            ):
+                confirmations.append({
+                    "need_confirm": True,
+                    "entity": task.type,
+                    "action": action,
+                    "candidates": task_input.get("candidates") or [],
+                    "payload": task_input,
+                    "task_id": task.id,
+                })
     if not confirmations:
         return None
     return {"need_confirm": True, "confirmations": confirmations}

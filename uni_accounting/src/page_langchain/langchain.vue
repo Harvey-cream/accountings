@@ -61,7 +61,7 @@
 							</template>
 						</view>
 						<text v-if="!msg.content && streamingAiId === msg.id && streamingStatus && !taskProgressVisible" class="streaming-hint">{{ streamingStatus }}<text class="processing-dots">{{ processingDots }}</text></text>
-						<view v-else-if="!msg.content && streamingAiId === msg.id" class="typing-bubble">
+						<view v-else-if="!msg.content && streamingAiId === msg.id && !taskProgressVisible" class="typing-bubble">
 							<view class="typing-dot"></view>
 							<view class="typing-dot"></view>
 							<view class="typing-dot"></view>

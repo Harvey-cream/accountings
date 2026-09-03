@@ -55,6 +55,7 @@ def _graph_to_result(graph_state: dict) -> dict:
 
 def _to_graph_input(payload: dict) -> dict:
     user = payload.get("user")
+    task_input = payload.get("task_input") or {}
     state = {
         "input": payload.get("input") or "",
         "messages": list(payload.get("history") or []),
@@ -63,6 +64,14 @@ def _to_graph_input(payload: dict) -> dict:
         "confirmed": False,
         "loops": 0,
     }
+    allowed = {"intent", "target_account", "candidates", "draft"}
+    state.update({key: value for key, value in task_input.items() if key in allowed})
+    if not state.get("intent") and task_input.get("action") in _CONFIRM_ACTIONS:
+        state["intent"] = task_input["action"]
+    if not state.get("target_account") and task_input.get("target_id") is not None:
+        state["target_account"] = {"id": int(task_input["target_id"])}
+    if state.get("intent") == "create" and not state.get("draft"):
+        state["draft"] = {key: value for key, value in task_input.items() if key != "action"}
     confirm = payload.get("confirm") or {}
     action = str(confirm.get("action") or "").strip()
     if confirm.get("confirm") is not True or action not in _CONFIRM_ACTIONS:
@@ -88,13 +97,14 @@ def _build_chain(user):
     )
 
 
-def run(user_input: str, user=None, history=None, confirm=None) -> dict:
+def run(user_input: str, user=None, history=None, confirm=None, task_input=None) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
         {
             "input": user_input or "",
             "history": history or [],
             "user": user,
+            "task_input": task_input or {},
             "confirm": confirm,
         },
         config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
