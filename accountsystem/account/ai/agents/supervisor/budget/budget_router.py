@@ -11,14 +11,20 @@ from .budget_state import BudgetAgentState
 
 def route_after_validator(state: BudgetAgentState) -> str:
     result = state.get("validation_result") or {}
-    if state.get("need_input") or result.get("ok") is False or state.get("final_response"):
+    if state.get("need_input") or result.get("ok") is False:
         return "end"
+    if state.get("need_confirm"):
+        return "human_confirm"
     return "policy_check"
 
 
 def route_after_policy(state: BudgetAgentState) -> str:
     result = state.get("policy_result") or {}
-    if result.get("ok") is False or state.get("final_response"):
+    if result.get("ok") is False:
+        return "end"
+    if state.get("intent") == "set_budget" and not state.get("confirmed"):
+        return "human_confirm"
+    if state.get("final_response"):
         return "end"
     return "budget_agent"
 

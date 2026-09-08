@@ -106,7 +106,7 @@ def _execute_task(
     confirm = state.get("confirm")
     if task_type in _CONFIRM_TASKS and confirm is not None:
         kwargs["confirm"] = confirm
-    if task_type in {"asset", "invoice"}:
+    if task_type in {"budget", "asset", "invoice"}:
         task_input = getattr(task, "input", {}) or {}
         kwargs["task_input"] = task_input
     return runner(user_input, state.get("user"), **kwargs)

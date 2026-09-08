@@ -18,5 +18,7 @@ class BudgetAgentState(TypedDict, total=False):
     policy_result: dict
     tool_result: Any
     need_input: bool
+    confirmed: bool
+    need_confirm: bool
     final_response: str
     loops: int

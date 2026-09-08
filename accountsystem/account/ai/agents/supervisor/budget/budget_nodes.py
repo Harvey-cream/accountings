@@ -67,19 +67,22 @@ def make_parameter_validator_node(model=llm):
         default_year = today.strftime("%Y")
 
         try:
-            raw = extractor.invoke(
-                [
-                    SystemMessage(
-                        content=(
-                            f"{BUDGET_PARAM_SYSTEM}\n"
-                            f"今天：{today.isoformat()}；本月={default_month}；今年={default_year}；"
-                            f"intent={intent}。"
-                        )
-                    ),
-                    HumanMessage(content=text),
-                ]
-            )
-            params = raw.model_dump()
+            if state.get("budget_params"):
+                params = dict(state["budget_params"])
+            else:
+                raw = extractor.invoke(
+                    [
+                        SystemMessage(
+                            content=(
+                                f"{BUDGET_PARAM_SYSTEM}\n"
+                                f"今天：{today.isoformat()}；本月={default_month}；今年={default_year}；"
+                                f"intent={intent}。"
+                            )
+                        ),
+                        HumanMessage(content=text),
+                    ]
+                )
+                params = raw.model_dump()
         except Exception as e:
             log_agent_exc("BUDGET_PARAM", e, input=text[:60])
             params = {
@@ -173,6 +176,30 @@ def _tool_data(raw) -> dict:
         return {}
     data = payload.get("data")
     return data if isinstance(data, dict) else {}
+
+
+def human_confirm_node(state: BudgetAgentState) -> dict:
+    params = state.get("budget_params") or {}
+    amount = float(params.get("amount") or 0)
+    period = params.get("period") or ""
+    budget_type = "月" if params.get("budget_type") == "month" else "年"
+    category = params.get("category") or "总预算"
+    question = f"确认设置{period}的{category}{budget_type}预算 {amount:g} 元吗？"
+    return {
+        "messages": [AIMessage(content=question)],
+        "final_response": question,
+        "need_confirm": True,
+        "result": {
+            "success": True,
+            "message": question,
+            "data": {
+                "need_confirm": True,
+                "entity": "budget",
+                "action": "update",
+                "payload": params,
+            },
+        },
+    }
 
 
 # ----- 5. budget_agent -----

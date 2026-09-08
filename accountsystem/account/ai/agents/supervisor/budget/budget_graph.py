@@ -15,6 +15,7 @@ from .budget_nodes import (
     make_intent_router_node,
     make_parameter_validator_node,
     make_response_generator_node,
+    human_confirm_node,
 )
 from .budget_router import route_after_agent, route_after_policy, route_after_validator
 from .budget_state import BudgetAgentState
@@ -30,6 +31,7 @@ def build_budget_graph(user):
     graph.add_node("intent_router", make_intent_router_node())
     graph.add_node("parameter_validator", make_parameter_validator_node())
     graph.add_node("policy_check", make_budget_policy_check_node(tools_by_name))
+    graph.add_node("human_confirm", human_confirm_node)
     graph.add_node("budget_agent", make_budget_agent_node(tools))
     graph.add_node("budget_tools", ToolNode(tools))
     graph.add_node("response_generator", make_response_generator_node())
@@ -45,8 +47,9 @@ def build_budget_graph(user):
     graph.add_conditional_edges(
         "policy_check",
         route_after_policy,
-        {"budget_agent": "budget_agent", "end": END},
+        {"budget_agent": "budget_agent", "human_confirm": "human_confirm", "end": END},
     )
+    graph.add_edge("human_confirm", END)
     graph.add_conditional_edges(
         "budget_agent",
         route_after_agent,
