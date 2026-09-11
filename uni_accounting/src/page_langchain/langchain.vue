@@ -230,7 +230,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, getCurrentInstance } from 'vue';
-import { getLangchainChat, sendLangchainChat, deleteBill, updateBill } from '@/api/api.js';
+import { getLangchainChat, deleteBill, updateBill } from '@/api/api.js';
 import { isLangchainStreamSupported, sendLangchainChatStream } from '@/utils/langchain_stream.js';
 import AnalysisRenderer from './AnalysisRenderer.vue';
 
@@ -622,6 +622,9 @@ const handleConfirmAction = async (msg, ok) => {
 		return uni.showToast({ title: '缺少确认信息', icon: 'none' });
 	}
 
+	if (!isLangchainStreamSupported()) {
+		return uni.showToast({ title: '当前环境不支持流式对话', icon: 'none' });
+	}
 	const content = ok ? `确认${actionLabel(extra.action)}` : '取消';
 	markConfirmResolved(msg);
 	messages.value.push({
@@ -633,15 +636,14 @@ const handleConfirmAction = async (msg, ok) => {
 	scrollToBottom();
 
 	const loadingStart = Date.now();
-	if (isLangchainStreamSupported()) {
-		const aiId = `local-ai-${Date.now()}`;
+	const aiId = `local-ai-${Date.now()}`;
 		resetRequestState();
 		streamingAiId.value = aiId;
 		streamingStatus.value = '';
 		startProcessingDots();
 		messages.value.push({ id: aiId, role: 'ai', type: 'text', content: '' });
 		try {
-			await sendLangchainChatStream(content, {
+		await sendLangchainChatStream(content, {
 				onStatus: (text) => {
 					if (streamingAiId.value === aiId) streamingStatus.value = text;
 					scrollToBottomThrottled();
@@ -680,31 +682,15 @@ const handleConfirmAction = async (msg, ok) => {
 			uni.showToast({ title: '发送失败', icon: 'none' });
 		}
 		return;
-	}
+	};
 
-	loading.value = true;
-	try {
-		const res = await sendLangchainChat({ content, ...extra });
-		if (res.code === 0) {
-			(res.data || [])
-				.filter((m) => m.role === 'ai')
-				.forEach((m) => messages.value.push(formatMessage(m)));
-			scrollToBottom();
-		}
-	} catch (e) {
-		uni.showToast({ title: '发送失败', icon: 'none' });
-	} finally {
-		const elapsed = Date.now() - loadingStart;
-		setTimeout(() => { loading.value = false; }, Math.max(0, 450 - elapsed));
-	}
-};
-
-const handleSend = async () => {
-	if (!inputValue.value.trim() || loading.value) return;
+	const handleSend = async () => {
+		if (!inputValue.value.trim() || loading.value) return;
 
 	const content = inputValue.value.trim();
-	const loadingStart = Date.now();
-	inputValue.value = '';
+	if (!isLangchainStreamSupported()) {
+		return uni.showToast({ title: '当前环境不支持流式对话', icon: 'none' });
+	}
 	messages.value.push({
 		id: `local-user-${Date.now()}`,
 		role: 'user',
@@ -713,15 +699,14 @@ const handleSend = async () => {
 	});
 	scrollToBottom();
 
-	if (isLangchainStreamSupported()) {
-		const aiId = `local-ai-${Date.now()}`;
-		resetRequestState();
+	const aiId = `local-ai-${Date.now()}`;
+	resetRequestState();
 		streamingAiId.value = aiId;
 		streamingStatus.value = '';
 		startProcessingDots();
 		messages.value.push({ id: aiId, role: 'ai', type: 'text', content: '' });
 		try {
-			await sendLangchainChatStream(content, {
+		await sendLangchainChatStream(content, {
 				onStatus: (text) => {
 					if (streamingAiId.value === aiId) streamingStatus.value = text;
 					scrollToBottomThrottled();
@@ -760,33 +745,9 @@ const handleSend = async () => {
 			uni.showToast({ title: '发送失败', icon: 'none' });
 		}
 		return;
-	}
+	};
 
-	loading.value = true;
-	scrollToBottom();
-
-	try {
-		const res = await sendLangchainChat({ content });
-		if (res.code === 0) {
-			res.data
-				.filter(msg => msg.role === 'ai')
-				.forEach(msg => {
-					messages.value.push(formatMessage(msg));
-				});
-			scrollToBottom();
-		}
-	} catch (e) {
-		uni.showToast({ title: '发送失败', icon: 'none' });
-	} finally {
-		const elapsed = Date.now() - loadingStart;
-		const remain = Math.max(0, 450 - elapsed);
-		setTimeout(() => {
-			loading.value = false;
-		}, remain);
-	}
-};
-
-const scrollToBottom = () => {
+	const scrollToBottom = () => {
 	if (!userNearBottom.value) return;
 	nextTick(() => {
 		scrollTop.value = 999999 + Math.random();

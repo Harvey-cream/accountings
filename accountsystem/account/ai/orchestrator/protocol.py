@@ -15,8 +15,12 @@
 
 from __future__ import annotations
 
-from enum import Enum, StrEnum
+from enum import Enum
 from typing import Literal, TypeAlias
+
+# Python 3.10 compatibility for StrEnum
+class StrEnum(str, Enum):
+    pass
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.types import JsonValue
@@ -51,6 +55,7 @@ class StepType(StrEnum):
     ASSET = "asset"
     INVOICE = "invoice"
     OPEN_PLANNING = "open_planning"
+    CHAT = "chat"
 
 
 class ProtocolModel(BaseModel):

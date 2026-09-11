@@ -19,7 +19,7 @@ def route_by_intent(state: AssetAgentState) -> str:
 def route_after_mutation_check(state: AssetAgentState) -> str:
     if state.get("result"):
         return "result_formatter"
-    return "human_confirm" if state.get("need_confirm") else "asset_agent"
+    return "human_confirm" if state.get("need_confirm") and not state.get("confirmed") else "asset_agent"
 
 
 def route_after_agent(state: AssetAgentState) -> str:

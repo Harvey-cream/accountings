@@ -17,12 +17,12 @@ class BudgetConfirmationTests(SimpleTestCase):
                 "user": None,
                 "confirm": {"confirm": True, "confirmed_plan": True},
                 "task_input": {
-                    "action": "update",
                     "amount": 5000,
                     "period": "2026-09",
                     "budget_type": "month",
                     "is_total": True,
                 },
+                "task_action": "set_budget",
             }
         )
         self.assertTrue(state["confirmed"])
@@ -59,10 +59,10 @@ class BudgetConfirmationTests(SimpleTestCase):
         state = {"user_input": "组合任务", "memory_messages": [], "confirm": {"confirmed_plan": True}}
         plan = WorkflowPlan(
             tasks=[
-                WorkflowTask(id="invoice", type="invoice", goal="查询发票"),
-                WorkflowTask(id="asset", type="asset", goal="查询资产", depends_on=["invoice"]),
-                WorkflowTask(id="budget", type="budget", goal="查询预算", depends_on=["asset"]),
-                WorkflowTask(id="bill", type="bill", goal="查询账单", depends_on=["budget"]),
+                WorkflowTask(id="invoice", type="invoice", action="query", goal="查询发票", input={}),
+                WorkflowTask(id="asset", type="asset", action="query", goal="查询资产", input={}, depends_on=["invoice"]),
+                WorkflowTask(id="budget", type="budget", action="query_budget", goal="查询预算", input={"period": "2026-09"}, depends_on=["asset"]),
+                WorkflowTask(id="bill", type="bill", action="query", goal="查询账单", input={}, depends_on=["budget"]),
             ]
         )
         with patch.object(

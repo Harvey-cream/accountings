@@ -11,7 +11,7 @@
 分析能力不再作为独立 Workflow：analysis_tools 由 CrewAI 的 Financial Analyst 使用。
 """
 
-from . import asset, bill, budget, invoice
+from . import asset, bill, budget, chat, invoice
 from .supervisor_agent import route
 from .supervisor_schemas import RouteDecision, TaskType
 
@@ -23,4 +23,5 @@ __all__ = [
     "budget",
     "asset",
     "invoice",
+    "chat",
 ]

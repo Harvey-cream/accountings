@@ -21,7 +21,7 @@ class AgentTraceLifecycleTests(SimpleTestCase):
     def test_single_bill_emits_plan_task_and_agent_events_in_order(self):
         collector = _EventCollector()
         state = {"user_input": "晚饭30", "confirm": {"confirmed_plan": True}}
-        plan = self._plan(WorkflowTask(id="bill", type="bill", goal="记录晚饭30元"))
+        plan = self._plan(WorkflowTask(id="bill", type="bill", action="create", goal="记录晚饭30元", input={"amount": 30}))
 
         with patch(
             "account.ai.orchestrator.executor._execute_task",
@@ -54,8 +54,8 @@ class AgentTraceLifecycleTests(SimpleTestCase):
         collector = _EventCollector()
         state = {"user_input": "早饭80，预算7900", "confirm": {"confirmed_plan": True}}
         plan = self._plan(
-            WorkflowTask(id="bill", type="bill", goal="记录早饭80元"),
-            WorkflowTask(id="budget", type="budget", goal="设置预算7900元"),
+            WorkflowTask(id="bill", type="bill", action="create", goal="记录早饭80元", input={"amount": 80}),
+            WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置预算7900元", input={"amount": 7900, "period": "2026-09", "budget_type": "month"}),
         )
 
         with patch(
@@ -89,7 +89,7 @@ class AgentTraceLifecycleTests(SimpleTestCase):
     def test_agent_exception_emits_failure_chain(self):
         collector = _EventCollector()
         state = {"user_input": "晚饭30", "confirm": {"confirmed_plan": True}}
-        plan = self._plan(WorkflowTask(id="bill", type="bill", goal="记录晚饭30元"))
+        plan = self._plan(WorkflowTask(id="bill", type="bill", action="create", goal="记录晚饭30元", input={"amount": 30}))
 
         with patch(
             "account.ai.orchestrator.executor._execute_task",

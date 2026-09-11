@@ -22,14 +22,14 @@ def route_by_intent(state: BillAgentState) -> str:
 def route_after_mutation_check(state: BillAgentState) -> str:
     if state.get("result"):
         return "result_formatter"
-    return "human_confirm" if state.get("need_confirm") else "bill_agent"
+    return "human_confirm" if state.get("need_confirm") and not state.get("confirmed") else "bill_agent"
 
 
 def route_after_batch_parse(state: BillAgentState) -> str:
     """拆不出草稿就直接收尾；未确认先出汇总卡片；已确认交给 bill_agent 批量落库。"""
     if state.get("result"):
         return "result_formatter"
-    return "human_confirm" if state.get("need_confirm") else "bill_agent"
+    return "human_confirm" if state.get("need_confirm") and not state.get("confirmed") else "bill_agent"
 
 
 def route_after_agent(state: BillAgentState) -> str:

@@ -156,22 +156,44 @@ def update_bill_tool(user) -> StructuredTool:
 
 
 class QueryBillInput(BaseModel):
-    days: int = Field(default=30, ge=1, le=365, description="查询最近多少天，默认 30")
+    keyword: str | None = Field(default=None, description="备注关键词")
+    category: str | None = Field(default=None, description="分类名称")
+    start_date: str | None = Field(default=None, description="起始日期 YYYY-MM-DD")
+    end_date: str | None = Field(default=None, description="结束日期 YYYY-MM-DD")
+    days: int | None = Field(default=30, ge=1, le=365, description="近多少天")
     bill_type: str | None = Field(
         default=None, description="可选过滤：expense/income；不传则全部"
     )
-    limit: int = Field(default=50, ge=1, le=200, description="最多返回条数")
+    limit: int = Field(default=20, ge=1, le=100, description="最多返回条数")
 
 
 def query_bills_tool(user) -> StructuredTool:
     def query_bills(
-        days: int = 30,
+        keyword: str | None = None,
+        category: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        days: int | None = 30,
         bill_type: str | None = None,
-        limit: int = 50,
+        limit: int = 20,
     ) -> str:
+        if keyword or category or start_date or end_date:
+            return run_service(
+                lambda: expense_service.search_expense(
+                    user,
+                    keyword=keyword,
+                    category_name=category,
+                    days=days,
+                    start_date=_parse_date(start_date),
+                    end_date=_parse_date(end_date),
+                    bill_type=bill_type,
+                    limit=limit,
+                ),
+                ok_message="查询成功",
+            )
         return run_service(
             lambda: expense_service.query_expense(
-                user, days=days, bill_type=bill_type, limit=limit
+                user, days=days or 30, bill_type=bill_type, limit=limit
             ),
             ok_message="查询成功",
         )

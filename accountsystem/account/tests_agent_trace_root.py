@@ -38,8 +38,9 @@ class AgentTraceRootTests(TestCase):
                 WorkflowTask(
                     id="bill",
                     type="bill",
+                    action="create",
                     goal="记录晚饭30元",
-                    input={"items": [{"amount": 30, "description": "晚饭"}]},
+                    input={"amount": 30, "description": "晚饭"},
                 )
             ]
         )
@@ -65,8 +66,8 @@ class AgentTraceRootTests(TestCase):
         state = {"user_input": "早饭80，预算7900", "confirm": {"confirmed_plan": True}}
         plan = WorkflowPlan(
             tasks=[
-                WorkflowTask(id="bill", type="bill", goal="记录早饭80元"),
-                WorkflowTask(id="budget", type="budget", goal="设置预算7900元"),
+                WorkflowTask(id="bill", type="bill", action="create", goal="记录早饭80元", input={"amount": 80}),
+                WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置预算7900元", input={"amount": 7900, "period": "2026-09", "budget_type": "month"}),
             ]
         )
 

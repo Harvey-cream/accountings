@@ -28,30 +28,36 @@ _CANCEL_REPLY = "好的，已取消啦～"
 # 确认数据没有完整计划时，仍转换为统一的单任务 WorkflowPlan
 
 def _confirmation_plan(confirm: dict, confirm_extra: dict) -> WorkflowPlan:
-    """Convert a legacy single confirmation payload into the unified plan shape."""
-    entity = str(confirm.get("entity") or confirm_extra.get("entity") or "bill")
-    if entity not in {"bill", "budget", "asset", "invoice"}:
-        entity = "bill"
+    """Convert one legacy confirmation payload without guessing its meaning."""
+    entity = confirm.get("entity") or confirm_extra.get("entity")
     action = str(confirm.get("action") or confirm_extra.get("action") or "").strip()
+    if entity not in {"bill", "budget", "asset", "invoice"} or not action:
+        raise ValueError("confirmation must include a supported entity and action")
+    if entity == "budget" and action == "update":
+        action = "set_budget"
     task_input = dict(confirm_extra.get("payload") or confirm.get("payload") or {})
     candidates = confirm_extra.get("candidates") or confirm.get("candidates") or []
-    if candidates:
-        task_input["candidates"] = candidates
-    if entity == "bill" and action == "batch_create" and candidates:
-        task_input["items"] = candidates
+    if entity == "bill" and action == "batch_create":
+        if not candidates and not task_input.get("items"):
+            raise ValueError("bill batch confirmation requires candidates or items")
+        task_input["items"] = candidates or task_input["items"]
     target_id = confirm.get("target_id")
     if target_id is None:
         target_id = confirm_extra.get("target_id")
     if target_id is not None:
-        task_input["target_id"] = target_id
-    if action:
-        task_input["action"] = action
+        if entity == "bill":
+            task_input["bill_id"] = target_id
+        elif entity == "asset":
+            task_input["account_id"] = target_id
+        elif entity == "invoice":
+            task_input["invoice_id"] = target_id
     return WorkflowPlan(
         tasks=[
             WorkflowTask(
-                id=f"{entity}_{action or 'confirmed'}",
+                id=f"{entity}_{action}",
                 type=entity,
-                goal=f"确认执行{action or '该操作'}",
+                action=action,
+                goal=f"确认执行{action}",
                 input=task_input,
             )
         ]
@@ -93,12 +99,26 @@ def run_orchestrator(
             state["messages"] = list(memory_messages)
 
             confirm_extra = confirm.get("confirm_extra") or {}
-            plan_tasks = confirm_extra.get("plan_tasks") or []
-            plan = (
-                WorkflowPlan.model_validate({"tasks": plan_tasks})
-                if plan_tasks
-                else _confirmation_plan(confirm, confirm_extra)
-            )
+            workflow_plan = confirm_extra.get("workflow_plan") or []
+            try:
+                plan = (
+                    WorkflowPlan.model_validate({"tasks": workflow_plan})
+                    if workflow_plan
+                    else _confirmation_plan(confirm, confirm_extra)
+                )
+            except (TypeError, ValueError):
+                return {
+                    "output": "确认信息无效，计划未执行。",
+                    "intermediate_steps": [],
+                    "plan_result": {
+                        "plan_id": plan_id,
+                        "status": "failed",
+                        "task_results": [],
+                        "summary": "确认信息未通过计划校验",
+                        "analysis_view": {},
+                        "intermediate_steps": [],
+                    },
+                }
             state["task_type"] = "plan"
             state["current_agent"] = "executor"
             state["confirm"] = {**confirm, "confirmed_plan": True}

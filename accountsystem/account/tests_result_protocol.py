@@ -25,6 +25,7 @@ class ResultProtocolTests(SimpleTestCase):
             plan_id="plan-1",
             step_id=step_id,
             step_type=step_type,
+            action=extra.pop("action", "query"),
         )
 
     def test_bill_and_budget_results_are_both_aggregated(self):

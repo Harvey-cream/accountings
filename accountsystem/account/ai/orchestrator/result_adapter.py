@@ -81,6 +81,7 @@ def adapt_workflow_result(
     plan_id: str,
     step_id: str,
     step_type: StepType,
+    action: str,
 ) -> StepResult:
     result = result or {}
     status = _status(result)
@@ -106,7 +107,7 @@ def adapt_workflow_result(
         plan_id=plan_id,
         step_id=step_id,
         step_type=step_type,
-        action=str(result.get("action") or "execute"),
+        action=action,
         status=status,
         success=status == StepStatus.COMPLETED,
         data=_data(result),

@@ -43,6 +43,8 @@ def _graph_to_result(graph_state: dict) -> dict:
         output = extract_content(messages[-1]).strip()
     out = {"output": output, "intermediate_steps": steps}
     data = result.get("data") or {}
+    if data:
+        out["data"] = data
     if data.get("need_confirm"):
         out["confirm"] = {
             "need_confirm": True,
@@ -56,6 +58,8 @@ def _graph_to_result(graph_state: dict) -> dict:
 def _to_graph_input(payload: dict) -> dict:
     user = payload.get("user")
     task_input = payload.get("task_input") or {}
+    task_action = payload.get("task_action")
+    task_confirmed = bool(payload.get("task_confirmed"))
     state = {
         "input": payload.get("input") or "",
         "messages": list(payload.get("history") or []),
@@ -66,25 +70,52 @@ def _to_graph_input(payload: dict) -> dict:
     }
     allowed = {"intent", "target_account", "candidates", "draft"}
     state.update({key: value for key, value in task_input.items() if key in allowed})
-    if not state.get("intent") and task_input.get("action") in _CONFIRM_ACTIONS:
-        state["intent"] = task_input["action"]
-    if not state.get("target_account") and task_input.get("target_id") is not None:
-        state["target_account"] = {"id": int(task_input["target_id"])}
-    if state.get("intent") == "create" and not state.get("draft"):
-        state["draft"] = {key: value for key, value in task_input.items() if key != "action"}
     confirm = payload.get("confirm") or {}
     action = str(confirm.get("action") or "").strip()
-    if confirm.get("confirm") is not True or action not in _CONFIRM_ACTIONS:
+    if confirm.get("confirm") is True:
+        if action == "create":
+            state["intent"] = action
+            state["confirmed"] = True
+        elif action in _CONFIRM_ACTIONS and confirm.get("target_id") is not None:
+            state["intent"] = action
+            state["target_account"] = {"id": int(confirm["target_id"])}
+            state["confirmed"] = True
         return state
 
-    target_id = confirm.get("target_id")
-    if action in _TARGETLESS_ACTIONS:
-        state["intent"] = action
-        state["confirmed"] = True
-    elif target_id is not None:
-        state["intent"] = action
-        state["target_account"] = {"id": int(target_id)}
-        state["confirmed"] = True
+    # 计划任务显式给出 action；写操作在确认后由 confirm 分支接管，这里只注入 intent
+    if task_action in _CONFIRM_ACTIONS:
+        state["intent"] = task_action
+        state["confirmed"] = task_confirmed
+        if task_action == "create" and not state.get("draft"):
+            state["draft"] = {
+                key: task_input[key]
+                for key in (
+                    "name",
+                    "asset_type",
+                    "balance",
+                    "account_type",
+                    "is_included_in_total",
+                    "remark",
+                )
+                if key in task_input
+            }
+        elif task_action == "update":
+            state["draft"] = {
+                key: task_input[key]
+                for key in (
+                    "name",
+                    "asset_type",
+                    "balance",
+                    "account_type",
+                    "is_included_in_total",
+                    "remark",
+                )
+                if key in task_input
+            }
+        if task_input.get("account_id") is not None:
+            state["target_account"] = {"id": int(task_input["account_id"])}
+    elif task_action == "query":
+        state["intent"] = "query"
     return state
 
 
@@ -97,7 +128,15 @@ def _build_chain(user):
     )
 
 
-def run(user_input: str, user=None, history=None, confirm=None, task_input=None) -> dict:
+def run(
+    user_input: str,
+    user=None,
+    history=None,
+    confirm=None,
+    task_action=None,
+    task_input=None,
+    task_confirmed=False,
+) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
         {
@@ -105,6 +144,8 @@ def run(user_input: str, user=None, history=None, confirm=None, task_input=None)
             "history": history or [],
             "user": user,
             "task_input": task_input or {},
+            "task_action": task_action,
+            "task_confirmed": task_confirmed,
             "confirm": confirm,
         },
         config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},

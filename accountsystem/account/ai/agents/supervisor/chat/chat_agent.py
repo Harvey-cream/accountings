@@ -1,7 +1,6 @@
-"""Bill Agent 外壳：LCEL 管道 → Bill Workflow(StateGraph) → 结果适配。
+"""Chat Agent 外壳：LCEL 管道 → Chat Workflow → 结果适配。
 
-图与节点在 bill_graph / bill_nodes 里，本文件只负责入参整形与出参兼容。
-强 Schema 下 action 由计划任务显式给出，不再从自然语言重新猜测。
+图与节点在 chat_graph / chat_nodes 里，本文件只负责入参整形与出参兼容。
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from langchain_core.runnables import RunnableLambda
 from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.llm.llm_utils import extract_content
 
-from .bill_graph import build_bill_graph
+from .chat_graph import build_chat_graph
 
 
 def _tool_call_id(tc) -> str:
@@ -22,7 +21,7 @@ def _tool_call_id(tc) -> str:
 
 
 def _graph_to_result(graph_state: dict) -> dict:
-    """Bill 结果适配：messages + result -> {output, intermediate_steps[, confirm]}。"""
+    """Chat 结果适配：messages + result -> {output, intermediate_steps}。"""
     messages = graph_state.get("messages") or []
     pending = {}
     steps = []
@@ -39,62 +38,28 @@ def _graph_to_result(graph_state: dict) -> dict:
     output = (result.get("message") or "").strip()
     if not output and messages:
         output = extract_content(messages[-1]).strip()
-    out = {"output": output, "intermediate_steps": steps}
-    data = result.get("data") or {}
-    if data:
-        out["data"] = data
-    if data.get("need_confirm"):
-        out["confirm"] = {
-            "need_confirm": True,
-            "entity": "bill",
-            "action": data.get("action") or "",
-            "candidates": data.get("candidates") or [],
-        }
-    return out
+    return {"output": output, "intermediate_steps": steps}
 
 
 def _to_graph_input(payload: dict) -> dict:
     user = payload.get("user")
-    task_action = payload.get("task_action")
-    task_confirmed = bool(payload.get("task_confirmed"))
     task_input = payload.get("task_input") or {}
-    state = {
-        "input": payload.get("input") or "",
+    # 优先用 Planner 结构化入参里的 message，缺失时回落原始输入
+    message = str(task_input.get("message") or "").strip()
+    return {
+        "input": message or (payload.get("input") or ""),
         "messages": list(payload.get("history") or []),
         "user_id": getattr(user, "id", None),
-        "need_confirm": False,
-        "confirmed": False,
         "loops": 0,
         "task_input": task_input,
     }
-    confirm = payload.get("confirm") or {}
-    if confirm.get("confirm") is True:
-        action = str(confirm.get("action") or "").strip()
-        if action in {"update", "delete"} and confirm.get("target_id") is not None:
-            state["intent"] = action
-            state["target_bill"] = {"id": int(confirm["target_id"])}
-            state["confirmed"] = True
-            return state
-    if task_action in {"update", "delete"}:
-        state["intent"] = task_action
-        target = int(task_input.get("bill_id")) if task_input.get("bill_id") is not None else None
-        if target is not None:
-            state["target_bill"] = {"id": target}
-        state["confirmed"] = task_confirmed
-        return state
-    if task_action in {"create", "batch_create", "query"}:
-        state["intent"] = task_action
-        state["confirmed"] = task_confirmed
-        if task_action == "batch_create":
-            state["drafts"] = list(task_input.get("items") or [])
-    return state
 
 
 def _build_chain(user):
-    """账单域专属管道：input -> bill workflow -> result。"""
+    """聊天域专属管道：input -> chat workflow -> result。"""
     return (
         RunnableLambda(_to_graph_input)
-        | build_bill_graph(user)
+        | build_chat_graph(user)
         | RunnableLambda(_graph_to_result)
     )
 

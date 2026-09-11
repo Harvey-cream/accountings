@@ -155,8 +155,16 @@ def make_bill_agent_node(tools: list, model=llm):
     agent_llm = model.bind_tools(tools)
 
     def bill_agent_node(state: BillAgentState) -> dict:
-        guide = INTENT_GUIDE.get(state.get("intent") or "", "")
-        system = SystemMessage(content=f"{BILL_SYSTEM}\n\n{guide}".strip())
+        intent = state.get("intent") or ""
+        guide = INTENT_GUIDE.get(intent, "")
+        task_input = state.get("task_input") or {}
+        task_context = (
+            f"\n\nPlanner 任务上下文：action={intent}，结构化参数="
+            f"{json.dumps(task_input, ensure_ascii=False)}"
+            if task_input
+            else ""
+        )
+        system = SystemMessage(content=f"{BILL_SYSTEM}\n\n{guide}{task_context}".strip())
         reply = agent_llm.invoke([system, *(state.get("messages") or [])])
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}
 
@@ -285,14 +293,18 @@ def result_formatter_node(state: BillAgentState) -> dict:
             payload = _tool_payload(msg.content)
             if payload is not None:
                 success = bool(payload.get("success"))
+    data = {"intent": state.get("intent") or "", "target_bill": state.get("target_bill")}
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage):
+            payload = _tool_payload(msg.content)
+            if payload and payload.get("success"):
+                data["records"] = payload.get("data")
+                break
     return {
         "result": {
             "success": success,
             "message": text,
-            "data": {
-                "intent": state.get("intent") or "",
-                "target_bill": state.get("target_bill"),
-            },
+            "data": data,
         }
     }
 

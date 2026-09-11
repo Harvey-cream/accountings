@@ -13,6 +13,7 @@ class PlanConfirmationTests(SimpleTestCase):
                 WorkflowTask(
                     id="meals",
                     type="bill",
+                    action="batch_create",
                     goal="记录早饭和晚饭支出",
                     input={
                         "items": [
@@ -23,6 +24,7 @@ class PlanConfirmationTests(SimpleTestCase):
                 WorkflowTask(
                     id="budget",
                     type="budget",
+                    action="set_budget",
                     goal="更新本月总预算",
                     input={
                         "amount": 7900,
@@ -56,8 +58,8 @@ class PlanConfirmationTests(SimpleTestCase):
         }
         plan = WorkflowPlan(
             tasks=[
-                WorkflowTask(id="bill", type="bill", goal="记录晚饭30元"),
-                WorkflowTask(id="budget", type="budget", goal="设置预算7500元"),
+                WorkflowTask(id="bill", type="bill", action="create", goal="记录晚饭30元", input={"amount": 30}),
+                WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置预算7500元", input={"amount": 7500, "period": "2026-09", "budget_type": "month"}),
             ]
         )
         with patch.object(executor, "_RUNNERS", {

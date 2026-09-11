@@ -5,7 +5,7 @@ from decimal import Decimal
 from .models import TransactionIcon, TransactionCategory, TransactionRecord, TransactionBudget, AssetIcon, AssetAccount, TransactionInvoice, LangchainChatMessage
 from .serializers import LangchainChatMessageSerializer
 from django.http import StreamingHttpResponse
-from .ai.gateway.agent import extract_accounting_info, astream_accounting
+from .ai.gateway.agent import astream_accounting
 from .ai.llm.response import chat, to_api_dict
 from common.initia import NORMAL_ICONS
 from user.models import User, UserPointRecord
@@ -673,30 +673,6 @@ class LangchainChatView(APIView):
         serializer = LangchainChatMessageSerializer(batch, many=True)
         final_data = [m for m in serializer.data if m is not None]
         return HttpResult.success_with_data("获取成功", {"messages": final_data, "has_more": has_more})
-    def post(self, request):
-        """发送新消息并获取 AI 回复"""
-        user = get_current_user(request)
-        if not user:
-            return HttpResult.fail("用户未登录")
-        
-        content = request.data.get('content')
-        confirm = parse_confirm_payload(request.data)
-        if confirm is None and "confirm" in (request.data or {}):
-            return HttpResult.fail("确认参数无效")
-        if confirm is not None and not resolve_confirm_card(user, confirm.get("message_id")):
-            return HttpResult.fail(_CONFIRM_DONE_REPLY)
-        if confirm is not None and not content:
-            content = "确认" if confirm.get("confirm") else "取消"
-        user_msg, err = _chat_turn_user_message(user, content)
-        if err:
-            return err
-
-        ai_data = extract_accounting_info(content, user=user, confirm=confirm)
-        ai_msg = create_ai_chat_message(user, content, ai_data)
-
-        # 返回最新的两条消息（用户和 AI）
-        serializer = LangchainChatMessageSerializer([user_msg, ai_msg], many=True)
-        return HttpResult.success_with_data("回复成功", serializer.data)
 
 
 class LangchainChatStreamView(APIView):

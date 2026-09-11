@@ -195,7 +195,7 @@ def human_confirm_node(state: BudgetAgentState) -> dict:
             "data": {
                 "need_confirm": True,
                 "entity": "budget",
-                "action": "update",
+                "action": state.get("intent") or "set_budget",
                 "payload": params,
             },
         },

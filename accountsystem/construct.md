@@ -133,16 +133,16 @@ account/
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Client：langchain.vue → sync POST 或 SSE stream                             │
+│  Client：langchain.vue → SSE stream（唯一 Agent 入口）                        │
 └───────────────────────────────────┬─────────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼─────────────────────────────────────────┐
-│  Django View：LangchainChatView / LangchainChatStreamView                    │
+│  Django View：LangchainChatStreamView（GET 历史走 LangchainChatView）          │
 │  鉴权 · 存用户消息 · 调 Agent · to_api_dict · 存 AI 消息                      │
 └───────────────────────────────────┬─────────────────────────────────────────┘
-                                    │ extract_accounting_info / astream_accounting
+                                    │ astream_accounting
 ┌───────────────────────────────────▼─────────────────────────────────────────┐
-│  入口 agent.py：LCEL → orchestrator → to_api_dict / SSE                      │
+│  入口 agent.py：astream_accounting → orchestrator → to_api_dict / SSE        │
 └───────────────────────────────────┬─────────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼─────────────────────────────────────────┐
@@ -179,7 +179,7 @@ account/
 用户: "午饭花了25"
     │
     ▼
-_prepare（input / user）
+astream_accounting（content / user / confirm）
     │
     ▼
 orchestrator.run_orchestrator
@@ -235,7 +235,7 @@ START → context_prepare → intent_router
 | `result_formatter` | 统一出参 `{success, message, data}`，messages 留给外层抽 intermediate_steps | 否 |
 
 **确认机制：** `human_confirm` 经 `to_api_dict` 产出 `need_confirm` + `candidates`，落库为 `type=confirm` 卡片。
-前端点「确认/取消」时 POST `{confirm: bool, bill_id?, action?}`：取消短路返回；确认强制走 bill，跳过寒暄与 Supervisor。
+前端点「确认/取消」时携带 `confirm` payload 重发 `/langchain/chat/stream/`：取消短路返回；确认强制走 bill，跳过寒暄与 Supervisor。确认恢复同样走 `astream_accounting`，复用原 trace_id 结束 Trace。
 
 ### 3.2.2 Analysis Workflow（LangGraph StateGraph）
 
@@ -280,7 +280,7 @@ START → context_prepare → intent_router → parameter_validator
 
 | 路径 | 职责 |
 |------|------|
-| `ai/gateway/agent.py` | View 入口：`extract_accounting_info` / `astream_accounting` / `prewarm_runtime` |
+| `ai/gateway/agent.py` | View 入口：`astream_accounting`（SSE）/ `prewarm_runtime` |
 | `ai/gateway/func.py` | 寒暄规则匹配 |
 | `ai/orchestrator/state.py` | `AgentState`：贯穿调度的统一状态（含 memory_messages） |
 | `ai/orchestrator/memory.py` | 最近 3 轮原文；更早对话后台压缩写 cache，热路径不阻塞 |
@@ -306,7 +306,7 @@ START → context_prepare → intent_router → parameter_validator
 - 寒暄短路、SSE 协议、to_api_dict、人用 API **全部保持不动**  
 
 ```
-View → LCEL(_prepare / 寒暄)
+View → astream_accounting（SSE）
          └─ orchestrator（现: router+executor / 未来: CrewAI 协作层）
                 └─ 业务 Agent → finance_tools → services → DB
 ```
@@ -368,7 +368,7 @@ View → LCEL(_prepare / 寒暄)
 │  │ chart·bill  │  │ AI 对话页   │  │ publish     │  │ account     │       │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘       │
 │                                                                              │
-│  AI 发消息: isLangchainStreamSupported() ? stream : sendLangchainChat 同步    │
+│  AI 发消息: 一律走 isLangchainStreamSupported() → sendLangchainChatStream SSE │
 └─────────────────────────────────────────────────────────────────────────────┘
          │
          │  build_fronted.sh → accountsystem/static → Nginx /
@@ -424,7 +424,7 @@ View → LCEL(_prepare / 寒暄)
 
 ```
 记账（手动）:  前端 → POST /api/account/bill/save/ → View → ORM → TransactionRecord
-记账（AI）:    前端 → /langchain/chat(/stream/)
+记账（AI）:    前端 → /langchain/chat/stream/（SSE）
                  → LCEL → Bill Workflow(StateGraph) → create_bill Tool
                  → expense_service → TransactionRecord
                  → langchain_chat 挂卡片（record_id）

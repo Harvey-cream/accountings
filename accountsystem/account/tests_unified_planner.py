@@ -9,31 +9,39 @@ from account.ai.orchestrator.unified_planner import RoutePlan, build_route_plan
 
 class UnifiedPlannerTests(SimpleTestCase):
     def test_route_plan_is_task_collection(self):
-        bill = WorkflowTask(id="bill", type="bill", goal="记录晚饭30元")
-        budget = WorkflowTask(id="budget", type="budget", goal="设置预算7500元")
+        bill = WorkflowTask(id="bill", type="bill", action="create", goal="记录晚饭30元", input={"amount": 30})
+        budget = WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置预算7500元", input={"amount": 7500, "period": "2026-09", "budget_type": "month"})
 
         self.assertEqual(len(RoutePlan(tasks=[bill]).tasks), 1)
         self.assertEqual(len(RoutePlan(tasks=[bill, budget]).tasks), 2)
         self.assertEqual(
             RoutePlan(
-                tasks=[WorkflowTask(id="analysis", type="open_planning", goal="分析消费趋势")]
+                tasks=[WorkflowTask(id="analysis", type="open_planning", action="analyze", goal="分析消费趋势", input={"topic": "消费趋势"})]
             ).tasks[0].type,
             "open_planning",
         )
 
     def test_route_plan_rejects_empty_or_invalid_dependencies(self):
-        bill = WorkflowTask(id="bill", type="bill", goal="记录晚饭30元")
+        bill = WorkflowTask(id="bill", type="bill", action="create", goal="记录晚饭30元", input={"amount": 30})
         with self.assertRaises(ValidationError):
             RoutePlan(tasks=[])
         with self.assertRaises(ValidationError):
-            RoutePlan(tasks=[WorkflowTask(id="budget", type="budget", goal="预算", depends_on=["missing"])])
+            RoutePlan(tasks=[WorkflowTask(id="budget", type="budget", action="set_budget", goal="预算", input={"amount": 1, "period": "2026-09", "budget_type": "month"}, depends_on=["missing"])])
 
-    def test_budget_input_uses_explicit_amount_not_year(self):
+    def test_task_requires_action_and_action_specific_input(self):
+        with self.assertRaises(ValidationError):
+            WorkflowTask(type="bill", id="bill", input={"amount": 10})
+        with self.assertRaises(ValidationError):
+            WorkflowTask(type="budget", id="budget", action="delete", input={})
+        with self.assertRaises(ValidationError):
+            WorkflowTask(type="budget", id="budget", action="set_budget", input={"period": "2026-09"})
+
         plan = RoutePlan(
             tasks=[
                 WorkflowTask(
                     id="budget",
                     type="budget",
+                    action="set_budget",
                     goal="更新本月总预算",
                     input={"amount": 7900, "budget_type": "month", "period": "2026-08", "is_total": True},
                 )
@@ -46,8 +54,8 @@ class UnifiedPlannerTests(SimpleTestCase):
 
         expected = RoutePlan(
             tasks=[
-                WorkflowTask(id="meals", type="bill", goal="记录早饭20元和晚饭30元"),
-                WorkflowTask(id="budget", type="budget", goal="设置总预算7500元"),
+                WorkflowTask(id="meals", type="bill", action="batch_create", goal="记录早饭20元和晚饭30元", input={"items": [{"amount": 20}, {"amount": 30}]}),
+                WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置总预算7500元", input={"amount": 7500, "period": "2026-09", "budget_type": "month"}),
             ],
         )
         with patch("account.ai.orchestrator.unified_planner.llm") as mock_llm:

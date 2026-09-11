@@ -13,11 +13,12 @@ execute_plan 是唯一正式执行入口，覆盖单任务、多任务和确认�
 from __future__ import annotations
 
 from account.ai.agents.crew.finance_planner import run_finance_planner
-from account.ai.agents.supervisor import asset, bill, budget, invoice
+from account.ai.agents.supervisor import asset, bill, budget, chat, invoice
 
 from .events import EventEmitter
 from .result_adapter import adapt_workflow_result
 from .result_aggregator import aggregate_plan_results
+from .response_composer import compose_response
 from .state import AgentState
 from .task_schema import WorkflowPlan, topo_sort
 
@@ -32,10 +33,23 @@ _RUNNERS = {
     "budget": budget.run,
     "asset": asset.run,
     "invoice": invoice.run,
+    "chat": chat.run,
 }
 
 # 带 human_confirm 机制、能接收确认卡片回传的业务域
 _CONFIRM_TASKS = frozenset({"bill", "budget", "asset", "invoice"})
+_WRITE_ACTIONS = {
+    "bill": frozenset({"create", "batch_create", "update", "delete"}),
+    "budget": frozenset({"set_budget"}),
+    "asset": frozenset({"create", "update", "delete", "adjust_balance"}),
+    "invoice": frozenset({"create", "update", "delete"}),
+}
+_CONFIRM_ACTIONS = {
+    "bill": frozenset({"create", "batch_create", "update", "delete"}),
+    "budget": frozenset({"set_budget"}),
+    "asset": frozenset({"create", "update", "delete", "adjust_balance"}),
+    "invoice": frozenset({"update", "delete"}),
+}
 
 # 前序任务结果注入下一任务时的最大字符数，防止 prompt 无限膨胀
 _PREV_RESULT_MAX_CHARS = 800
@@ -45,6 +59,7 @@ _AGENT_NAMES = {
     "budget": "budget",
     "asset": "asset",
     "invoice": "invoice",
+    "chat": "chat",
     "open_planning": "finance_planner",
 }
 
@@ -62,15 +77,15 @@ def _emit(emitter, event_type, *, trace_id, plan_id, task_id="", agent="", messa
 
 
 # ============================================================
-# 单任务执行：交给某个业务 Agent 跑一次
+# 跨计划辅助函数：上下文拼装 + 预览数据提取
 # ============================================================
 
 def _task_input(task, results: dict, user_input: str) -> str:
-    """组装任务输入：优先使用自包含 goal，再补充依赖任务摘要。"""
-    text = (getattr(task, "goal", "") or "").strip() or user_input
+    """组装任务目标和前序结果上下文，不改变结构化执行参数。"""
+    text = (task.goal or "").strip() or user_input
     prev = [
         (results[dep].get("output") or "").strip()
-        for dep in getattr(task, "depends_on", [])
+        for dep in task.depends_on
         if dep in results
     ]
     prev = [p for p in prev if p]
@@ -79,6 +94,9 @@ def _task_input(task, results: dict, user_input: str) -> str:
         text = f"{text}\n\n参考前序任务结果：\n{joined}"
     return text
 
+# ============================================================
+# 单任务执行：交给某个业务 Agent 跑一次
+# ============================================================
 
 def _execute_task(
     state: AgentState,
@@ -101,80 +119,45 @@ def _execute_task(
             task_id=task.id,
             event_emitter=event_emitter,
         )
-    runner = _RUNNERS.get(task_type, bill.run)
-    kwargs = {"history": state.get("memory_messages") or []}
+    runner = _RUNNERS.get(task_type)
+    if runner is None:
+        raise ValueError(f"no runner registered for task type {task_type!r}")
+    kwargs = {
+        "history": state.get("memory_messages") or [],
+        "task_action": task.action,
+        "task_input": task.input_model.model_dump(mode="json"),
+        "task_confirmed": bool((state.get("confirm") or {}).get("confirmed_plan")),
+    }
     confirm = state.get("confirm")
     if task_type in _CONFIRM_TASKS and confirm is not None:
         kwargs["confirm"] = confirm
-    if task_type in {"budget", "asset", "invoice"}:
-        task_input = getattr(task, "input", {}) or {}
-        kwargs["task_input"] = task_input
     return runner(user_input, state.get("user"), **kwargs)
-
-# ============================================================
-# 跨计划辅助函数：上下文拼装 + 预览数据提取
-# ============================================================
-
-def _task_input(task, results: dict, user_input: str) -> str:
-    """
-    组装某个子任务的输入文本：
-      - 多任务场景：用 task.goal（自包含目标），避免其他域的诉求干扰
-      - 单任务场景：直接用原始 user_input，避免 goal 里丢失细节
-      - 有依赖时，把前序任务的 output 截断后附加进去，作为上下文
-    """
-    text = (task.goal or "").strip() or user_input
-    text = text or user_input
-    prev = [
-        (results[dep].get("output") or "").strip()
-        for dep in task.depends_on
-        if dep in results
-    ]
-    prev = [p for p in prev if p]
-    if prev:
-        joined = "\n\n".join(p[:_PREV_RESULT_MAX_CHARS] for p in prev)
-        text = f"{text}\n\n参考前序任务结果：\n{joined}"
-    return text
 
 
 def _build_plan_confirmation(ordered) -> dict | None:
-    """Build confirmation data directly from structured Task.input."""
+    """Build confirmation data from validated task actions and inputs."""
     confirmations = []
     for task in ordered:
-        task_input = task.input or {}
-        if task.type == "bill":
-            items = task_input.get("items") or []
-            if items:
-                confirmations.append({
-                    "need_confirm": True,
-                    "entity": "bill",
-                    "action": "batch_create",
-                    "candidates": items,
-                    "task_id": task.id,
-                })
-        elif task.type == "budget" and task_input:
-            confirmations.append({
-                "need_confirm": True,
-                "entity": "budget",
-                "action": "update",
-                "payload": task_input,
-                "task_id": task.id,
-            })
-        elif task.type in {"asset", "invoice"}:
-            action = str(task_input.get("action") or "").strip()
-            if action in {"create", "update", "delete", "adjust_balance"} and (
-                task.type == "asset" or action in {"update", "delete"}
-            ):
-                confirmations.append({
-                    "need_confirm": True,
-                    "entity": task.type,
-                    "action": action,
-                    "candidates": task_input.get("candidates") or [],
-                    "payload": task_input,
-                    "task_id": task.id,
-                })
+        if task.action not in _CONFIRM_ACTIONS.get(task.type, ()):
+            continue
+        payload = task.input_model.model_dump(mode="json")
+        item = {
+            "need_confirm": True,
+            "entity": task.type,
+            "action": task.action,
+            "payload": payload,
+            "task_id": task.id,
+        }
+        if task.type == "bill" and task.action == "batch_create":
+            item["candidates"] = payload["items"]
+        confirmations.append(item)
     if not confirmations:
         return None
     return {"need_confirm": True, "confirmations": confirmations}
+
+
+def _confirmation_failure(ordered) -> bool:
+    return any(task.action in _CONFIRM_ACTIONS.get(task.type, ()) for task in ordered)
 
 
 # ============================================================
@@ -193,7 +176,7 @@ def execute_plan(
     跨 Workflow 计划执行：
     阶段 1（预览）：
       - 多任务且包含写操作 → 先返回"计划级确认卡"，不执行任何写操作
-      - 确认卡附带 plan_tasks，供用户确认回传时重建计划
+      - 确认卡附带服务端保存的 workflow_plan，plan_tasks 仅用于展示兼容
     阶段 2（执行，confirmed_plan=True）：
       - 拓扑排序后依序执行每个 Workflow
       - 前序任务结果截断后注入下一任务输入
@@ -201,6 +184,19 @@ def execute_plan(
     """
     ordered = topo_sort(plan)
     if not ordered:
+        state["tool_results"] = []
+        state["final_response"] = {
+            "output": "计划依赖无效，未执行任何操作。",
+            "plan_result": {
+                "plan_id": str(state.get("conversation_id") or runtime_plan_id or "plan"),
+                "status": "failed",
+                "task_results": [],
+                "summary": "计划依赖校验失败",
+                "analysis_view": {},
+                "intermediate_steps": [],
+            },
+            "intermediate_steps": [],
+        }
         return state
 
     state["workflow_plan"] = [t.model_dump() if hasattr(t, "model_dump") else {
@@ -209,23 +205,41 @@ def execute_plan(
 
     plan_id = str(state.get("conversation_id") or runtime_plan_id or "plan")
 
-    # 预览模式：计划包含可确认写操作且尚未经用户确认时，统一返回计划级确认卡
     if (
-        any(task.type in _CONFIRM_TASKS for task in ordered)
+        _confirmation_failure(ordered)
         and not ((state.get("confirm") or {}).get("confirmed_plan"))
     ):
-        confirm = _build_plan_confirmation(ordered)
-        if confirm is not None:
+        try:
+            confirm = _build_plan_confirmation(ordered)
+        except (KeyError, TypeError, ValueError):
+            confirm = None
+        if confirm is None:
             state["tool_results"] = []
             state["final_response"] = {
-                "output": "请确认以下操作：",
-                "confirm": confirm,
-                "plan_tasks": state["workflow_plan"],
-                "trace_id": trace_id,
-                "plan_id": plan_id,
+                "output": "无法构造安全的确认信息，计划未执行。",
+                "plan_result": {
+                    "plan_id": plan_id,
+                    "status": "failed",
+                    "task_results": [],
+                    "summary": "确认信息构造失败，计划未执行",
+                    "analysis_view": {},
+                    "intermediate_steps": [],
+                },
                 "intermediate_steps": [],
             }
             return state
+        state["tool_results"] = []
+        state["final_response"] = {
+            "output": "请确认以下操作：",
+            "confirm": confirm,
+            # plan_tasks is a presentation-compatible copy; workflow_plan is authoritative.
+            "plan_tasks": state["workflow_plan"],
+            "workflow_plan": state["workflow_plan"],
+            "trace_id": trace_id,
+            "plan_id": plan_id,
+            "intermediate_steps": [],
+        }
+        return state
 
     _emit(
         event_emitter,
@@ -305,6 +319,7 @@ def execute_plan(
             plan_id=plan_id,
             step_id=task.id,
             step_type=task.type,
+            action=task.action,
         )
         task_results.append(step_result)
 
@@ -358,9 +373,12 @@ def execute_plan(
         task_results,
         plan_id=plan_id,
     )
+    reply = compose_response(plan_result)
+    if reply:
+        plan_result.summary = reply
     state["plan_result"] = plan_result
     state["final_response"] = {
-        "output": plan_result.summary or "本次计划已处理",
+        "output": reply or plan_result.summary or "本次计划已处理",
         "plan_result": plan_result.model_dump(mode="json"),
         "intermediate_steps": steps,
     }

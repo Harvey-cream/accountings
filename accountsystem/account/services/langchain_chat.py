@@ -3,6 +3,7 @@
 import json
 from decimal import Decimal
 
+from django.db import transaction
 from django.utils import timezone
 
 from ..models import LangchainChatMessage, TransactionRecord
@@ -21,12 +22,13 @@ def _create_confirm_message(user, ai_data):
     primary = confirmations[0] if confirmations else {}
     extra = {
         "need_confirm": True,
-        "entity": ai_data.get("confirm_entity") or primary.get("entity") or "bill",
+        "entity": ai_data.get("confirm_entity") or primary.get("entity"),
         "action": ai_data.get("confirm_action") or primary.get("action") or "",
         "candidates": ai_data.get("candidates") or primary.get("candidates") or [],
         "payload": ai_data.get("payload") or primary.get("payload") or {},
         "confirmations": confirmations,
         "plan_tasks": ai_data.get("plan_tasks") or [],
+        "workflow_plan": ai_data.get("workflow_plan") or ai_data.get("plan_tasks") or [],
         "trace_id": ai_data.get("trace_id") or "",
         "plan_id": ai_data.get("plan_id") or "",
         "resolved": False,
@@ -190,12 +192,16 @@ def create_user_chat_message(user, content):
 # 各业务域允许经确认卡片回传的写操作
 _CONFIRM_ACTIONS = {
     "bill": {"update", "delete", "batch_create"},
-    "budget": {"update"},
+    "budget": {"set_budget", "update"},
     "asset": {"create", "update", "delete", "adjust_balance"},
     "invoice": {"update", "delete"},
 }
 # 这些操作没有既有目标对象，回传不需要 id
-_TARGETLESS_CONFIRMS = {("bill", "batch_create"), ("asset", "create")}
+_TARGETLESS_CONFIRMS = {
+    ("bill", "batch_create"),
+    ("asset", "create"),
+    ("budget", "set_budget"),
+}
 
 
 def resolve_confirm_card(user, message_id=None) -> tuple[bool, dict | None]:
@@ -205,26 +211,33 @@ def resolve_confirm_card(user, message_id=None) -> tuple[bool, dict | None]:
     后按钮会复活，再点一次批量记账、新建账户这类写操作就会重复落库。
     message_id 缺省时取该用户最近一张确认卡片，兼容不回传 id 的客户端。
     """
-    qs = LangchainChatMessage.objects.filter(user=user, role="ai", type="confirm")
-    card = (
-        qs.filter(id=message_id).first()
-        if message_id is not None
-        else qs.order_by("-create_time", "-id").first()
-    )
-    if card is None:
-        return True, None
+    with transaction.atomic():
+        qs = LangchainChatMessage.objects.select_for_update().filter(
+            user=user, role="ai", type="confirm"
+        )
+        card = (
+            qs.filter(id=message_id).first()
+            if message_id is not None
+            else qs.order_by("-create_time", "-id").first()
+        )
+        if card is None:
+            return False, None
 
-    try:
-        extra = json.loads(card.extra_data or "{}")
-    except (TypeError, ValueError):
-        extra = {}
-    if extra.get("resolved"):
-        return False, extra
+        try:
+            extra = json.loads(card.extra_data or "{}")
+        except (TypeError, ValueError):
+            return False, None
+        if not isinstance(extra, dict) or extra.get("resolved"):
+            return False, extra if isinstance(extra, dict) else None
+        if not extra.get("workflow_plan") and not extra.get("plan_tasks") and not (
+            extra.get("entity") and extra.get("action")
+        ):
+            return False, None
 
-    extra["resolved"] = True
-    card.extra_data = json.dumps(extra, ensure_ascii=False)
-    card.save(update_fields=["extra_data"])
-    return True, extra
+        extra["resolved"] = True
+        card.extra_data = json.dumps(extra, ensure_ascii=False)
+        card.save(update_fields=["extra_data"])
+        return True, extra
 
 
 def parse_confirm_payload(data) -> dict | None:
@@ -239,14 +252,18 @@ def parse_confirm_payload(data) -> dict | None:
     if isinstance(raw, str):
         raw = raw.strip().lower() in ("1", "true", "yes")
     payload = {"confirm": bool(raw)}
-    try:
-        payload["message_id"] = int(data.get("message_id"))
-    except (TypeError, ValueError):
-        pass
+    if "message_id" in data:
+        try:
+            payload["message_id"] = int(data.get("message_id"))
+        except (TypeError, ValueError):
+            return None
     if payload["confirm"] is False:
         return payload
 
-    entity = (data.get("entity") or "bill").strip() or "bill"
+    entity = data.get("entity")
+    if not isinstance(entity, str) or not entity.strip():
+        return None
+    entity = entity.strip()
     action = (data.get("action") or "").strip()
     if action not in _CONFIRM_ACTIONS.get(entity, set()):
         return None

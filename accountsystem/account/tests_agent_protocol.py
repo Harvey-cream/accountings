@@ -224,6 +224,7 @@ class AgentProtocolTests(SimpleTestCase):
             plan_id="plan-1",
             step_id="plan_funds",
             step_type=StepType.OPEN_PLANNING,
+            action="analyze",
         )
         plan = aggregate_plan_results([step], plan_id="plan-1")
 

@@ -2,7 +2,32 @@
 
 from __future__ import annotations
 
+import json
+
 from .schemas import DEFAULT_CHAT_REPLY, chat_response
+
+
+def _legacy_record(agent_result: dict) -> dict | None:
+    for step in agent_result.get("intermediate_steps") or []:
+        if not isinstance(step, (list, tuple)) or len(step) != 2:
+            continue
+        call, raw = step
+        name = call.get("name") if isinstance(call, dict) else ""
+        if name not in {"create_bill", "batch_create_bills"}:
+            continue
+        try:
+            payload = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, dict):
+            continue
+        return {
+            "money": float(data.get("amount") or 0),
+            "category": data.get("category") or "其他",
+            "record_id": data.get("id"),
+        }
+    return None
 
 
 def _result_response(plan_result: dict) -> dict:
@@ -24,6 +49,11 @@ def to_api_dict(agent_result: dict) -> dict:
     agent_result = agent_result or {}
     if agent_result.get("plan_result"):
         return _result_response(agent_result["plan_result"])
+    legacy_record = _legacy_record(agent_result)
+    if legacy_record is not None:
+        out = chat_response(agent_result.get("output") or DEFAULT_CHAT_REPLY)
+        out.update(legacy_record)
+        return out
     if agent_result.get("step_result"):
         return _result_response(
             {

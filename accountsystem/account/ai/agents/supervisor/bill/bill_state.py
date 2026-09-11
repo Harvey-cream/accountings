@@ -19,6 +19,8 @@ class BillAgentState(TypedDict, total=False):
     user_id: int | None  # 当前用户 id（仅标识，节点内不查 ORM）
     input: str  # 本轮用户原始输入
     intent: str  # 账单操作类型：create / batch_create / query / update / delete
+    task_input: dict
+    task_input: dict
     target_bill: dict | None  # 已定位的目标账单，至少含 id
     candidates: list[dict]  # 搜到多笔时的候选列表
     drafts: list[dict]  # batch_create 解析出的多笔草稿，供汇总确认与批量落库

@@ -13,7 +13,7 @@ def route_after_validator(state: BudgetAgentState) -> str:
     result = state.get("validation_result") or {}
     if state.get("need_input") or result.get("ok") is False:
         return "end"
-    if state.get("need_confirm"):
+    if state.get("need_confirm") and not state.get("confirmed"):
         return "human_confirm"
     return "policy_check"
 

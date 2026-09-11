@@ -35,11 +35,13 @@ def _graph_to_result(graph_state: dict) -> dict:
         output = extract_content(messages[-1]).strip()
     result = graph_state.get("result") or {}
     out = {"output": output, "intermediate_steps": steps}
+    if result.get("data"):
+        out["data"] = result["data"]
     if graph_state.get("need_confirm"):
         out["confirm"] = {
             "need_confirm": True,
             "entity": "budget",
-            "action": "update",
+            "action": graph_state.get("intent") or "set_budget",
             "payload": graph_state.get("budget_params") or {},
         }
     return out
@@ -48,6 +50,8 @@ def _graph_to_result(graph_state: dict) -> dict:
 def _to_graph_input(payload: dict) -> dict:
     user = payload.get("user")
     task_input = payload.get("task_input") or {}
+    task_action = payload.get("task_action")
+    task_confirmed = bool(payload.get("task_confirmed"))
     confirm = payload.get("confirm") or {}
     state = {
         "input": payload.get("input") or "",
@@ -55,15 +59,11 @@ def _to_graph_input(payload: dict) -> dict:
         "user_id": getattr(user, "id", None),
         "loops": 0,
         "need_input": False,
-        "confirmed": bool(confirm.get("confirmed_plan") or confirm.get("confirm")),
+        "confirmed": task_confirmed or bool(confirm.get("confirmed_plan") or confirm.get("confirm")),
     }
     if task_input:
-        state["intent"] = "set_budget" if task_input.get("action") == "update" else task_input.get("intent")
-        state["budget_params"] = {
-            key: task_input[key]
-            for key in ("amount", "period", "budget_type", "is_total", "category")
-            if key in task_input
-        }
+        state["intent"] = task_action
+        state["budget_params"] = dict(task_input)
     return state
 
 
@@ -75,7 +75,15 @@ def _build_chain(user):
     )
 
 
-def run(user_input: str, user=None, history=None, confirm=None, task_input=None) -> dict:
+def run(
+    user_input: str,
+    user=None,
+    history=None,
+    confirm=None,
+    task_action=None,
+    task_input=None,
+    task_confirmed=False,
+) -> dict:
     chain = _build_chain(user)
     return chain.invoke(
         {
@@ -83,7 +91,9 @@ def run(user_input: str, user=None, history=None, confirm=None, task_input=None)
             "history": history or [],
             "user": user,
             "confirm": confirm,
+            "task_action": task_action,
             "task_input": task_input or {},
+            "task_confirmed": task_confirmed,
         },
         config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
     )

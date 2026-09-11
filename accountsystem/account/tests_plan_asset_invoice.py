@@ -13,13 +13,15 @@ class PlanAssetInvoiceTests(SimpleTestCase):
                 id="asset_update",
                 type="asset",
                 goal="调整账户余额",
-                input={"action": "adjust_balance", "target_id": 7, "delta": 100},
+                action="adjust_balance",
+                input={"account_id": 7, "delta": 100},
             ),
             WorkflowTask(
                 id="invoice_update",
                 type="invoice",
                 goal="修改发票抬头",
-                input={"action": "update", "target_id": 9, "name": "新公司"},
+                action="update",
+                input={"invoice_id": 9, "name": "新公司", "tax_id": "税号"},
             ),
         ])
 
@@ -31,8 +33,8 @@ class PlanAssetInvoiceTests(SimpleTestCase):
     def test_plan_confirmation_skips_asset_and_invoice_queries(self):
         self.assertIsNone(
             _build_plan_confirmation([
-                WorkflowTask(id="asset_query", type="asset", goal="查询净资产"),
-                WorkflowTask(id="invoice_query", type="invoice", goal="查询发票"),
+                WorkflowTask(id="asset_query", type="asset", action="query", goal="查询净资产", input={}),
+                WorkflowTask(id="invoice_query", type="invoice", action="query", goal="查询发票", input={}),
             ])
         )
 
@@ -41,7 +43,8 @@ class PlanAssetInvoiceTests(SimpleTestCase):
             "input": "调整支付宝余额",
             "history": [],
             "user": None,
-            "task_input": {"action": "adjust_balance", "target_id": 7},
+            "task_input": {"account_id": 7, "delta": 100},
+            "task_action": "adjust_balance",
             "confirm": {},
         })
 
@@ -53,7 +56,8 @@ class PlanAssetInvoiceTests(SimpleTestCase):
             "input": "修改发票抬头",
             "history": [],
             "user": None,
-            "task_input": {"action": "update", "target_id": 9},
+            "task_input": {"invoice_id": 9, "name": "新公司", "tax_id": "税号"},
+            "task_action": "update",
             "confirm": {},
         })
 
