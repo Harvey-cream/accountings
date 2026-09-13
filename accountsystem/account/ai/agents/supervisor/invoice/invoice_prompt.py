@@ -39,5 +39,8 @@ INTENT_GUIDE = {
 INVOICE_TARGET_HINT = "已定位到目标发票信息：{invoice}。请直接使用其中的 id 执行本轮操作。"
 
 NOT_FOUND = "没找到对应的发票抬头呢，换个名称或税号再说一次吧～"
+NAME_TAXID_REQUIRED = "请把发票抬头名称和税号一起告诉我，我再帮你保存～"
+TARGET_REQUIRED = "想改/删哪条发票抬头呢？说个名称或税号，我再帮你找～"
+TARGET_AMBIGUOUS = "找到好几条相近的抬头，说具体一点（比如名称或税号）我再帮你锁定～"
 
 ACTION_LABEL = {"update": "修改", "delete": "删除"}

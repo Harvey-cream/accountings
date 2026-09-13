@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from openai import APIConnectionError, APITimeoutError, RateLimitError
 from pydantic import ValidationError
 
-from account.ai.llm.llm import llm
+from account.ai.llm.llm import planner_llm
 from account.ai.llm.llm_utils import log_agent_exc, nested_structured_output
 
 from .task_schema import WorkflowPlan, topo_sort
@@ -16,6 +17,68 @@ _MAX_SCHEMA_RETRIES = 1
 # Compatibility name for callers that have not migrated imports yet. The
 # Planner and executor use WorkflowPlan itself as the authoritative schema.
 RoutePlan = WorkflowPlan
+
+
+# ============================================================
+# Planner 失败类型：每种故障携带明确的面向用户提示
+# ============================================================
+
+class PlannerError(Exception):
+    """Planner 失败的统一基类，携带面向用户的提示文案。"""
+
+    kind = "unknown"
+    user_message = "暂时无法生成有效的执行计划，请换一种说法再试试。"
+
+
+class PlannerTimeout(PlannerError):
+    kind = "timeout"
+    user_message = "服务响应有点慢，请稍后再试。"
+
+
+class PlannerUnavailable(PlannerError):
+    kind = "connection"
+    user_message = "AI 服务暂时不可用，请稍后再试。"
+
+
+class PlannerRateLimited(PlannerError):
+    kind = "rate_limit"
+    user_message = "当前请求较多，请稍后再试。"
+
+
+class PlannerStructuredOutputError(PlannerError):
+    kind = "structured_output"
+    user_message = "暂时无法理解这次请求，请稍后再试。"
+
+
+_ERROR_BY_KIND = {
+    "timeout": PlannerTimeout,
+    "connection": PlannerUnavailable,
+    "rate_limit": PlannerRateLimited,
+    "structured_output": PlannerStructuredOutputError,
+    "unknown": PlannerError,
+}
+
+# 只有结构化输出 / schema 校验失败才允许应用层 schema 纠正重试；
+# 超时 / 连接 / 限流快速失败，不做 schema retry。
+_RETRYABLE_KINDS = frozenset({"structured_output"})
+
+_RETRY_HINT = "上一次输出未通过校验，请修正后重试。具体校验错误：{error}"
+
+
+def classify_planner_error(exc: BaseException) -> str:
+    """归类 Planner 异常（基于 SDK 异常类，不做字符串匹配）。
+
+    APITimeoutError 是 APIConnectionError 的子类，必须先判 timeout。
+    """
+    if isinstance(exc, APITimeoutError):
+        return "timeout"
+    if isinstance(exc, APIConnectionError):
+        return "connection"
+    if isinstance(exc, RateLimitError):
+        return "rate_limit"
+    if isinstance(exc, (ValidationError, ValueError, TypeError)):
+        return "structured_output"
+    return "unknown"
 
 
 _PLANNER_SYSTEM = """你是财务助手的统一顶层规划器。一次理解用户请求，并输出一个包含一个或多个 Task 的 Plan。
@@ -41,27 +104,35 @@ _PLANNER_SYSTEM = """你是财务助手的统一顶层规划器。一次理解�
 10. 只有明确的记账、查账单、预算、资产、发票操作才路由到对应 Workflow；纯聊天/闲聊/概念性知识问答才走 chat.respond。禁止让 chat 代替业务 Workflow，例如「查最近一个月的账单」必须是 bill.query，不能路由到 chat。"""
 
 
-def build_route_plan(user_input: str, context: str = "") -> WorkflowPlan | None:
+def build_route_plan(user_input: str, context: str = "") -> WorkflowPlan:
+    """产出 WorkflowPlan。失败时抛 PlannerError 子类（自带面向用户文案）。
+
+    仅结构化输出 / schema 校验失败重试一次；超时 / 连接 / 限流直接快速失败。
+    """
     human = f"用户请求：{user_input or ''}"
     if context:
         human = f"近期对话上下文：\n{context}\n\n{human}"
-    planner = nested_structured_output(llm, WorkflowPlan)
+    planner = nested_structured_output(planner_llm, WorkflowPlan)
     messages = [SystemMessage(content=_PLANNER_SYSTEM), HumanMessage(content=human)]
-    last_error = ""
     for attempt in range(_MAX_SCHEMA_RETRIES + 1):
         try:
             result = planner.invoke(messages)
-            if isinstance(result, WorkflowPlan):
-                if topo_sort(result) is None:
-                    raise ValueError("workflow plan contains invalid dependencies")
-                return result
-            return WorkflowPlan.model_validate(result.model_dump() if hasattr(result, "model_dump") else result)
-        except (ValidationError, ValueError, TypeError) as exc:
-            last_error = str(exc)
-            log_agent_exc("UNIFIED_PLANNER", exc, input=(user_input or "")[:60], attempt=attempt)
+            plan = (
+                result
+                if isinstance(result, WorkflowPlan)
+                else WorkflowPlan.model_validate(
+                    result.model_dump() if hasattr(result, "model_dump") else result
+                )
+            )
+            if topo_sort(plan) is None:
+                raise ValueError("workflow plan contains invalid dependencies")
+            return plan
         except Exception as exc:
-            last_error = str(exc)
-            log_agent_exc("UNIFIED_PLANNER", exc, input=(user_input or "")[:60], attempt=attempt)
-        if attempt < _MAX_SCHEMA_RETRIES:
-            messages.append(HumanMessage(content=f"上一次输出未通过校验，请修正后重试。具体校验错误：{last_error[:2000]}"))
-    return None
+            kind = classify_planner_error(exc)
+            log_agent_exc(
+                "UNIFIED_PLANNER", exc, kind=kind, input=(user_input or "")[:60], attempt=attempt
+            )
+            if kind not in _RETRYABLE_KINDS or attempt >= _MAX_SCHEMA_RETRIES:
+                raise _ERROR_BY_KIND[kind]() from exc
+            messages.append(HumanMessage(content=_RETRY_HINT.format(error=str(exc)[:2000])))
+    raise PlannerError()

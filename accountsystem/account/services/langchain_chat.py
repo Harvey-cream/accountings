@@ -189,18 +189,12 @@ def create_user_chat_message(user, content):
     )
 
 
-# 各业务域允许经确认卡片回传的写操作
+# 各业务域允许经确认卡片回传的写操作（与 executor._CONFIRM_ACTIONS 对齐）
 _CONFIRM_ACTIONS = {
-    "bill": {"update", "delete", "batch_create"},
+    "bill": {"create", "batch_create", "update", "delete"},
     "budget": {"set_budget", "update"},
     "asset": {"create", "update", "delete", "adjust_balance"},
     "invoice": {"update", "delete"},
-}
-# 这些操作没有既有目标对象，回传不需要 id
-_TARGETLESS_CONFIRMS = {
-    ("bill", "batch_create"),
-    ("asset", "create"),
-    ("budget", "set_budget"),
 }
 
 
@@ -243,8 +237,9 @@ def resolve_confirm_card(user, message_id=None) -> tuple[bool, dict | None]:
 def parse_confirm_payload(data) -> dict | None:
     """前端确认卡片回传：confirm 缺省为 None（普通对话）。
 
-    entity 缺省为 bill，target_id 兼容旧字段 bill_id，保证老前端不受影响。
-    message_id 指向那张确认卡片消息，用于落库已处理状态。
+    服务端以持久化卡片为准，因此带 message_id 时允许只回传 message_id + confirm；
+    仅在没有 message_id 的旧客户端上，才依赖 entity/action 做校验。
+    target_id 只作为"从候选里选一个"的输入，最终由服务端按候选校验。
     """
     if not isinstance(data, dict) or "confirm" not in data:
         return None
@@ -252,7 +247,8 @@ def parse_confirm_payload(data) -> dict | None:
     if isinstance(raw, str):
         raw = raw.strip().lower() in ("1", "true", "yes")
     payload = {"confirm": bool(raw)}
-    if "message_id" in data:
+    has_card = "message_id" in data
+    if has_card:
         try:
             payload["message_id"] = int(data.get("message_id"))
         except (TypeError, ValueError):
@@ -261,20 +257,22 @@ def parse_confirm_payload(data) -> dict | None:
         return payload
 
     entity = data.get("entity")
-    if not isinstance(entity, str) or not entity.strip():
-        return None
-    entity = entity.strip()
+    entity = entity.strip() if isinstance(entity, str) else ""
     action = (data.get("action") or "").strip()
-    if action not in _CONFIRM_ACTIONS.get(entity, set()):
+    if entity and action:
+        if action not in _CONFIRM_ACTIONS.get(entity, set()):
+            return None
+        payload["entity"] = entity
+        payload["action"] = action
+    elif not has_card:
+        # 旧客户端不回传 message_id 时必须自带 entity/action
         return None
-    payload["entity"] = entity
-    payload["action"] = action
 
-    if (entity, action) in _TARGETLESS_CONFIRMS:
-        return payload
-    try:
-        payload["target_id"] = int(data.get("target_id", data.get("bill_id")))
-    except (TypeError, ValueError):
-        return None
-    payload["bill_id"] = payload["target_id"]
+    target = data.get("target_id", data.get("bill_id"))
+    if target is not None:
+        try:
+            payload["target_id"] = int(target)
+        except (TypeError, ValueError):
+            return None
+        payload["bill_id"] = payload["target_id"]
     return payload

@@ -16,7 +16,10 @@ from .invoice_prompt import (
     INVOICE_LOCATOR_SYSTEM,
     INVOICE_SYSTEM,
     INVOICE_TARGET_HINT,
+    NAME_TAXID_REQUIRED,
     NOT_FOUND,
+    TARGET_AMBIGUOUS,
+    TARGET_REQUIRED,
 )
 from .invoice_schemas import InvoiceIntent, InvoiceLocator
 from .invoice_state import InvoiceAgentState
@@ -81,7 +84,15 @@ def make_invoice_agent_node(tools: list, model=llm):
     agent_llm = model.bind_tools(tools)
 
     def invoice_agent_node(state: InvoiceAgentState) -> dict:
-        guide = INTENT_GUIDE.get(state.get("intent") or "", "")
+        intent = state.get("intent") or ""
+        if intent == "create":
+            # 缺抬头/税号绝不进入 create_invoice：停下询问（Planner 已校验，此处为最后前置防线）
+            ti = state.get("task_input") or {}
+            if not (str(ti.get("name") or "").strip() and str(ti.get("tax_id") or "").strip()):
+                return {
+                    "result": {"success": False, "message": NAME_TAXID_REQUIRED, "data": {"needs_input": True}}
+                }
+        guide = INTENT_GUIDE.get(intent, "")
         system = SystemMessage(content=f"{INVOICE_SYSTEM}\n\n{guide}".strip())
         reply = agent_llm.invoke([system, *(state.get("messages") or [])])
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}
@@ -114,14 +125,36 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         if hint.invoice_id:
             return _located(state, {"id": hint.invoice_id})
 
+        keyword = hint.keyword
+        if not keyword:
+            # Locator 未给出可用条件：用 Planner 显式定位字段做安全 fallback；
+            # 仍无则停下询问，绝不做空条件搜索来自动选中抬头
+            ti = state.get("task_input") or {}
+            if ti.get("invoice_id"):
+                return _located(state, {"id": int(ti["invoice_id"])})
+            keyword = ti.get("keyword")
+            if not keyword:
+                return {
+                    "result": {"success": False, "message": TARGET_REQUIRED, "data": {"needs_input": True}}
+                }
+
         rows = _tool_rows(
-            search_tool.invoke({"keyword": hint.keyword, "limit": _MAX_CANDIDATES})
+            search_tool.invoke({"keyword": keyword, "limit": _MAX_CANDIDATES})
         )
         if not rows:
-            return {"result": {"success": False, "message": NOT_FOUND, "data": {}}}
+            return {
+                "result": {"success": False, "message": NOT_FOUND, "data": {"needs_input": True}}
+            }
         if len(rows) == 1:
             return _located(state, rows[0], candidates=rows)
-        return {"candidates": rows[:_MAX_CANDIDATES], "need_confirm": True}
+        # 多条命中：目标不唯一，停下让用户说具体点，绝不自动选中（NEED_SELECTION）
+        return {
+            "result": {
+                "success": False,
+                "message": TARGET_AMBIGUOUS,
+                "data": {"needs_input": True, "candidates": rows[:_MAX_CANDIDATES]},
+            }
+        }
 
     return mutation_check_node
 

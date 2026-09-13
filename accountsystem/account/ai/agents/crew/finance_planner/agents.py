@@ -11,6 +11,7 @@ crewai 全部在函数内部惰性导入，缺失时由 crew.py 统一降级。
 from __future__ import annotations
 
 from account.ai.knowledge.tools.knowledge_tools import build_knowledge_tools
+from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.tools.finance_tools import (
     budget_advice_tool,
     build_analysis_tools,
@@ -112,5 +113,6 @@ def build_agents(roles, user) -> dict:
             llm=crew_llm,
             allow_delegation=False,
             verbose=False,
+            max_iter=AGENT_MAX_ITERATIONS,
         )
     return agents

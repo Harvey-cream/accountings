@@ -95,14 +95,14 @@ class AgentTraceLifecycleTests(SimpleTestCase):
             "account.ai.orchestrator.executor._execute_task",
             side_effect=RuntimeError("workflow failed"),
         ):
-            with self.assertRaises(RuntimeError):
-                execute_plan(
-                    state,
-                    plan,
-                    trace_id="trace-3",
-                    runtime_plan_id="plan-3",
-                    event_emitter=collector,
-                )
+            # Workflow 异常必须优雅收尾：不向上抛，Task 记为 FAILED
+            result = execute_plan(
+                state,
+                plan,
+                trace_id="trace-3",
+                runtime_plan_id="plan-3",
+                event_emitter=collector,
+            )
 
         self.assertEqual(
             [event["event_type"] for event in collector.events],
@@ -115,3 +115,6 @@ class AgentTraceLifecycleTests(SimpleTestCase):
                 "plan.failed",
             ],
         )
+        final = result["final_response"]
+        self.assertEqual(final["plan_result"]["status"], "failed")
+        self.assertIn("处理失败", final["output"])

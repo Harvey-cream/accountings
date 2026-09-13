@@ -1,8 +1,8 @@
 """Response Composer：把已完成的 PlanResult 转成用户可读的最终回复。
 
 确定性处理，不调用 LLM，不是 Agent / Router / Planner。
-职责：把已有 Task Result（StepResult.message/summary）按执行序组合成一句最终回复；
-单任务直接返回其文案；多任务用顿号拼接去重。
+职责：把已有 Task Result（StepResult.message/summary）按执行序组合成最终回复；
+单任务直接返回其文案；多任务按执行序换行拼接、去空、去重。
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def _step_text(step) -> str:
 
 
 def compose_response(plan_result) -> str:
-    """组合已完成 Task 的回复。单任务直接返回；多任务按执行序拼接去重。"""
+    """组合已完成 Task 的回复。单任务直接返回；多任务按执行序换行拼接、去空、去重。"""
     parts: list[str] = []
     for step in plan_result.task_results:
         text = _step_text(step)
@@ -31,5 +31,5 @@ def compose_response(plan_result) -> str:
     if len(parts) == 1:
         return parts[0]
     if parts:
-        return "、".join(parts)
+        return "\n".join(parts)
     return (plan_result.summary or "").strip()

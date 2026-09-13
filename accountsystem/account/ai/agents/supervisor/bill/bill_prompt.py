@@ -56,5 +56,8 @@ BILL_BATCH_HINT = "用户要批量记的账单草稿：{items}。请据此调用
 
 NOT_FOUND = "没找到符合条件的账单呢，换个关键词或日期再说一次吧～"
 BATCH_EMPTY = "没听清要记哪几笔呢，按「早饭10，午饭25」这样再说一次吧～"
+AMOUNT_REQUIRED = "想记多少钱呢？说一下金额我再帮你记账～"
+TARGET_REQUIRED = "想改/删哪一笔账单呢？说个备注关键词或日期，我再帮你找～"
+TARGET_AMBIGUOUS = "找到好几笔相近的账单，说具体一点（比如日期或金额）我再帮你锁定～"
 
 ACTION_LABEL = {"update": "修改", "delete": "删除", "batch_create": "记下这几笔"}

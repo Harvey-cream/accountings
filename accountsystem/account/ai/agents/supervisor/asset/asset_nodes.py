@@ -17,13 +17,21 @@ from .asset_prompt import (
     ASSET_LOCATOR_SYSTEM,
     ASSET_SYSTEM,
     ASSET_TARGET_HINT,
+    DRAFT_INCOMPLETE,
     INTENT_GUIDE,
     NOT_FOUND,
+    TARGET_AMBIGUOUS,
+    TARGET_REQUIRED,
 )
 from .asset_schemas import AssetDraft, AssetIntent, AssetLocator
 from .asset_state import AssetAgentState
 
 _MAX_CANDIDATES = 5
+
+
+def _draft_valid(draft: dict) -> bool:
+    """新建账户草稿必须有 name 与 asset_type，否则不完整。"""
+    return bool((draft or {}).get("name")) and bool((draft or {}).get("asset_type"))
 
 
 def _origin_text(state: AssetAgentState) -> str:
@@ -106,16 +114,20 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         if (state.get("intent") or "") == "create":
             if state.get("confirmed"):
                 draft = state.get("draft") or {}
-                update: dict = {"need_confirm": False}
-                if draft:
-                    update["messages"] = [
+                if not _draft_valid(draft):
+                    return {
+                        "result": {"success": False, "message": DRAFT_INCOMPLETE, "data": {"needs_input": True}}
+                    }
+                return {
+                    "need_confirm": False,
+                    "messages": [
                         SystemMessage(
                             content=ASSET_DRAFT_HINT.format(
                                 draft=json.dumps(draft, ensure_ascii=False)
                             )
                         )
-                    ]
-                return update
+                    ],
+                }
             try:
                 draft = drafter.invoke(
                     [SystemMessage(content=ASSET_DRAFT_SYSTEM), HumanMessage(content=text)]
@@ -123,6 +135,11 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
             except Exception as e:
                 log_agent_exc("ASSET_DRAFT", e, input=text[:60])
                 draft = {}
+            # 草稿不完整（含 LLM 失败的空草稿）绝不进入确认/新建，直接询问
+            if not _draft_valid(draft):
+                return {
+                    "result": {"success": False, "message": DRAFT_INCOMPLETE, "data": {"needs_input": True}}
+                }
             return {"draft": draft, "need_confirm": True}
 
         target = state.get("target_account") or {}
@@ -140,14 +157,36 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         if hint.account_id:
             return _located(state, {"id": hint.account_id})
 
+        name = hint.name
+        if not name:
+            # Locator 未给出可用条件：用 Planner 显式定位字段做安全 fallback；
+            # 仍无则停下询问，绝不做空条件搜索来自动选中账户
+            ti = state.get("task_input") or {}
+            if ti.get("account_id"):
+                return _located(state, {"id": int(ti["account_id"])})
+            name = ti.get("name")
+            if not name:
+                return {
+                    "result": {"success": False, "message": TARGET_REQUIRED, "data": {"needs_input": True}}
+                }
+
         rows = _tool_rows(
-            search_tool.invoke({"name": hint.name, "limit": _MAX_CANDIDATES})
+            search_tool.invoke({"name": name, "limit": _MAX_CANDIDATES})
         )
         if not rows:
-            return {"result": {"success": False, "message": NOT_FOUND, "data": {}}}
+            return {
+                "result": {"success": False, "message": NOT_FOUND, "data": {"needs_input": True}}
+            }
         if len(rows) == 1:
             return _located(state, rows[0], candidates=rows)
-        return {"candidates": rows[:_MAX_CANDIDATES], "need_confirm": True}
+        # 多条命中：目标不唯一，停下让用户说具体点，绝不自动选中（NEED_SELECTION）
+        return {
+            "result": {
+                "success": False,
+                "message": TARGET_AMBIGUOUS,
+                "data": {"needs_input": True, "candidates": rows[:_MAX_CANDIDATES]},
+            }
+        }
 
     return mutation_check_node
 

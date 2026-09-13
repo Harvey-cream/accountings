@@ -12,15 +12,20 @@ execute_plan 是唯一正式执行入口，覆盖单任务、多任务和确认�
 
 from __future__ import annotations
 
+import logging
+
 from account.ai.agents.crew.finance_planner import run_finance_planner
 from account.ai.agents.supervisor import asset, bill, budget, chat, invoice
 
 from .events import EventEmitter
+from .protocol import StepStatus
 from .result_adapter import adapt_workflow_result
 from .result_aggregator import aggregate_plan_results
 from .response_composer import compose_response
 from .state import AgentState
 from .task_schema import WorkflowPlan, topo_sort
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -51,6 +56,15 @@ _CONFIRM_ACTIONS = {
     "invoice": frozenset({"update", "delete"}),
 }
 
+# 定向写操作：确认前必须先由 Workflow 定位唯一目标（0/1/N）。
+_TARGETED_ACTIONS = {
+    "bill": frozenset({"update", "delete"}),
+    "asset": frozenset({"update", "delete", "adjust_balance"}),
+    "invoice": frozenset({"update", "delete"}),
+}
+# 各域输入里承载显式目标 id 的字段
+_TARGET_ID_FIELDS = {"bill": "bill_id", "asset": "account_id", "invoice": "invoice_id"}
+
 # 前序任务结果注入下一任务时的最大字符数，防止 prompt 无限膨胀
 _PREV_RESULT_MAX_CHARS = 800
 
@@ -62,6 +76,34 @@ _AGENT_NAMES = {
     "chat": "chat",
     "open_planning": "finance_planner",
 }
+
+# task.type + task.action → 面向用户的执行状态文案。
+# 前端 executionStatus 直接消费事件 message，不再自行根据 type/action 猜测。
+_TASK_STATUS_TEXT = {
+    ("bill", "query"): "正在查询账单…",
+    ("bill", "create"): "正在整理账单信息…",
+    ("bill", "batch_create"): "正在整理账单信息…",
+    ("bill", "update"): "正在检查账单修改…",
+    ("bill", "delete"): "正在检查账单删除…",
+    ("budget", "set_budget"): "正在调整预算…",
+    ("budget", "query_budget"): "正在查询预算…",
+    ("budget", "budget_advice"): "正在分析预算建议…",
+    ("asset", "create"): "正在创建资产…",
+    ("asset", "query"): "正在查询资产…",
+    ("asset", "update"): "正在检查资产修改…",
+    ("asset", "delete"): "正在检查资产删除…",
+    ("asset", "adjust_balance"): "正在调整资产余额…",
+    ("invoice", "create"): "正在整理发票信息…",
+    ("invoice", "query"): "正在查询发票…",
+    ("invoice", "update"): "正在检查发票修改…",
+    ("invoice", "delete"): "正在检查发票删除…",
+    ("open_planning", "analyze"): "正在分析你的财务情况…",
+    ("chat", "respond"): "正在思考…",
+}
+
+
+def _status_text(task_type: str, task_action: str) -> str:
+    return _TASK_STATUS_TEXT.get((task_type, task_action), "正在处理…")
 
 
 def _emit(emitter, event_type, *, trace_id, plan_id, task_id="", agent="", message=""):
@@ -156,8 +198,48 @@ def _build_plan_confirmation(ordered) -> dict | None:
     return {"need_confirm": True, "confirmations": confirmations}
 
 
-def _confirmation_failure(ordered) -> bool:
+def _has_confirm_action(ordered) -> bool:
     return any(task.action in _CONFIRM_ACTIONS.get(task.type, ()) for task in ordered)
+
+
+def _needs_target_resolution(task) -> bool:
+    """定向写操作但输入没有显式目标 id → 目标待定位，不能提前出计划级确认卡。"""
+    if task.action not in _TARGETED_ACTIONS.get(task.type, ()):
+        return False
+    field = _TARGET_ID_FIELDS[task.type]
+    value = (task.input_model.model_dump(mode="json") or {}).get(field)
+    return not isinstance(value, int)
+
+
+def _has_previewable_action(ordered) -> bool:
+    """计划里存在"无需定位即确认"的写操作（create/batch/set_budget 或带显式 id 的定向写）。
+
+    仅当全是"目标待定位"的 update/delete 时才不预览，交给 Workflow 先定位再确认。
+    """
+    return any(
+        task.action in _CONFIRM_ACTIONS.get(task.type, ())
+        and not _needs_target_resolution(task)
+        for task in ordered
+    )
+
+
+def _dump_plan_tasks(tasks) -> list[dict]:
+    """WorkflowTask 列表 → 可回灌 WorkflowPlan 的纯 dict（含显式 input）。"""
+    dumped = []
+    for task in tasks:
+        item = task.model_dump()
+        item["input"] = task.input_model.model_dump(mode="json")
+        dumped.append(item)
+    return dumped
+
+
+def _remaining_plan_tasks(ordered, start_index: int) -> list[dict]:
+    """暂停点起的剩余任务；depends_on 只保留仍在剩余集合内的依赖，保证可单独回放。"""
+    remaining = _dump_plan_tasks(ordered[start_index:])
+    ids = {item["id"] for item in remaining}
+    for item in remaining:
+        item["depends_on"] = [dep for dep in (item.get("depends_on") or []) if dep in ids]
+    return remaining
 
 
 # ============================================================
@@ -175,10 +257,11 @@ def execute_plan(
     """
     跨 Workflow 计划执行：
     阶段 1（预览）：
-      - 多任务且包含写操作 → 先返回"计划级确认卡"，不执行任何写操作
+      - 计划里存在"无需定位即确认"的写操作时，返回"计划级确认卡"，不执行任何写操作
+      - 全是"目标待定位"的 update/delete 时不预览：交给 Workflow 先定位(0/1/N)再出确认卡
       - 确认卡附带服务端保存的 workflow_plan，plan_tasks 仅用于展示兼容
     阶段 2（执行，confirmed_plan=True）：
-      - 拓扑排序后依序执行每个 Workflow
+      - 拓扑排序后依序执行每个 Workflow；中途再次暂停（确认/缺参数）只回放剩余任务
       - 前序任务结果截断后注入下一任务输入
       - 合并所有 output 和 intermediate_steps 返回
     """
@@ -206,7 +289,8 @@ def execute_plan(
     plan_id = str(state.get("conversation_id") or runtime_plan_id or "plan")
 
     if (
-        _confirmation_failure(ordered)
+        _has_previewable_action(ordered)
+        and _has_confirm_action(ordered)
         and not ((state.get("confirm") or {}).get("confirmed_plan"))
     ):
         try:
@@ -246,7 +330,7 @@ def execute_plan(
         "plan.started",
         trace_id=trace_id,
         plan_id=plan_id,
-        message="开始执行计划",
+        message="正在处理你的请求…",
     )
 
     user_input = state.get("user_input") or ""
@@ -256,7 +340,8 @@ def execute_plan(
     outputs: list[str] = []
     steps: list = []
     task_results = []
-    for task in ordered:
+    had_failure = False
+    for index, task in enumerate(ordered):
         agent_name = _AGENT_NAMES[task.type]
         _emit(
             event_emitter,
@@ -265,7 +350,7 @@ def execute_plan(
             plan_id=plan_id,
             task_id=task.id,
             agent=agent_name,
-            message=f"开始处理{task.type}",
+            message=_status_text(task.type, task.action),
         )
         _emit(
             event_emitter,
@@ -274,7 +359,7 @@ def execute_plan(
             plan_id=plan_id,
             task_id=task.id,
             agent=agent_name,
-            message=f"{agent_name} 开始执行",
+            message=_status_text(task.type, task.action),
         )
         try:
             result = _execute_task(
@@ -286,6 +371,10 @@ def execute_plan(
                 event_emitter=event_emitter,
             )
         except Exception:
+            # 单个 Workflow 崩溃不拖垮整条计划：完整 traceback 落服务端日志，
+            # 该步转成 FAILED 结果，保留已完成 Task，SSE 正常收尾（不向上抛）
+            had_failure = True
+            logger.exception("plan task failed: plan=%s task=%s", plan_id, task.id)
             _emit(
                 event_emitter,
                 "agent.failed",
@@ -293,7 +382,7 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{agent_name} 执行失败",
+                message="处理失败，请稍后再试",
             )
             _emit(
                 event_emitter,
@@ -302,16 +391,22 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{task.type} 处理失败",
+                message="处理失败，请稍后再试",
             )
-            _emit(
-                event_emitter,
-                "plan.failed",
-                trace_id=trace_id,
-                plan_id=plan_id,
-                message="计划执行失败",
+            task_results.append(
+                adapt_workflow_result(
+                    {
+                        "success": False,
+                        "message": "处理失败，请稍后再试",
+                        "error": {"code": "workflow_exception", "message": "处理失败，请稍后再试"},
+                    },
+                    plan_id=plan_id,
+                    step_id=task.id,
+                    step_type=task.type,
+                    action=task.action,
+                )
             )
-            raise
+            break
 
         results[task.id] = result
         step_result = adapt_workflow_result(
@@ -327,7 +422,37 @@ def execute_plan(
         if out:
             outputs.append(out)
         steps.extend(result.get("intermediate_steps") or [])
-        if step_result.success:
+
+        if step_result.status == StepStatus.WAITING_CONFIRMATION:
+            # 目标已由 Workflow 定位，但用户还没确认：交回确认卡并暂停。
+            # 只持久化剩余任务，确认后不会重跑已执行过的部分
+            raw = result.get("confirm") or {}
+            payload = raw.get("payload") or result.get("data") or {}
+            item = {
+                "need_confirm": True,
+                "entity": raw.get("entity") or str(step_result.step_type),
+                "action": raw.get("action") or step_result.action,
+                "payload": payload if isinstance(payload, dict) else {},
+                "candidates": raw.get("candidates") or [],
+                "task_id": step_result.step_id,
+            }
+            remaining = _remaining_plan_tasks(ordered, index)
+            state["workflow_results"] = results
+            state["tool_results"] = steps
+            state["final_response"] = {
+                "output": out or "请确认以下操作：",
+                "confirm": {"need_confirm": True, "confirmations": [item]},
+                # plan_tasks 供落库兼容；workflow_plan 为权威回放副本
+                "plan_tasks": remaining,
+                "workflow_plan": remaining,
+                "trace_id": trace_id,
+                "plan_id": plan_id,
+                "intermediate_steps": steps,
+            }
+            return state
+
+        if step_result.status == StepStatus.WAITING_INPUT:
+            # 缺参数/目标：停下询问用户，不是失败；收尾交给聚合 + Composer 出询问文案
             _emit(
                 event_emitter,
                 "agent.completed",
@@ -335,7 +460,6 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{agent_name} 执行完成",
             )
             _emit(
                 event_emitter,
@@ -344,9 +468,29 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{task.type} 处理完成",
+            )
+            break
+
+        if step_result.success:
+            # 完成事件不携带"正在…"文案：前端保留上一状态，等下一个 task.started 或 done 清空
+            _emit(
+                event_emitter,
+                "agent.completed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
+            )
+            _emit(
+                event_emitter,
+                "task.completed",
+                trace_id=trace_id,
+                plan_id=plan_id,
+                task_id=task.id,
+                agent=agent_name,
             )
         else:
+            had_failure = True
             _emit(
                 event_emitter,
                 "agent.failed",
@@ -354,7 +498,7 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{agent_name} 执行失败",
+                message="处理失败，请稍后再试",
             )
             _emit(
                 event_emitter,
@@ -363,7 +507,7 @@ def execute_plan(
                 plan_id=plan_id,
                 task_id=task.id,
                 agent=agent_name,
-                message=f"{task.type} 处理失败",
+                message="处理失败，请稍后再试",
             )
             break
 
@@ -382,20 +526,21 @@ def execute_plan(
         "plan_result": plan_result.model_dump(mode="json"),
         "intermediate_steps": steps,
     }
-    if plan_result.status == "success":
-        _emit(
-            event_emitter,
-            "plan.completed",
-            trace_id=trace_id,
-            plan_id=plan_id,
-            message="计划执行完成",
-        )
-    else:
+    if had_failure or plan_result.status == "failed":
         _emit(
             event_emitter,
             "plan.failed",
             trace_id=trace_id,
             plan_id=plan_id,
-            message="计划执行失败",
+            message="处理失败，请稍后再试",
         )
+    elif plan_result.status == "success":
+        _emit(
+            event_emitter,
+            "plan.completed",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            message="处理完成",
+        )
+    # partial 且无失败（例如等用户补参数）：不播报终态，交给 done 清空
     return state

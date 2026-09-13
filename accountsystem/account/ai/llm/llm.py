@@ -28,12 +28,18 @@ if not LLM_AGENT_API_KEY:
     )
 
 
-def build_llm(model_name: str = LLM_AGENT_MODEL) -> ChatOpenAI:
+def build_llm(
+    model_name: str = LLM_AGENT_MODEL,
+    *,
+    request_timeout: float = 30,
+    max_retries: int = 2,
+) -> ChatOpenAI:
     return ChatOpenAI(
         model_name=model_name,
         openai_api_base=LLM_AGENT_BASE_URL,
         openai_api_key=LLM_AGENT_API_KEY,
-        request_timeout=30,
+        request_timeout=request_timeout,
+        max_retries=max_retries,
         temperature=0.2,
     )
 
@@ -50,3 +56,8 @@ def get_llm(tier: str = "default") -> ChatOpenAI:
 
 
 llm = build_llm()
+
+# Planner 专用实例：放宽超时、关闭 SDK 自动重试（应用层自行控制最多一次 schema retry）。
+# 其余 LLM 保持各自现有配置，不受影响。
+PLANNER_TIMEOUT = float(env_str("PLANNER_LLM_TIMEOUT", "45"))
+planner_llm = build_llm(LLM_AGENT_MODEL, request_timeout=PLANNER_TIMEOUT, max_retries=0)

@@ -76,6 +76,20 @@ def _to_graph_input(payload: dict) -> dict:
         if action == "create":
             state["intent"] = action
             state["confirmed"] = True
+            # 计划级确认回放：草稿来自持久化 task_input，否则 mutation_check 会判空
+            if not state.get("draft"):
+                state["draft"] = {
+                    key: task_input[key]
+                    for key in (
+                        "name",
+                        "asset_type",
+                        "balance",
+                        "account_type",
+                        "is_included_in_total",
+                        "remark",
+                    )
+                    if key in task_input
+                }
         elif action in _CONFIRM_ACTIONS and confirm.get("target_id") is not None:
             state["intent"] = action
             state["target_account"] = {"id": int(confirm["target_id"])}

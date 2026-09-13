@@ -19,38 +19,65 @@ from .events import EventEmitter
 from .memory import load_chat_memory
 from .state import AgentState, new_state
 from .task_schema import WorkflowPlan, WorkflowTask
-from .unified_planner import build_route_plan
+from .unified_planner import PlannerError, build_route_plan
 
 __all__ = ["run_orchestrator", "AgentState", "new_state"]
 
 _CANCEL_REPLY = "好的，已取消啦～"
 
-# 确认数据没有完整计划时，仍转换为统一的单任务 WorkflowPlan
+# 确认恢复：只信服务端持久化的 entity/action/payload，客户端仅能"从候选里选一个目标"
+_SUPPORTED_ENTITIES = {"bill", "budget", "asset", "invoice"}
+_TARGET_ID_FIELDS = {"bill": "bill_id", "asset": "account_id", "invoice": "invoice_id"}
+
+
+def _candidate_ids(candidates) -> set[int]:
+    ids: set[int] = set()
+    for row in candidates or []:
+        if not isinstance(row, dict):
+            continue
+        rid = row.get("id")
+        if isinstance(rid, bool):
+            continue
+        if isinstance(rid, int):
+            ids.add(rid)
+        elif isinstance(rid, str) and rid.strip().lstrip("-").isdigit():
+            ids.add(int(rid))
+    return ids
+
+
+def _explicit_target_id(entity: str, task_input: dict) -> int | None:
+    field = _TARGET_ID_FIELDS.get(entity)
+    value = task_input.get(field) if field else None
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
 
 def _confirmation_plan(confirm: dict, confirm_extra: dict) -> WorkflowPlan:
-    """Convert one legacy confirmation payload without guessing its meaning."""
-    entity = confirm.get("entity") or confirm_extra.get("entity")
-    action = str(confirm.get("action") or confirm_extra.get("action") or "").strip()
-    if entity not in {"bill", "budget", "asset", "invoice"} or not action:
-        raise ValueError("confirmation must include a supported entity and action")
+    """只用服务端持久化的确认数据恢复执行；客户端 target_id 必须命中持久化候选。"""
+    entity = confirm_extra.get("entity")
+    action = str(confirm_extra.get("action") or "").strip()
+    if entity not in _SUPPORTED_ENTITIES or not action:
+        raise ValueError("persisted confirmation must include a supported entity and action")
     if entity == "budget" and action == "update":
         action = "set_budget"
-    task_input = dict(confirm_extra.get("payload") or confirm.get("payload") or {})
-    candidates = confirm_extra.get("candidates") or confirm.get("candidates") or []
+
+    payload = confirm_extra.get("payload")
+    task_input = dict(payload) if isinstance(payload, dict) else {}
+    candidates = confirm_extra.get("candidates") or []
     if entity == "bill" and action == "batch_create":
-        if not candidates and not task_input.get("items"):
+        items = candidates or task_input.get("items")
+        if not items:
             raise ValueError("bill batch confirmation requires candidates or items")
-        task_input["items"] = candidates or task_input["items"]
-    target_id = confirm.get("target_id")
+        task_input["items"] = items
+
+    target_id = _explicit_target_id(entity, task_input)
     if target_id is None:
-        target_id = confirm_extra.get("target_id")
-    if target_id is not None:
-        if entity == "bill":
-            task_input["bill_id"] = target_id
-        elif entity == "asset":
-            task_input["account_id"] = target_id
-        elif entity == "invoice":
-            task_input["invoice_id"] = target_id
+        client_target = confirm.get("target_id")
+        if isinstance(client_target, int) and client_target in _candidate_ids(candidates):
+            target_id = client_target
+    field = _TARGET_ID_FIELDS.get(entity)
+    if target_id is not None and field:
+        task_input[field] = target_id
+
     return WorkflowPlan(
         tasks=[
             WorkflowTask(
@@ -141,17 +168,27 @@ def run_orchestrator(
     state["memory_text"] = memory_text
     state["messages"] = list(memory_messages)
 
+    # Planner 调用较慢，先播报状态，避免前端看起来完全卡死
+    if event_emitter is not None:
+        event_emitter.emit(
+            "plan.started",
+            trace_id=trace_id,
+            plan_id=plan_id,
+            message="正在分析你的请求…",
+        )
+
     # 顶层统一 Planner：一次理解请求，再选择一个或多个 Workflow
-    plan = build_route_plan(text, memory_text)
-    if plan is None:
+    try:
+        plan = build_route_plan(text, memory_text)
+    except PlannerError as exc:
         return {
-            "output": "暂时无法生成有效的执行计划，请换一种说法再试试。",
+            "output": exc.user_message,
             "intermediate_steps": [],
             "plan_result": {
                 "plan_id": plan_id,
                 "status": "failed",
                 "task_results": [],
-                "summary": "统一 Planner 未能生成有效计划",
+                "summary": exc.user_message,
                 "analysis_view": {},
                 "intermediate_steps": [],
             },

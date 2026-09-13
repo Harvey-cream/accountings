@@ -48,6 +48,9 @@ ASSET_TARGET_HINT = "已定位到目标账户：{account}。请直接使用其�
 ASSET_DRAFT_HINT = "用户要新建的账户草稿：{draft}。请据此调用 create_asset_account。"
 
 NOT_FOUND = "没找到符合条件的账户呢，换个名字再说一次吧～"
+DRAFT_INCOMPLETE = "还差点信息：请告诉我账户名称和类型（如「招行储蓄卡」），我再帮你新建～"
+TARGET_REQUIRED = "想操作哪个账户呢？说个账户名称，我再帮你找～"
+TARGET_AMBIGUOUS = "找到好几个相近的账户，说具体一点（比如完整账户名）我再帮你锁定～"
 
 ACTION_LABEL = {
     "create": "新建",

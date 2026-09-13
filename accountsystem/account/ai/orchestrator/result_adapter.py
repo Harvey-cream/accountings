@@ -54,10 +54,20 @@ def _json_object(value: Any) -> JsonObject:
     return {"raw": value}
 
 
+def _needs_input(result: dict) -> bool:
+    """Workflow 缺参数/目标时停在询问态，不是失败。标记可放在顶层或 data 内。"""
+    if result.get("needs_input"):
+        return True
+    data = result.get("data")
+    return isinstance(data, dict) and bool(data.get("needs_input"))
+
+
 def _status(result: dict) -> StepStatus:
     confirm = result.get("confirm") or {}
     if confirm.get("need_confirm"):
         return StepStatus.WAITING_CONFIRMATION
+    if _needs_input(result):
+        return StepStatus.WAITING_INPUT
     if result.get("success") is False or result.get("error"):
         return StepStatus.FAILED
     return StepStatus.COMPLETED

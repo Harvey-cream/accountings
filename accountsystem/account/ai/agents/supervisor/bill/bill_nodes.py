@@ -16,6 +16,7 @@ from account.ai.llm.llm_utils import (
 
 from .bill_prompt import (
     ACTION_LABEL,
+    AMOUNT_REQUIRED,
     BATCH_EMPTY,
     BILL_BATCH_HINT,
     BILL_BATCH_RETRY_HINT,
@@ -26,6 +27,8 @@ from .bill_prompt import (
     BILL_TARGET_HINT,
     INTENT_GUIDE,
     NOT_FOUND,
+    TARGET_AMBIGUOUS,
+    TARGET_REQUIRED,
 )
 from .bill_schemas import BillBatch, BillIntent, BillLocator
 from .bill_state import BillAgentState
@@ -131,7 +134,9 @@ def make_batch_parse_node(model=llm):
         drafts = _parse_drafts(parser, text)
 
         if not drafts:
-            return {"result": {"success": False, "message": BATCH_EMPTY, "data": {}}}
+            return {
+                "result": {"success": False, "message": BATCH_EMPTY, "data": {"needs_input": True}}
+            }
         if not state.get("confirmed"):
             return {"drafts": drafts, "need_confirm": True}
         return {
@@ -156,6 +161,17 @@ def make_bill_agent_node(tools: list, model=llm):
 
     def bill_agent_node(state: BillAgentState) -> dict:
         intent = state.get("intent") or ""
+        if intent == "create":
+            # 缺金额绝不进入 create_bill：停下询问（金额由 Planner 校验，此处为最后一道前置防线）
+            amount = (state.get("task_input") or {}).get("amount")
+            try:
+                valid_amount = amount is not None and float(amount) > 0
+            except (TypeError, ValueError):
+                valid_amount = False
+            if not valid_amount:
+                return {
+                    "result": {"success": False, "message": AMOUNT_REQUIRED, "data": {"needs_input": True}}
+                }
         guide = INTENT_GUIDE.get(intent, "")
         task_input = state.get("task_input") or {}
         task_context = (
@@ -196,22 +212,47 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         if hint.bill_id:
             return _located(state, {"id": hint.bill_id})
 
+        keyword, category = hint.keyword, hint.category
+        days, bill_type = hint.days, hint.bill_type
+        if not keyword and not category:
+            # Locator 未给出可用条件：用 Planner 显式定位字段做安全 fallback；
+            # 仍无可用条件则停下询问，绝不做空条件搜索来自动制造目标
+            ti = state.get("task_input") or {}
+            if ti.get("bill_id"):
+                return _located(state, {"id": int(ti["bill_id"])})
+            keyword, category = ti.get("keyword"), ti.get("category")
+            days = ti.get("days") or days
+            bill_type = ti.get("bill_type")
+            if not keyword and not category:
+                return {
+                    "result": {"success": False, "message": TARGET_REQUIRED, "data": {"needs_input": True}}
+                }
+
         rows = _tool_rows(
             search_tool.invoke(
                 {
-                    "keyword": hint.keyword,
-                    "category": hint.category,
-                    "days": hint.days,
-                    "bill_type": hint.bill_type,
+                    "keyword": keyword,
+                    "category": category,
+                    "days": days,
+                    "bill_type": bill_type,
                     "limit": _MAX_CANDIDATES,
                 }
             )
         )
         if not rows:
-            return {"result": {"success": False, "message": NOT_FOUND, "data": {}}}
+            return {
+                "result": {"success": False, "message": NOT_FOUND, "data": {"needs_input": True}}
+            }
         if len(rows) == 1:
             return _located(state, rows[0], candidates=rows)
-        return {"candidates": rows[:_MAX_CANDIDATES], "need_confirm": True}
+        # 多条命中：目标不唯一，停下让用户说具体点，绝不自动选中（NEED_SELECTION）
+        return {
+            "result": {
+                "success": False,
+                "message": TARGET_AMBIGUOUS,
+                "data": {"needs_input": True, "candidates": rows[:_MAX_CANDIDATES]},
+            }
+        }
 
     return mutation_check_node
 

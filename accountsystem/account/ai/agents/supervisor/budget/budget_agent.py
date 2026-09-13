@@ -35,6 +35,9 @@ def _graph_to_result(graph_state: dict) -> dict:
         output = extract_content(messages[-1]).strip()
     result = graph_state.get("result") or {}
     out = {"output": output, "intermediate_steps": steps}
+    if graph_state.get("need_input"):
+        # 缺参数停在询问态：交给 executor 判为 WAITING_INPUT，不是失败
+        out["needs_input"] = True
     if result.get("data"):
         out["data"] = result["data"]
     if graph_state.get("need_confirm"):

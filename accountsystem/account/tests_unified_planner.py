@@ -58,7 +58,7 @@ class UnifiedPlannerTests(SimpleTestCase):
                 WorkflowTask(id="budget", type="budget", action="set_budget", goal="设置总预算7500元", input={"amount": 7500, "period": "2026-09", "budget_type": "month"}),
             ],
         )
-        with patch("account.ai.orchestrator.unified_planner.llm") as mock_llm:
+        with patch("account.ai.orchestrator.unified_planner.planner_llm") as mock_llm:
             mock_planner = mock_llm.with_structured_output.return_value
             mock_planner.invoke.return_value = expected
             actual = build_route_plan("早饭20，晚饭30预算7500")
