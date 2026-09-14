@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .protocol import PlanStatus, StepResult, StepStatus
+from .protocol import StepResult, StepStatus
 
 
 class PlanResult(BaseModel):

@@ -6,101 +6,92 @@ from pydantic import ValidationError
 from account.ai.llm.response import to_api_dict
 from account.ai.orchestrator.protocol import (
     ConfirmationRequest,
-    Plan,
-    PlanStep,
-    StepContext,
     StepError,
     StepResult,
     StepStatus,
     StepType,
 )
+from account.ai.orchestrator.task_schema import WorkflowPlan, WorkflowTask
 
 
 class AgentProtocolTests(SimpleTestCase):
-    def test_plan_supports_business_steps_followed_by_open_planning(self):
-        plan = Plan(
-            plan_id="plan-1",
-            original_request="今天消费200，预算改为7000并规划资金使用",
-            steps=[
-                PlanStep(
-                    step_id="create_bill",
-                    step_type=StepType.BILL,
+    def test_workflow_plan_supports_business_tasks_followed_by_open_planning(self):
+        plan = WorkflowPlan(
+            tasks=[
+                WorkflowTask(
+                    id="create_bill",
+                    type="bill",
                     action="create",
                     goal="记录今天200元支出",
+                    input={"amount": 200},
                 ),
-                PlanStep(
-                    step_id="update_budget",
-                    step_type=StepType.BUDGET,
-                    action="update",
+                WorkflowTask(
+                    id="update_budget",
+                    type="budget",
+                    action="set_budget",
                     goal="将本月预算改为7000元",
+                    input={"amount": 7000, "period": "2026-08", "budget_type": "month"},
                     depends_on=["create_bill"],
                 ),
-                PlanStep(
-                    step_id="plan_funds",
-                    step_type=StepType.OPEN_PLANNING,
+                WorkflowTask(
+                    id="plan_funds",
+                    type="open_planning",
                     action="analyze",
                     goal="分析接下来的资金使用规划",
+                    input={"topic": "资金使用规划"},
                     depends_on=["create_bill", "update_budget"],
                 ),
-            ],
+            ]
         )
 
         payload = plan.model_dump(mode="json")
-        restored = Plan.model_validate(json.loads(json.dumps(payload)))
+        restored = WorkflowPlan.model_validate(json.loads(json.dumps(payload)))
 
         self.assertEqual(restored, plan)
-        self.assertEqual(restored.steps[-1].step_type, StepType.OPEN_PLANNING)
+        self.assertEqual(restored.tasks[-1].type, "open_planning")
 
-    def test_plan_rejects_duplicate_or_unknown_dependencies(self):
+    def test_workflow_plan_rejects_duplicate_or_unknown_dependencies(self):
         with self.assertRaises(ValidationError):
-            Plan(
-                plan_id="plan-1",
-                steps=[
-                    PlanStep(
-                        step_id="bill",
-                        step_type=StepType.BILL,
+            WorkflowPlan(
+                tasks=[
+                    WorkflowTask(
+                        id="bill",
+                        type="bill",
                         action="create",
+                        input={"amount": 200},
                         depends_on=["bill"],
                     )
-                ],
+                ]
             )
 
         with self.assertRaises(ValidationError):
-            Plan(
-                plan_id="plan-1",
-                steps=[
-                    PlanStep(
-                        step_id="bill",
-                        step_type=StepType.BILL,
-                        action="create",
-                    ),
-                    PlanStep(
-                        step_id="budget",
-                        step_type=StepType.BUDGET,
-                        action="update",
+            WorkflowPlan(
+                tasks=[
+                    WorkflowTask(id="bill", type="bill", action="create", input={"amount": 200}),
+                    WorkflowTask(
+                        id="budget",
+                        type="budget",
+                        action="set_budget",
+                        input={"amount": 7000, "period": "2026-08", "budget_type": "month"},
                         depends_on=["missing"],
                     ),
-                ],
+                ]
             )
 
         with self.assertRaises(ValidationError):
-            Plan(
-                plan_id="plan-1",
-                steps=[
-                    PlanStep(
-                        step_id="bill",
-                        step_type=StepType.BILL,
-                        action="create",
+            WorkflowPlan(
+                tasks=[
+                    WorkflowTask(id="bill", type="bill", action="create", input={"amount": 200}),
+                    WorkflowTask(
+                        id="bill",
+                        type="budget",
+                        action="set_budget",
+                        input={"amount": 7000, "period": "2026-08", "budget_type": "month"},
                     ),
-                    PlanStep(
-                        step_id="bill",
-                        step_type=StepType.BUDGET,
-                        action="update",
-                    ),
-                ],
+                ]
             )
 
-    def test_step_context_and_result_keep_structured_data(self):
+    def test_step_result_keeps_structured_data(self):
         bill_result = StepResult(
             plan_id="plan-1",
             step_id="create_bill",
@@ -112,19 +103,11 @@ class AgentProtocolTests(SimpleTestCase):
             entity_ids=[42],
             message="账单已创建",
         )
-        context = StepContext(
-            plan_id="plan-1",
-            step_id="update_budget",
-            step_type=StepType.BUDGET,
-            input={"amount": "7000.00", "period": "2026-08"},
-            planning_request="分析接下来的资金使用规划",
-            completed_results={"create_bill": bill_result},
-        )
 
-        payload = context.model_dump(mode="json")
+        payload = bill_result.model_dump(mode="json")
 
-        self.assertEqual(payload["completed_results"]["create_bill"]["data"]["record_id"], 42)
-        self.assertEqual(payload["input"]["amount"], "7000.00")
+        self.assertEqual(payload["data"]["record_id"], 42)
+        self.assertEqual(payload["entity_ids"], [42])
 
     def test_step_result_supports_failure_and_confirmation_states(self):
         failed = StepResult(

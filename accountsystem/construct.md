@@ -91,9 +91,8 @@ account/
       agent.py             # LCEL → orchestrator → to_api_dict / SSE
       func.py              # 寒暄规则匹配
     agents/
-      supervisor/          # 调度 Agent
-        supervisor_agent.py · supervisor_prompt.py · supervisor_schemas.py
-        bill/              # 账单子 Agent（LangGraph Workflow）
+      supervisor/          # 领域 Workflow（历史目录名，路由已归 Unified Planner）
+        bill/              # 账单 Workflow（LangGraph）
           bill_agent.py    # LCEL 外壳 + _graph_to_result
           bill_graph.py    # StateGraph 组装
           bill_nodes.py · bill_router.py · bill_state.py
@@ -286,8 +285,7 @@ START → context_prepare → intent_router → parameter_validator
 | `ai/orchestrator/memory.py` | 最近 3 轮原文；更早对话后台压缩写 cache，热路径不阻塞 |
 | `ai/orchestrator/router.py` | `decide`：调 Supervisor 写回 task_type/current_agent |
 | `ai/orchestrator/executor.py` | `execute`：按 task_type 调用对应 `Agent.run`，写回结果 |
-| `ai/agents/supervisor/supervisor_agent.py` | 调度 Agent：路由，不执行业务 |
-| `ai/agents/supervisor/{bill,analysis,budget}/*` | 子 Agent：各域自有管道（`*_agent.py` + `*_prompt.py`）；工具用 `finance_tools` |
+| `ai/agents/supervisor/{bill,budget,asset,invoice,chat}/*` | 领域 Workflow：各域自有管道（`*_agent.py` + `*_prompt.py`）；路由统一由 Unified Planner 承担 |
 | `ai/llm/response.py` | `to_api_dict`：从 create_bill Observation 拼账单卡片字段 |
 | `ai/llm/prompt.py` | `REACT_SYSTEM` 等提示词（单 Agent 遗留，业务 prompt 已下沉各 agent） |
 | `ai/tools/finance_tools/*` | AI Tools（禁止 Agent 直接调 Service） |

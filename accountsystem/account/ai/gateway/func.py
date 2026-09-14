@@ -2,8 +2,6 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from account.services.expense_service import analyze_expense
-
 
 # 仅极少数字典寒暄：先精确、再与字典键做相似度（避免和记账/消费句混淆）
 _GREETING_EXACT: frozenset[str] = frozenset({"在吗", "你好"})
@@ -70,11 +68,3 @@ def quick_agent_greeting_prompt(user_input: str) -> GreetingCheck:
         return GreetingCheck(True, best_key, best_ratio, p)
 
     return GreetingCheck(False, key, best_ratio, "")
-
-
-def get_last_month_summary(user) -> str:
-    """
-    查询用户最近一个月的收支数据，返回拼接好的文字供 AI 参考。
-    委托 expense_service.analyze_expense（AI 业务能力层）。
-    """
-    return analyze_expense(user, days=30)

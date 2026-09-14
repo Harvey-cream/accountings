@@ -1,4 +1,4 @@
-"""View → LCEL → orchestrator → to_api_dict / SSE？
+"""View → orchestrator → to_api_dict / SSE
 
 负责最外层 Agent 入口与 SSE 流式输出；业务 Agent 在 agents/* 下。
 """
@@ -12,40 +12,17 @@ from uuid import uuid4
 
 from account.ai.knowledge import prewarm_knowledge
 from account.ai.llm.llm_utils import log_agent_exc
+from account.ai.llm.schemas import AGENT_ERROR_REPLY
 from account.ai.orchestrator import run_orchestrator
 from account.ai.orchestrator.events import EventEmitter
-
-_STATUS = {
-    "create_bill": "正在整理账单信息…",
-    "update_bill": "正在检查账单修改…",
-    "query_bills": "正在查询账单…",
-    "search_bills": "正在查找账单…",
-    "delete_bill": "正在检查账单删除…",
-    "analyze_expense": "正在分析消费…",
-    "compare_periods": "正在对比消费…",
-    "create_budget": "正在调整预算…",
-    "update_budget": "正在调整预算…",
-    "query_budget": "正在查询预算…",
-    "budget_advice": "正在分析预算建议…",
-    "search_finance_knowledge": "正在检索财务知识…",
-}
-
-
-def _tool_call_name(tc) -> str:
-    if isinstance(tc, dict):
-        return str(tc.get("name") or "")
-    return str(getattr(tc, "name", "") or "")
 
 
 async def _yield_text_events(result: dict) -> AsyncIterator[dict]:
     text = result.get("output") or ""
-    steps = result.get("intermediate_steps") or []
     # 需要确认时直接透出完整结果，不再分帧输出
     if result.get("confirm", {}).get("need_confirm"):
         yield {"type": "agent_result", "data": result}
         return
-    for tc, _ in steps:
-        yield {"type": "status", "text": _STATUS.get(_tool_call_name(tc), "正在处理…")}
     for i in range(0, len(text), 2):
         part = text[i : i + 2]
         if part:
