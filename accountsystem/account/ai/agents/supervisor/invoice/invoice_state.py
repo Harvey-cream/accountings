@@ -18,6 +18,7 @@ class InvoiceAgentState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]  # 对话历史 + 本轮各节点追加的消息
     user_id: int | None  # 当前用户 id（仅标识，节点内不查 ORM）
     input: str  # 本轮用户原始输入
+    task_input: dict | None  # Planner 给出的结构化参数（新建抬头必填校验用）
     intent: str  # create / query / update / delete
     target_invoice: dict | None  # 已定位的目标发票信息，至少含 id
     candidates: list[dict]  # 搜到多条时的候选列表

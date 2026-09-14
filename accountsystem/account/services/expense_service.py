@@ -202,6 +202,7 @@ def search_expense(
     *,
     keyword: str | None = None,
     category_name: str | None = None,
+    exclude_category_name: str | None = None,
     days: int | None = 30,
     start_date: date | None = None,
     end_date: date | None = None,
@@ -228,6 +229,8 @@ def search_expense(
         qs = qs.filter(type=_norm_bill_type(bill_type))
     if category_name:
         qs = qs.filter(category__name=category_name.strip())
+    if exclude_category_name:
+        qs = qs.exclude(category__name=exclude_category_name.strip())
     if keyword:
         qs = qs.filter(remark__icontains=keyword.strip())
 

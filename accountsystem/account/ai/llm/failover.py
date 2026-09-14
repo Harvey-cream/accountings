@@ -16,27 +16,45 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def _try_in_order(attempts: Sequence[tuple[str, Callable[[], Any]]]) -> Any:
+def _try_in_order(
+    attempts: Sequence[tuple[str, Callable[[], Any]]],
+    *,
+    treat_none_as_failure: bool = False,
+) -> Any:
     """按序执行 attempts；返回首个成功结果；全部失败抛出最后一个异常。
 
     attempts: [(model_name, callable)]，model_name 仅用于日志。
+    treat_none_as_failure: 结构化输出 / 工具绑定场景下，模型未产出 tool call 时
+    langchain 返回 None 而**不抛异常**；此时必须视为「该模型失败」继续顺延，
+    否则兜底链会在 None 处静默断掉（后续模型永不尝试）。
     """
     if not attempts:
         raise ValueError("no LLM models configured")
 
     last_exc: BaseException | None = None
     for idx, (name, call) in enumerate(attempts):
+        has_next = idx + 1 < len(attempts)
         try:
-            return call()
+            result = call()
         except Exception as exc:
             last_exc = exc
-            if idx + 1 < len(attempts):
+            if has_next:
                 logger.warning(
                     "LLM fallback: model=%s failed (%s: %s), trying next",
                     name,
                     type(exc).__name__,
                     exc,
                 )
+            continue
+        if treat_none_as_failure and result is None:
+            last_exc = ValueError(f"model={name} returned no structured output")
+            if has_next:
+                logger.warning(
+                    "LLM fallback: model=%s returned no structured output, trying next",
+                    name,
+                )
+            continue
+        return result
     raise last_exc  # type: ignore[misc]
 
 
@@ -48,7 +66,11 @@ def _invoke_thunk(runnable: Any, input: Any, config: Any, kwargs: dict) -> Calla
 
 
 class _FailoverRunnable:
-    """一组已绑定（tools / structured_output）的 Runnable，按序兜底 invoke。"""
+    """一组已绑定（tools / structured_output）的 Runnable，按序兜底 invoke。
+
+    绑定路径把 None 视为失败：模型不产出 tool call 时 langchain 返回 None，
+    若当成功返回会截断兜底链。
+    """
 
     def __init__(self, entries: Sequence[tuple[str, Any]]) -> None:
         self._entries = list(entries)
@@ -58,7 +80,8 @@ class _FailoverRunnable:
             [
                 (name, _invoke_thunk(runnable, input, config, kwargs))
                 for name, runnable in self._entries
-            ]
+            ],
+            treat_none_as_failure=True,
         )
 
 

@@ -53,7 +53,16 @@ _CONFIRM_ACTIONS = {
     "bill": frozenset({"create", "batch_create", "update", "delete"}),
     "budget": frozenset({"set_budget"}),
     "asset": frozenset({"create", "update", "delete", "adjust_balance"}),
-    "invoice": frozenset({"update", "delete"}),
+    "invoice": frozenset({"create", "update", "delete"}),
+}
+
+# 出确认卡前必须齐全的字段：缺参不预览，交给 Workflow 停下追问（WAITING_INPUT），
+# 而不是把 amount=null 这种半截草稿当确认卡推给用户。
+_PREVIEW_REQUIRED: dict[tuple[str, str], tuple[str, ...]] = {
+    ("bill", "create"): ("amount",),
+    ("budget", "set_budget"): ("amount",),
+    ("asset", "create"): ("name", "asset_type"),
+    ("invoice", "create"): ("name", "tax_id"),
 }
 
 # 定向写操作：确认前必须先由 Workflow 定位唯一目标（0/1/N）。
@@ -122,9 +131,22 @@ def _emit(emitter, event_type, *, trace_id, plan_id, task_id="", agent="", messa
 # 跨计划辅助函数：上下文拼装 + 预览数据提取
 # ============================================================
 
-def _task_input(task, results: dict, user_input: str) -> str:
-    """组装任务目标和前序结果上下文，不改变结构化执行参数。"""
-    text = (task.goal or "").strip() or user_input
+def _present(value) -> bool:
+    """字段算不算"填了"：None 与空白字符串都算没填。"""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def _task_input(task, results: dict) -> str:
+    """组装任务目标和前序结果上下文，不改变结构化执行参数。
+
+    goal 为空时只用本任务自己的输入造兜底文案，绝不回落到整句 user_input——
+    否则复合请求里某个子任务的上下文会带上其它子任务的原文，污染它的判断。
+    """
+    text = (task.goal or "").strip() or _task_fallback_text(task)
     prev = [
         (results[dep].get("output") or "").strip()
         for dep in task.depends_on
@@ -135,6 +157,19 @@ def _task_input(task, results: dict, user_input: str) -> str:
         joined = "\n\n".join(p[:_PREV_RESULT_MAX_CHARS] for p in prev)
         text = f"{text}\n\n参考前序任务结果：\n{joined}"
     return text
+
+
+# 兜底文案优先取这些文本字段：它们本身就是"这句话在说什么"
+_TASK_TEXT_KEYS = ("topic", "message", "keyword", "description", "name", "category", "remark")
+
+
+def _task_fallback_text(task) -> str:
+    payload = task.input_model.model_dump(mode="json") or {}
+    for key in _TASK_TEXT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return f"执行 {task.type}.{task.action} 任务"
 
 # ============================================================
 # 单任务执行：交给某个业务 Agent 跑一次
@@ -150,7 +185,7 @@ def _execute_task(
     event_emitter: EventEmitter | None = None,
 ) -> dict:
     task_type = task.type
-    user_input = _task_input(task, results, state.get("user_input") or "")
+    user_input = _task_input(task, results)
     if task_type == "open_planning":
         return run_finance_planner(
             user_input,
@@ -176,11 +211,22 @@ def _execute_task(
     return runner(user_input, state.get("user"), **kwargs)
 
 
+def _preview_ready(task) -> bool:
+    """写操作的必填参数齐全才值得出确认卡；缺参留给 Workflow 追问用户。"""
+    required = _PREVIEW_REQUIRED.get((task.type, task.action), ())
+    if not required:
+        return True
+    payload = task.input_model.model_dump(mode="json") or {}
+    return all(_present(payload.get(field)) for field in required)
+
+
 def _build_plan_confirmation(ordered) -> dict | None:
     """Build confirmation data from validated task actions and inputs."""
     confirmations = []
     for task in ordered:
         if task.action not in _CONFIRM_ACTIONS.get(task.type, ()):
+            continue
+        if not _preview_ready(task):
             continue
         payload = task.input_model.model_dump(mode="json")
         item = {
@@ -212,13 +258,15 @@ def _needs_target_resolution(task) -> bool:
 
 
 def _has_previewable_action(ordered) -> bool:
-    """计划里存在"无需定位即确认"的写操作（create/batch/set_budget 或带显式 id 的定向写）。
+    """计划里存在"无需定位、参数齐全"的写操作（create/batch/set_budget 或带显式 id 的定向写）。
 
-    仅当全是"目标待定位"的 update/delete 时才不预览，交给 Workflow 先定位再确认。
+    仅当全是"目标待定位"的 update/delete（或必填参数不全）时才不预览，
+    交给 Workflow 先定位、先追问。
     """
     return any(
         task.action in _CONFIRM_ACTIONS.get(task.type, ())
         and not _needs_target_resolution(task)
+        and _preview_ready(task)
         for task in ordered
     )
 

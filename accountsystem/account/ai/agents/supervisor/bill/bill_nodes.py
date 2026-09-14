@@ -13,6 +13,12 @@ from account.ai.llm.llm_utils import (
     log_agent_exc,
     nested_structured_output,
 )
+from account.ai.tools.tool_policy import (
+    BLOCKED_MESSAGE,
+    allowed_tool_names,
+    blocked_write_calls,
+    select_tools,
+)
 
 from .bill_prompt import (
     ACTION_LABEL,
@@ -156,8 +162,18 @@ def make_batch_parse_node(model=llm):
 
 
 def make_bill_agent_node(tools: list, model=llm):
-    """按 intent 决定本轮该用哪些工具，由 LLM 发起 tool_calls。"""
-    agent_llm = model.bind_tools(tools)
+    """按 intent + 确认态裁剪本轮工具，由 LLM 发起 tool_calls。
+
+    查询与"目标待定位"阶段只绑只读工具：Planner 把写意图误判成 query 时，
+    LLM 手上没有任何写工具可用，DB 不会被改动。
+    """
+    tools_by_name = {t.name: t for t in tools}
+    bound_cache: dict[tuple, object] = {}
+
+    def _bound(names: tuple):
+        if names not in bound_cache:
+            bound_cache[names] = model.bind_tools(select_tools(tools_by_name, names))
+        return bound_cache[names]
 
     def bill_agent_node(state: BillAgentState) -> dict:
         intent = state.get("intent") or ""
@@ -172,6 +188,7 @@ def make_bill_agent_node(tools: list, model=llm):
                 return {
                     "result": {"success": False, "message": AMOUNT_REQUIRED, "data": {"needs_input": True}}
                 }
+        allowed = allowed_tool_names("bill", intent, bool(state.get("confirmed")))
         guide = INTENT_GUIDE.get(intent, "")
         task_input = state.get("task_input") or {}
         task_context = (
@@ -181,7 +198,16 @@ def make_bill_agent_node(tools: list, model=llm):
             else ""
         )
         system = SystemMessage(content=f"{BILL_SYSTEM}\n\n{guide}{task_context}".strip())
-        reply = agent_llm.invoke([system, *(state.get("messages") or [])])
+        reply = _bound(allowed).invoke([system, *(state.get("messages") or [])])
+        if blocked_write_calls(reply, allowed):
+            return {
+                "messages": [AIMessage(content=BLOCKED_MESSAGE)],
+                "result": {
+                    "success": False,
+                    "message": BLOCKED_MESSAGE,
+                    "data": {"needs_input": True},
+                },
+            }
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}
 
     return bill_agent_node

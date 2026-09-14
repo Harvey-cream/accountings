@@ -104,8 +104,8 @@ class ConfirmResumeChainTests(SimpleTestCase):
         self.assertEqual(result["plan_result"]["status"], "success")
 
     def test_invalid_workflow_plan_fails_gracefully(self):
-        # set_budget 缺 amount：回放时应被 schema 拒绝，不抛异常、不执行
-        bad = [_task("budget_set_budget", "budget", "set_budget", "预算", {"period": "2026-10", "budget_type": "month"})]
+        # input 混进未知业务字段：回放时应被 schema 拒绝，不抛异常、不执行
+        bad = [_task("budget_set_budget", "budget", "set_budget", "预算", {"period": "2026-10", "budget_type": "month", "bogus": 1})]
         extra = _extra("budget", "set_budget", bad[0]["input"], bad)
         run = Mock()
         with patch.object(executor, "_RUNNERS", {"budget": run}):

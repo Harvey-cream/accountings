@@ -194,7 +194,7 @@ _CONFIRM_ACTIONS = {
     "bill": {"create", "batch_create", "update", "delete"},
     "budget": {"set_budget", "update"},
     "asset": {"create", "update", "delete", "adjust_balance"},
-    "invoice": {"update", "delete"},
+    "invoice": {"create", "update", "delete"},
 }
 
 

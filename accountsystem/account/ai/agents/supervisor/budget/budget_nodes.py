@@ -9,6 +9,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from account.ai.llm.llm import llm
 from account.ai.llm.llm_utils import extract_content, log_agent_exc
+from account.ai.tools.tool_policy import (
+    BLOCKED_MESSAGE,
+    allowed_tool_names,
+    blocked_write_calls,
+    select_tools,
+)
 
 from .budget_prompt import (
     BUDGET_INTENT_SYSTEM,
@@ -206,11 +212,21 @@ def human_confirm_node(state: BudgetAgentState) -> dict:
 
 
 def make_budget_agent_node(tools: list, model=llm):
-    agent_llm = model.bind_tools(tools)
+    """按 intent + 确认态裁剪本轮工具：查询只绑只读工具，设预算仅确认后绑写工具。"""
+    tools_by_name = {t.name: t for t in tools}
+    bound_cache: dict[tuple, object] = {}
+
+    def _bound(names: tuple):
+        if names not in bound_cache:
+            bound_cache[names] = model.bind_tools(select_tools(tools_by_name, names))
+        return bound_cache[names]
 
     def budget_agent_node(state: BudgetAgentState) -> dict:
         intent = state.get("intent") or "query_budget"
         params = state.get("budget_params") or {}
+        allowed = allowed_tool_names(
+            "budget", intent, bool(state.get("confirmed")), always=("search_finance_knowledge",)
+        )
         guide = INTENT_GUIDE.get(intent, INTENT_GUIDE["query_budget"])
         hint = (
             f"{BUDGET_SYSTEM}\n\n{guide}\n"
@@ -218,7 +234,18 @@ def make_budget_agent_node(tools: list, model=llm):
             "请直接发起对应 tool call。"
             "涉及预算规则或是否合理时，可调用 search_finance_knowledge 检索规则依据。"
         )
-        reply = agent_llm.invoke([SystemMessage(content=hint), *(state.get("messages") or [])])
+        reply = _bound(allowed).invoke([SystemMessage(content=hint), *(state.get("messages") or [])])
+        if blocked_write_calls(reply, allowed):
+            return {
+                "messages": [AIMessage(content=BLOCKED_MESSAGE)],
+                "final_response": BLOCKED_MESSAGE,
+                "need_input": True,
+                "result": {
+                    "success": False,
+                    "message": BLOCKED_MESSAGE,
+                    "data": {"needs_input": True},
+                },
+            }
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}
 
     return budget_agent_node

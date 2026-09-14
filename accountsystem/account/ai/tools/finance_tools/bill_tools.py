@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import calendar
+import re
 from datetime import date, datetime
 
 from langchain_core.tools import StructuredTool
@@ -10,6 +12,9 @@ from pydantic import BaseModel, Field
 from account.services import expense_service
 
 from .common import run_service
+
+_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+_YEAR_RE = re.compile(r"^\d{4}$")
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -21,6 +26,21 @@ def _parse_date(value: str | None) -> date | None:
         from account.services.errors import ServiceError
 
         raise ServiceError("日期格式应为 YYYY-MM-DD") from e
+
+
+def _period_range(period: str | None) -> tuple[date | None, date | None]:
+    """把 YYYY-MM / YYYY 展开成闭区间日期。未给返回 (None, None)。"""
+    value = (period or "").strip()
+    if not value:
+        return None, None
+    from account.services.errors import ServiceError
+
+    if _MONTH_RE.match(value):
+        year, month = (int(part) for part in value.split("-"))
+        return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
+    if _YEAR_RE.match(value):
+        return date(int(value), 1, 1), date(int(value), 12, 31)
+    raise ServiceError("周期格式应为 YYYY-MM（月）或 YYYY（年）")
 
 
 # ----- create_bill -----
@@ -158,6 +178,9 @@ def update_bill_tool(user) -> StructuredTool:
 class QueryBillInput(BaseModel):
     keyword: str | None = Field(default=None, description="备注关键词")
     category: str | None = Field(default=None, description="分类名称")
+    exclude_category: str | None = Field(default=None, description="要排除的分类名称")
+    period: str | None = Field(default=None, description="周期 YYYY-MM 或 YYYY，如 2026-09")
+    date: str | None = Field(default=None, description="精确某一天 YYYY-MM-DD")
     start_date: str | None = Field(default=None, description="起始日期 YYYY-MM-DD")
     end_date: str | None = Field(default=None, description="结束日期 YYYY-MM-DD")
     days: int | None = Field(default=30, ge=1, le=365, description="近多少天")
@@ -171,21 +194,32 @@ def query_bills_tool(user) -> StructuredTool:
     def query_bills(
         keyword: str | None = None,
         category: str | None = None,
+        exclude_category: str | None = None,
+        period: str | None = None,
+        date: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         days: int | None = 30,
         bill_type: str | None = None,
         limit: int = 20,
     ) -> str:
-        if keyword or category or start_date or end_date:
+        single = _parse_date(date)
+        if single:
+            start = end = single
+        elif period:
+            start, end = _period_range(period)
+        else:
+            start, end = _parse_date(start_date), _parse_date(end_date)
+        if keyword or category or exclude_category or start or end:
             return run_service(
                 lambda: expense_service.search_expense(
                     user,
                     keyword=keyword,
                     category_name=category,
+                    exclude_category_name=exclude_category,
                     days=days,
-                    start_date=_parse_date(start_date),
-                    end_date=_parse_date(end_date),
+                    start_date=start,
+                    end_date=end,
                     bill_type=bill_type,
                     limit=limit,
                 ),

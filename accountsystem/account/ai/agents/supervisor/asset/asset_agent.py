@@ -67,6 +67,7 @@ def _to_graph_input(payload: dict) -> dict:
         "need_confirm": False,
         "confirmed": False,
         "loops": 0,
+        "task_input": task_input,
     }
     allowed = {"intent", "target_account", "candidates", "draft"}
     state.update({key: value for key, value in task_input.items() if key in allowed})

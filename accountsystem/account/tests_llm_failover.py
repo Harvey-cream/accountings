@@ -117,6 +117,16 @@ class FailoverInvokeTests(SimpleTestCase):
         self.assertIsNone(seen["config"])
         self.assertEqual(seen["kwargs"], {})
 
+    def test_plain_invoke_keeps_none_semantics(self):
+        """普通 invoke 不把 None 当失败——None-as-failure 只在绑定路径启用。"""
+        primary = _StubModel("gpt-5.6-luna", result=None)
+        fallback = _StubModel("claude-sonnet-4-6", result="ok")
+
+        llm = FailoverLLM([primary, fallback])
+        self.assertIsNone(llm.invoke("hi"))
+        self.assertEqual(primary.invokes, 1)
+        self.assertEqual(fallback.invokes, 0)
+
 
 class FailoverBindingTests(SimpleTestCase):
     def test_bind_tools_falls_through(self):
@@ -146,6 +156,36 @@ class FailoverBindingTests(SimpleTestCase):
         # nested_structured_output 依赖 method 透传，两个模型都要收到
         self.assertEqual(primary.bound_kwargs, [{"method": "function_calling"}])
         self.assertEqual(fallback.bound_kwargs, [{"method": "function_calling"}])
+
+    def test_structured_output_none_falls_through_to_next(self):
+        """模型未产出 tool call 时 langchain 返回 None 而非抛异常，必须继续顺延。"""
+        primary = _StubModel("gpt-5.6-luna", result=None)
+        fallback = _StubModel("claude-sonnet-4-6", result={"amount": 30})
+
+        bound = FailoverLLM([primary, fallback]).with_structured_output("WorkflowPlan")
+        with self.assertLogs("account.ai.llm.failover", level="WARNING") as logs:
+            self.assertEqual(bound.invoke(["msg"]), {"amount": 30})
+
+        self.assertEqual(primary.invokes, 1)
+        self.assertEqual(fallback.invokes, 1)
+        self.assertIn("gpt-5.6-luna", "\n".join(logs.output))
+
+    def test_bind_tools_none_falls_through_to_next(self):
+        primary = _StubModel("gpt-5.6-luna", result=None)
+        fallback = _StubModel("claude-sonnet-4-6", result="tool-reply")
+
+        bound = FailoverLLM([primary, fallback]).bind_tools(["t1"])
+        with self.assertLogs("account.ai.llm.failover", level="WARNING"):
+            self.assertEqual(bound.invoke(["msg"]), "tool-reply")
+
+    def test_structured_output_all_none_raises(self):
+        primary = _StubModel("gpt-5.6-luna", result=None)
+        fallback = _StubModel("claude-sonnet-4-6", result=None)
+
+        bound = FailoverLLM([primary, fallback]).with_structured_output("WorkflowPlan")
+        with self.assertLogs("account.ai.llm.failover", level="WARNING"):
+            with self.assertRaises(ValueError):
+                bound.invoke(["msg"])
 
 
 class FailoverGuardTests(SimpleTestCase):

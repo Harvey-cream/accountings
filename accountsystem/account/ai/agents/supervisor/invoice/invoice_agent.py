@@ -13,7 +13,7 @@ from account.ai.llm.llm_utils import extract_content
 
 from .invoice_graph import build_invoice_graph
 
-_CONFIRM_ACTIONS = {"update", "delete"}
+_CONFIRM_ACTIONS = {"create", "update", "delete"}
 
 
 def _tool_call_id(tc) -> str:
@@ -66,6 +66,7 @@ def _to_graph_input(payload: dict) -> dict:
         "need_confirm": False,
         "confirmed": False,
         "loops": 0,
+        "task_input": task_input,
     }
     allowed = {"intent", "target_invoice", "candidates"}
     state.update({key: value for key, value in task_input.items() if key in allowed})

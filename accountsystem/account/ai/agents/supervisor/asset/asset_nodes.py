@@ -8,6 +8,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from account.ai.llm.llm import llm
 from account.ai.llm.llm_utils import extract_content, log_agent_exc
+from account.ai.tools.tool_policy import (
+    BLOCKED_MESSAGE,
+    allowed_tool_names,
+    blocked_write_calls,
+    select_tools,
+)
 
 from .asset_prompt import (
     ACTION_LABEL,
@@ -87,13 +93,34 @@ def make_intent_router_node(model=llm):
 
 
 def make_asset_agent_node(tools: list, model=llm):
-    """按 intent 决定本轮该用哪些工具，由 LLM 发起 tool_calls。"""
-    agent_llm = model.bind_tools(tools)
+    """按 intent + 确认态裁剪本轮工具，由 LLM 发起 tool_calls。
+
+    查询与"目标待定位"阶段只绑只读工具：Planner 把写意图误判成 query 时，
+    LLM 手上没有任何写工具可用，DB 不会被改动。
+    """
+    tools_by_name = {t.name: t for t in tools}
+    bound_cache: dict[tuple, object] = {}
+
+    def _bound(names: tuple):
+        if names not in bound_cache:
+            bound_cache[names] = model.bind_tools(select_tools(tools_by_name, names))
+        return bound_cache[names]
 
     def asset_agent_node(state: AssetAgentState) -> dict:
-        guide = INTENT_GUIDE.get(state.get("intent") or "", "")
+        intent = state.get("intent") or ""
+        allowed = allowed_tool_names("asset", intent, bool(state.get("confirmed")))
+        guide = INTENT_GUIDE.get(intent, "")
         system = SystemMessage(content=f"{ASSET_SYSTEM}\n\n{guide}".strip())
-        reply = agent_llm.invoke([system, *(state.get("messages") or [])])
+        reply = _bound(allowed).invoke([system, *(state.get("messages") or [])])
+        if blocked_write_calls(reply, allowed):
+            return {
+                "messages": [AIMessage(content=BLOCKED_MESSAGE)],
+                "result": {
+                    "success": False,
+                    "message": BLOCKED_MESSAGE,
+                    "data": {"needs_input": True},
+                },
+            }
         return {"messages": [reply], "loops": int(state.get("loops") or 0) + 1}
 
     return asset_agent_node
@@ -160,11 +187,12 @@ def make_mutation_check_node(tools_by_name: dict, model=llm):
         name = hint.name
         if not name:
             # Locator 未给出可用条件：用 Planner 显式定位字段做安全 fallback；
-            # 仍无则停下询问，绝不做空条件搜索来自动选中账户
+            # 仍无则停下询问，绝不做空条件搜索来自动选中账户。
+            # 注意读 keyword 而不是 name——name 是"要改成什么"，拿它定位会搜错账户。
             ti = state.get("task_input") or {}
             if ti.get("account_id"):
                 return _located(state, {"id": int(ti["account_id"])})
-            name = ti.get("name")
+            name = ti.get("keyword")
             if not name:
                 return {
                     "result": {"success": False, "message": TARGET_REQUIRED, "data": {"needs_input": True}}
