@@ -208,9 +208,10 @@ npm run dev:h5          # H5（SSE 流式对话）
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | DJANGO_ENV | 运行环境 debug / production | debug |
-| LLM_AGENT_BASE_URL | LLM（OpenAI 兼容）地址 | https://gpt-agent.cc/v1 |
+| LLM_AGENT_BASE_URL | LLM（OpenAI 兼容）地址 | https://api4.mygptlife.com/v1/ |
 | LLM_AGENT_API_KEY | LLM API Key | — |
 | LLM_AGENT_MODEL | 主模型名 | claude-sonnet-4-6 |
+| LLM_AGENT_FALLBACK_MODELS | 候选模型（逗号分隔）：链 = 主模型 + 其余候选，按序兜底 | claude-sonnet-4-6,gpt-5.6-luna,gemini-3.7-flash |
 | LLM_MODEL_SIMPLE | 轻量任务（分类 / 摘要）模型名 | 同主模型 |
 | AGENT_MAX_ITERATIONS | Agent 单轮最大迭代次数 | 4 |
 | PLANNER_LLM_TIMEOUT | Planner 调用超时（秒） | 45 |

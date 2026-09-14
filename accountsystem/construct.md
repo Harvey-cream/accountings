@@ -50,7 +50,7 @@
 │                           外部服务 / 基础设施                                 │
 ├───────────────────────────────────────┼─────────────────────────────────────┤
 │  MySQL 8          Redis              阿里云 OSS          LLM (OpenAI 兼容)    │
-│  transaction_*    缓存/会话           头像·帖子图          gpt-agent.cc       │
+│  transaction_*    缓存/会话           头像·帖子图          api4.mygptlife.com │
 │  user_*           (可选)             sign_oss_url        DashScope Embedding │
 │  langchain_chat                      avatars/posts/      Chroma 向量库 (KB)   │
 └─────────────────────────────────────────────────────────────────────────────┘

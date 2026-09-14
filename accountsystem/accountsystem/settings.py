@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+
+from django.core.exceptions import ImproperlyConfigured
+
+from config.dotenv_loader import env_str
 from config.provider import settings_conf
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,8 +24,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 环境配置加载
 SETTINGS_PROVIDER = settings_conf()
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#_@aw_7z#%4rj@3e0i@_k@7-jui!xly8l$a8_5%le99#e=rug!'
+# SECRET_KEY 从 env 读取（.env 的 DJANGO_SECRET_KEY）。
+# 生产必须配置；本地 debug 缺失时回退临时密钥，方便开发与测试。
+SECRET_KEY = env_str("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if SETTINGS_PROVIDER.debug:
+        SECRET_KEY = "django-insecure-local-dev-only-not-for-production"
+        print("[WARN] DJANGO_SECRET_KEY 未设置，本地 debug 使用临时密钥；生产必须在 .env 配置")
+    else:
+        raise ImproperlyConfigured(
+            "生产环境必须设置 DJANGO_SECRET_KEY（accountsystem/.env）"
+        )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SETTINGS_PROVIDER.debug
@@ -114,7 +127,7 @@ DATABASES = {
         'ENGINE': _db_config.get('engine', 'django.db.backends.mysql'),
         'NAME': _db_config.get('name', 'account'),
         'USER': _db_config.get('user', 'root'),
-        'PASSWORD': _db_config.get('password', 'root'),
+        'PASSWORD': env_str("MYSQL_ROOT_PASSWORD") or _db_config.get('password') or 'root',
         'HOST': _db_config.get('host', '127.0.0.1'),
         'PORT': str(_db_config.get('port', '3306')),
         'OPTIONS': _db_config.get('OPTIONS', {'charset': 'utf8mb4'}),
@@ -158,12 +171,15 @@ USE_TZ = False
 
 STATIC_URL = 'static/'
 
-# 阿里云 OSS 配置
-OSS_ACCESS_KEY_ID = 'LTAI5tE7ghpotoT9NSKpCcGz'
-OSS_ACCESS_KEY_SECRET = 'TLKGwmezBWXpEZ1CFpnTluF5oCGxAH'
-OSS_BUCKET_NAME = 'my-oss-bucket-2026-2026'
-OSS_ENDPOINT = 'oss-cn-shenzhen.aliyuncs.com'
+# 阿里云 OSS 配置：凭据从 env 读取；bucket / endpoint 不是密钥，保留默认值。
+OSS_ACCESS_KEY_ID = env_str("OSS_ACCESS_KEY_ID")
+OSS_ACCESS_KEY_SECRET = env_str("OSS_ACCESS_KEY_SECRET")
+OSS_BUCKET_NAME = env_str("OSS_BUCKET_NAME", "my-oss-bucket-2026-2026")
+OSS_ENDPOINT = env_str("OSS_ENDPOINT", "oss-cn-shenzhen.aliyuncs.com")
 OSS_URL_PREFIX = f'https://{OSS_BUCKET_NAME}.{OSS_ENDPOINT}'
+
+if not (OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET):
+    print("[WARN] OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET 未设置，头像上传将不可用")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

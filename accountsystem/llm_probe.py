@@ -21,9 +21,9 @@ def _safe_text(text: str, limit: int = 500) -> str:
 def main() -> None:
     load_project_dotenv()
 
-    base_url = env_str("LLM_AGENT_BASE_URL", "https://gpt-agent.cc/v1")
+    base_url = env_str("LLM_AGENT_BASE_URL", "https://api4.mygptlife.com/v1/")
     api_key = env_str("LLM_AGENT_API_KEY")
-    model = env_str("LLM_AGENT_MODEL", "gpt-5.4")
+    model = env_str("LLM_AGENT_MODEL", "claude-sonnet-4-6")
 
     _print_title("ENV")
     print("LLM_AGENT_BASE_URL:", base_url)

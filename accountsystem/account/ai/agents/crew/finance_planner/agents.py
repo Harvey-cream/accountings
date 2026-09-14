@@ -37,12 +37,18 @@ _READONLY_TOOLS = frozenset(
 
 
 def _build_crew_llm():
-    """用与项目一致的自建 OpenAI 兼容端点构建 CrewAI LLM（litellm）。"""
+    """用与项目一致的自建 OpenAI 兼容端点构建 CrewAI LLM（litellm）。
+
+    fallbacks 经 crewai 的 additional_params 透传给 litellm.completion，由其原生
+    兜底机制在**每次**调用失败时顺延下一个模型（litellm 会把主模型的 api_base /
+    api_key 一并带给兜底模型）。
+    """
     from crewai import LLM
 
     from account.ai.llm.llm import (
         LLM_AGENT_API_KEY,
         LLM_AGENT_BASE_URL,
+        LLM_AGENT_FALLBACK_MODELS,
         LLM_AGENT_MODEL,
     )
 
@@ -51,6 +57,11 @@ def _build_crew_llm():
         base_url=LLM_AGENT_BASE_URL,
         api_key=LLM_AGENT_API_KEY,
         temperature=0.2,
+        fallbacks=[
+            f"openai/{name}"
+            for name in LLM_AGENT_FALLBACK_MODELS
+            if name != LLM_AGENT_MODEL
+        ],
     )
 
 

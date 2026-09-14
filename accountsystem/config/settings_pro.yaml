@@ -2,7 +2,8 @@ database:
   engine: django.db.backends.mysql
   name: account
   user: root
-  password: LuLongXiang200554
+  # 口令不落库：运行时从 env 的 MYSQL_ROOT_PASSWORD 读取（见 accountsystem/.env / .env.example）
+  password: null
   host: mysql_db
   port: 3306
   'OPTIONS':

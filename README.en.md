@@ -208,9 +208,10 @@ Main environment variables (see `accountsystem/.env.example`):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | DJANGO_ENV | Runtime environment: debug / production | debug |
-| LLM_AGENT_BASE_URL | LLM endpoint (OpenAI-compatible) | https://gpt-agent.cc/v1 |
+| LLM_AGENT_BASE_URL | LLM endpoint (OpenAI-compatible) | https://api4.mygptlife.com/v1/ |
 | LLM_AGENT_API_KEY | LLM API key | — |
 | LLM_AGENT_MODEL | Primary model name | claude-sonnet-4-6 |
+| LLM_AGENT_FALLBACK_MODELS | Candidate models (comma-separated): chain = primary + the rest, tried in order | claude-sonnet-4-6,gpt-5.6-luna,gemini-3.7-flash |
 | LLM_MODEL_SIMPLE | Lightweight model for classification / summaries | Same as primary |
 | AGENT_MAX_ITERATIONS | Max agent iterations per turn | 4 |
 | PLANNER_LLM_TIMEOUT | Planner request timeout (seconds) | 45 |
