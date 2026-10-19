@@ -88,7 +88,7 @@
                       <view class="comment-meta">
                         <view class="meta-left">
                           <text class="comment-author">{{ comment.author }}</text>
-                          <block v-if="!comment.isRoot && comment.reply_to">
+                          <block v-if="comment.reply_to">
                             <text class="reply-text">></text>
                             <text class="comment-author">{{ comment.reply_to }}</text>
                           </block>
@@ -173,7 +173,7 @@ onShow(() => {
 const posts = ref([]);
 const currentUserId = ref(null);
 
-const fetchPosts = async () => {
+const fetchPosts = async (commentsOnly = false) => {
   // 获取当前用户ID
   const session = uni.getStorageSync('session');
   if (session && session.user_info) {
@@ -204,12 +204,28 @@ const fetchPosts = async () => {
           }
         });
         
+        const currentPost = commentsOnly && posts.value.find(item => item.postId === post.postId);
+        if (currentPost) {
+          // 保留展开状态和尚在防抖中的点赞，只更新评论。
+          Object.assign(currentPost, {
+            realComments: post.realComments,
+            flattenedComments: allComments,
+            comments: post.comments
+          });
+          return currentPost;
+        }
         return {
           ...post,
           flattenedComments: allComments,
           visibleCommentCount: 0
         };
       });
+      if (commentsOnly && replyComment.value) {
+        const updatedComment = posts.value.find(post => post.postId === replyPost.value)
+          ?.flattenedComments.find(comment => comment.id === replyComment.value.id);
+        if (updatedComment) replyComment.value = updatedComment;
+        else hideReplyInput();
+      }
     }
   } catch (e) {
     console.error('获取动态列表失败:', e);
@@ -282,6 +298,7 @@ const handleDelete = (type, post, comment = null) => {
               // 2. 删除评论
               post.flattenedComments = post.flattenedComments.filter(c => c.id !== comment.id);
               post.comments--; // 评论数减1
+              await fetchPosts(true); // 同步删除后调整的评论关系。
             }
           } else {
             uni.showToast({ title: apiRes.msg || '操作失败', icon: 'none' });
@@ -296,14 +313,6 @@ const handleDelete = (type, post, comment = null) => {
 
 // 展开更多评论，每次展开5条
 const expandComments = (post) => {
-  // 这里的 realComments 是后端返回的根评论列表
-  // 但用户的要求是“子评论都在同一级，不管是回复谁”
-  // 在我们的扁平化逻辑里，一个 comment-group 包含一个 root 和它的所有 child
-  // 所以这里的“展开5条”应该是针对这个 group 里的所有 comment-item
-  
-  // 先计算该帖子下总共有多少条可展示的评论项（1个root + N个child）
-  // 注意：后端目前只给每个 root 带了前2个 child，如果需要展开更多，可能需要后端支持
-  // 暂时按现有数据结构实现展开逻辑
   post.visibleCommentCount += 5;
 };
 

@@ -102,12 +102,20 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue';
+import { onUnload } from '@dcloudio/uni-app';
 
 // 视图状态：'list' | 'chat'
 const currentView = ref('list');
 const activeChat = ref(null);
 const inputText = ref('');
 const scrollTarget = ref('');
+const replyTimers = new Set();
+
+onUnload(() => {
+  replyTimers.forEach(timer => clearTimeout(timer));
+  replyTimers.clear();
+  activeChat.value = null;
+});
 
 // 虚拟数据 - 消息列表
 const chatList = ref([
@@ -239,25 +247,28 @@ const backToList = () => {
 const sendMessage = () => {
   if (!inputText.value.trim() || !activeChat.value) return;
 
-  if (!messages.value[activeChat.value.id]) {
-    messages.value[activeChat.value.id] = [];
+  const chatId = activeChat.value.id;
+  if (!messages.value[chatId]) {
+    messages.value[chatId] = [];
   }
 
-  messages.value[activeChat.value.id].push({
+  messages.value[chatId].push({
     type: 'text',
     content: inputText.value,
     isMe: true
   });
 
   // 模拟对方回复
-  setTimeout(() => {
-    messages.value[activeChat.value.id].push({
+  const timer = setTimeout(() => {
+    replyTimers.delete(timer);
+    messages.value[chatId].push({
       type: 'text',
       content: '收到啦！😄',
       isMe: false
     });
-    scrollToBottom();
+    if (activeChat.value?.id === chatId) scrollToBottom();
   }, 1000);
+  replyTimers.add(timer);
 
   inputText.value = '';
   scrollToBottom();
@@ -265,10 +276,11 @@ const sendMessage = () => {
 
 // 滚动到底部
 const scrollToBottom = () => {
+  const chatId = activeChat.value?.id;
+  if (chatId == null) return;
+  scrollTarget.value = '';
   nextTick(() => {
-    scrollTarget.value = 'bottom-anchor';
-    // 重置一下以确保下次变化能触发
-    setTimeout(() => { scrollTarget.value = 'bottom-anchor'; }, 50);
+    if (activeChat.value?.id === chatId) scrollTarget.value = 'bottom-anchor';
   });
 };
 </script>

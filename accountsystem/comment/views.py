@@ -8,6 +8,29 @@ from common.response_web import HttpResult
 from .utils.comment_utils import format_time_ago
 from django.db.models import Q
 
+
+def visible_posts(user):
+    visibility = Q(is_public=True)
+    if user:
+        visibility |= Q(user=user)
+    return UserPost.objects.filter(visibility)
+
+
+def delete_comment_preserving_replies(comment):
+    """调用方在事务中锁定帖子；保留回复内容和原来的 reply_to。"""
+    comments = UserComment.objects.filter(post_id=comment.post_id)
+    if comment.comment_parent_id:
+        comments.filter(comment_parent=comment).update(comment_parent_id=comment.comment_parent_id)
+    else:
+        # 最早的直接回复接替根评论，整组讨论仍然聚合在一起。
+        new_root = comments.filter(comment_parent=comment).order_by('create_time', 'id').first()
+        if new_root:
+            comments.filter(comment_root=comment).update(comment_root=new_root)
+            comments.filter(comment_parent=comment).update(comment_parent=new_root)
+            comments.filter(id=new_root.id).update(comment_parent=None, comment_root=None)
+    comment.delete()
+
+
 class PublishPostView(APIView):
     """发布动态/帖子"""
     def post(self, request, format=None):
@@ -73,7 +96,7 @@ class PostListView(APIView):
         post_type = data.get('type')
         user_id = data.get('userId')
         
-        queryset = UserPost.objects.filter(is_public=True)
+        queryset = visible_posts(user) if user_id else UserPost.objects.filter(is_public=True)
         
         if user_id:
             if user_id == 'self':
@@ -104,14 +127,13 @@ class PostListView(APIView):
             # 获取图片并生成签名 URL
             images = [sign_oss_url(img.image_url) for img in post.images.all().order_by('order')]
             
-            # 获取前2条评论
-            comments_queryset = post.comments.filter(comment_parent__isnull=True).order_by('-create_time')
+            # 返回完整评论，由前端按每次五条展开。
+            comments_queryset = post.comments.filter(comment_parent__isnull=True).select_related('user', 'reply_to').order_by('-create_time')
             real_comments = []
             for comment in comments_queryset:
-                # 获取该根评论下的子评论 (前2条)
-                child_comments_queryset = post.comments.filter(comment_root=comment).order_by('create_time')
+                child_comments_queryset = post.comments.filter(comment_root=comment).select_related('user', 'reply_to').order_by('create_time')
                 child_comments = []
-                for child in child_comments_queryset[:2]:
+                for child in child_comments_queryset:
                     child_comments.append({
                         "id": child.id,
                         "author": child.user.nickname or child.user.username,
@@ -129,11 +151,12 @@ class PostListView(APIView):
                     "authorId": comment.user.id,
                     "avatar": sign_oss_url(comment.user.avatar_url),
                     "content": comment.content,
+                    "reply_to": (comment.reply_to.nickname or comment.reply_to.username) if comment.reply_to else None,
                     "likes": comment.likes_count,
                     "time": format_time_ago(comment.create_time),
                     "root_id": comment.comment_root_id,
                     "child_comments": child_comments,
-                    "child_count": child_comments_queryset.count()
+                    "child_count": len(child_comments)
                 })
 
             # 检查当前用户是否点赞
@@ -178,48 +201,37 @@ class PublishCommentView(APIView):
             return HttpResult.fail("帖子ID或内容不能为空")
 
         try:
-            post = UserPost.objects.get(id=post_id)
-            
-            # 处理根评论和父评论
-            comment_parent = None
-            comment_root = None
-            reply_to = None
+            with transaction.atomic():
+                # 与删除评论使用同一把帖子锁，避免回复写入已经调整的评论树。
+                post = visible_posts(user).select_for_update().get(id=post_id)
+                comment_parent = None
+                comment_root = None
+                reply_to = None
 
-            if parent_id:
-                try:
-                    comment_parent = UserComment.objects.get(id=parent_id)
-                    # 默认回复父评论的作者
-                    reply_to = comment_parent.user
-                    
-                    # 根评论逻辑：
-                    # 如果父评论本身没有 root，说明父评论就是 root
-                    # 否则，当前评论的 root 应该和父评论的 root 一致
+                if parent_id:
+                    try:
+                        comment_parent = UserComment.objects.select_related('comment_root', 'user').get(id=parent_id, post=post)
+                    except UserComment.DoesNotExist:
+                        return HttpResult.fail("回复的评论不存在")
                     comment_root = comment_parent.comment_root or comment_parent
-                    
-                    # 如果前端显式传了 root_id，则以前端为准 (多级回复场景)
-                    if root_id:
-                        try:
-                            comment_root = UserComment.objects.get(id=root_id)
-                        except UserComment.DoesNotExist:
-                            pass
-                    
-                    # 如果前端显式传了 reply_to_id，则以前端为准
-                    if reply_to_id:
-                        try:
-                            reply_to = User.objects.get(id=reply_to_id)
-                        except User.DoesNotExist:
-                            pass
-                except UserComment.DoesNotExist:
-                    return HttpResult.fail("回复的评论不存在")
+                    reply_to = comment_parent.user
+                    if comment_root.post_id != post.id or comment_root.comment_parent_id is not None:
+                        return HttpResult.fail("评论关联无效，请刷新后重试")
+                    if root_id is not None and str(root_id) != str(comment_root.id):
+                        return HttpResult.fail("根评论不匹配，请刷新后重试")
+                    if reply_to_id is not None and str(reply_to_id) != str(reply_to.id):
+                        return HttpResult.fail("被回复者不匹配")
+                elif root_id is not None or reply_to_id is not None:
+                    return HttpResult.fail("回复评论时必须指定父评论")
 
-            comment = UserComment.objects.create(
-                post=post,
-                user=user,
-                content=content,
-                comment_parent=comment_parent,
-                comment_root=comment_root,
-                reply_to=reply_to
-            )
+                comment = UserComment.objects.create(
+                    post=post,
+                    user=user,
+                    content=content,
+                    comment_parent=comment_parent,
+                    comment_root=comment_root,
+                    reply_to=reply_to
+                )
 
             return HttpResult.success_with_data("评论成功", {
                 "id": comment.id,
@@ -248,12 +260,14 @@ class DeleteCommentView(APIView):
             return HttpResult.fail("参数错误")
             
         try:
-            comment = UserComment.objects.get(id=comment_id)
-            # 只能删除自己的评论
-            if comment.user_id != user.id:
-                return HttpResult.fail("无权删除他人的评论")
-                
-            comment.delete()
+            with transaction.atomic():
+                comment = UserComment.objects.get(id=comment_id)
+                UserPost.objects.select_for_update().get(id=comment.post_id)
+                comment.refresh_from_db()
+                # 只能删除自己的评论
+                if comment.user_id != user.id:
+                    return HttpResult.fail("无权删除他人的评论")
+                delete_comment_preserving_replies(comment)
             return HttpResult.success("删除成功")
             
         except UserComment.DoesNotExist:
@@ -301,7 +315,7 @@ class LikePostView(APIView):
             return HttpResult.fail("帖子ID不能为空")
             
         try:
-            post = UserPost.objects.get(id=post_id)
+            post = visible_posts(user).get(id=post_id)
             is_liked = False
             if user:
                 is_liked = UserPostLike.objects.filter(user=user, post=post).exists()
@@ -329,7 +343,7 @@ class LikePostView(APIView):
         try:
             with transaction.atomic():
                 # 使用 select_for_update 锁定帖子记录，防止并发更新 likes_count 出错
-                post = UserPost.objects.select_for_update().get(id=post_id)
+                post = visible_posts(user).select_for_update().get(id=post_id)
                 
                 # 检查数据库中当前的实际状态
                 like_exists = UserPostLike.objects.filter(user=user, post=post).exists()

@@ -150,7 +150,7 @@
                 <view class="reply-header">
                   <view class="meta-left">
                     <text class="reply-user">{{ comment.author }}</text>
-                    <block v-if="!comment.isRoot && comment.reply_to">
+                    <block v-if="comment.reply_to">
                       <text class="reply-text">></text>
                       <text class="reply-user">{{ comment.reply_to }}</text>
                     </block>
@@ -215,7 +215,7 @@ const userPosts = ref([]);
 
 const currentUserId = ref('self');
 
-const fetchUserPosts = async () => {
+const fetchUserPosts = async (commentsOnly = false) => {
   try {
     const res = await getPostList({ userId: currentUserId.value });
     if (res.code === 0) {
@@ -230,12 +230,24 @@ const fetchUserPosts = async () => {
             });
           }
         });
+        const currentPost = commentsOnly && userPosts.value.find(item => item.postId === post.postId);
+        if (currentPost) {
+          Object.assign(currentPost, {
+            realComments: post.realComments,
+            flattenedComments: allComments,
+            comments: post.comments
+          });
+          return currentPost;
+        }
         return {
           ...post,
           flattenedComments: allComments,
           visibleCommentCount: 0
         };
       });
+      if (commentsOnly && selectedPost.value) {
+        selectedPost.value = userPosts.value.find(post => post.postId === selectedPost.value.postId) || null;
+      }
     }
   } catch (e) {
     console.error('获取帖子列表失败:', e);
@@ -308,6 +320,7 @@ const handleDeleteComment = (post, comment) => {
             // 本地移除
             post.flattenedComments = post.flattenedComments.filter(c => c.id !== comment.id);
             post.comments--; // 评论数减1
+            await fetchUserPosts(true);
           } else {
             uni.showToast({ title: apiRes.msg || '删除失败', icon: 'none' });
           }

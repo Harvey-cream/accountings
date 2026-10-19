@@ -279,20 +279,22 @@ class GetUserInfoView(APIView):
 
         # 格式化头像地址 (生成签名 URL)
         avatar_url = sign_oss_url(user.avatar_url)
+        is_self = current_user.id == user.id if current_user else False
+        username = user.username or (user.mobile if is_self else user.account_id)
 
         user_info = {
             'userId': user.id,
-            'username': user.username if user.username else user.mobile,
-            'nickname': user.nickname if user.nickname else (user.username if user.username else user.mobile),
+            'username': username,
+            'nickname': user.nickname or username,
             'accountId': user.account_id,
             'signature': user.signature,
             'gender': user.gender,
-            'mobile': user.mobile,
+            'mobile': user.mobile if is_self else None,
             'loginType': user.login_type,
             'selfCode': user.self_code,
             'avatarUrl': avatar_url,
             'isVerified': user.is_verified,
-            'isSelf': current_user.id == user.id if current_user else False,
+            'isSelf': is_self,
             'following': following_count,
             'followers': followers_count,
             'likesAndCollects': likes_received,
