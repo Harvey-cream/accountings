@@ -10,6 +10,13 @@ from pydantic import ValidationError
 
 from account.ai.llm.llm import planner_llm
 from account.ai.llm.llm_utils import log_agent_exc, nested_structured_output
+from account.ai.observability import (
+    mark_span_ok,
+    record_exception,
+    set_span_attribute,
+    set_span_attributes,
+    start_span,
+)
 
 from .task_schema import WorkflowPlan, topo_sort
 
@@ -118,6 +125,17 @@ def _planner_system() -> str:
 
 
 def build_route_plan(user_input: str, context: str = "") -> WorkflowPlan:
+    """Build a route plan inside one technical Planner span."""
+    with start_span("planner.build_plan") as span:
+        try:
+            return _build_route_plan(user_input, context, span)
+        except Exception as exc:
+            set_span_attribute(span, "planner.status", "failed")
+            record_exception(span, exc)
+            raise
+
+
+def _build_route_plan(user_input: str, context: str, span) -> WorkflowPlan:
     """产出 WorkflowPlan。失败时抛 PlannerError 子类（自带面向用户文案）。
 
     仅结构化输出 / schema 校验失败重试一次；超时 / 连接 / 限流直接快速失败。
@@ -128,6 +146,7 @@ def build_route_plan(user_input: str, context: str = "") -> WorkflowPlan:
     planner = nested_structured_output(planner_llm, WorkflowPlan)
     messages = [SystemMessage(content=_planner_system()), HumanMessage(content=human)]
     for attempt in range(_MAX_SCHEMA_RETRIES + 1):
+        set_span_attribute(span, "planner.retry_count", attempt)
         try:
             result = planner.invoke(messages)
             if result is None:
@@ -143,6 +162,15 @@ def build_route_plan(user_input: str, context: str = "") -> WorkflowPlan:
             )
             if topo_sort(plan) is None:
                 raise ValueError("workflow plan contains invalid dependencies")
+            set_span_attributes(
+                span,
+                {
+                    "planner.task_count": len(plan.tasks),
+                    "planner.status": "completed",
+                    "planner.retry_count": attempt,
+                },
+            )
+            mark_span_ok(span)
             return plan
         except Exception as exc:
             kind = classify_planner_error(exc)

@@ -12,6 +12,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from account.ai.knowledge.retriever.finance_retriever import retrieve_finance_knowledge
+from account.ai.observability.tools import instrument_tools
 
 
 class SearchFinanceKnowledgeInput(BaseModel):
@@ -31,8 +32,8 @@ def _search_finance_knowledge(query: str, top_k: int = 3) -> str:
     )
 
 
-def search_finance_knowledge_tool() -> StructuredTool:
-    return StructuredTool.from_function(
+def search_finance_knowledge_tool(*, domain: str | None = None) -> StructuredTool:
+    tool = StructuredTool.from_function(
         func=_search_finance_knowledge,
         name="search_finance_knowledge",
         description=(
@@ -41,7 +42,10 @@ def search_finance_knowledge_tool() -> StructuredTool:
         ),
         args_schema=SearchFinanceKnowledgeInput,
     )
+    if domain is None:
+        return tool
+    return instrument_tools([tool], domain=domain)[0]
 
 
-def build_knowledge_tools() -> list[StructuredTool]:
-    return [search_finance_knowledge_tool()]
+def build_knowledge_tools(*, domain: str | None = None) -> list[StructuredTool]:
+    return [search_finance_knowledge_tool(domain=domain)]

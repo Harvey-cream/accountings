@@ -16,6 +16,12 @@ import logging
 
 from account.ai.agents.crew.finance_planner import run_finance_planner
 from account.ai.agents.supervisor import asset, bill, budget, chat, invoice
+from account.ai.observability import (
+    mark_span_ok,
+    record_exception,
+    set_span_attribute,
+    start_span,
+)
 
 from .events import EventEmitter
 from .protocol import StepStatus
@@ -175,7 +181,59 @@ def _task_fallback_text(task) -> str:
 # 单任务执行：交给某个业务 Agent 跑一次
 # ============================================================
 
+def _task_outcome(result: dict) -> str:
+    if ((result or {}).get("confirm") or {}).get("need_confirm"):
+        return "waiting_confirmation"
+    data = (result or {}).get("data") or {}
+    if (result or {}).get("needs_input") or (
+        isinstance(data, dict) and data.get("needs_input")
+    ):
+        return "waiting_input"
+    step_result = (result or {}).get("step_result") or {}
+    if isinstance(step_result, dict) and step_result.get("status"):
+        return str(step_result["status"])
+    if (result or {}).get("success") is False or (result or {}).get("error"):
+        return "failed"
+    return "completed"
+
+
 def _execute_task(
+    state: AgentState,
+    task,
+    results: dict,
+    *,
+    trace_id: str = "",
+    plan_id: str = "",
+    event_emitter: EventEmitter | None = None,
+) -> dict:
+    with start_span(
+        "task.execute",
+        {
+            "agent.task_id": str(task.id),
+            "agent.domain": str(task.type),
+            "agent.action": str(task.action),
+            "task.depends_on_count": len(task.depends_on),
+        },
+    ) as span:
+        try:
+            result = _execute_task_impl(
+                state,
+                task,
+                results,
+                trace_id=trace_id,
+                plan_id=plan_id,
+                event_emitter=event_emitter,
+            )
+        except Exception as exc:
+            set_span_attribute(span, "task.status", "failed")
+            record_exception(span, exc)
+            raise
+        set_span_attribute(span, "task.status", _task_outcome(result))
+        mark_span_ok(span)
+        return result
+
+
+def _execute_task_impl(
     state: AgentState,
     task,
     results: dict,
@@ -204,6 +262,7 @@ def _execute_task(
         "task_action": task.action,
         "task_input": task.input_model.model_dump(mode="json"),
         "task_confirmed": bool((state.get("confirm") or {}).get("confirmed_plan")),
+        "task_id": task.id,
     }
     confirm = state.get("confirm")
     if task_type in _CONFIRM_TASKS and confirm is not None:
@@ -294,7 +353,61 @@ def _remaining_plan_tasks(ordered, start_index: int) -> list[dict]:
 # 跨域计划执行：按依赖顺序跑多个 Workflow
 # ============================================================
 
+def _plan_outcome(state: AgentState) -> str:
+    final = state.get("final_response") or {}
+    if (final.get("confirm") or {}).get("need_confirm"):
+        return "waiting_confirmation"
+    plan_result = final.get("plan_result") or {}
+    task_statuses = {
+        str(item.get("status") or "")
+        for item in (plan_result.get("task_results") or [])
+        if isinstance(item, dict)
+    }
+    for waiting in ("waiting_confirmation", "waiting_input", "waiting_selection"):
+        if waiting in task_statuses:
+            return waiting
+    return {
+        "success": "completed",
+        "partial": "partial",
+        "failed": "failed",
+        "cancelled": "cancelled",
+    }.get(str(plan_result.get("status") or ""), "completed")
+
+
 def execute_plan(
+    state: AgentState,
+    plan: WorkflowPlan,
+    *,
+    trace_id: str = "",
+    runtime_plan_id: str = "",
+    event_emitter: EventEmitter | None = None,
+) -> AgentState:
+    plan_id = str(state.get("conversation_id") or runtime_plan_id or "plan")
+    with start_span(
+        "plan.execute",
+        {
+            "agent.plan_id": plan_id,
+            "plan.task_count": len(plan.tasks),
+        },
+    ) as span:
+        try:
+            result = _execute_plan_impl(
+                state,
+                plan,
+                trace_id=trace_id,
+                runtime_plan_id=runtime_plan_id,
+                event_emitter=event_emitter,
+            )
+        except Exception as exc:
+            set_span_attribute(span, "plan.status", "failed")
+            record_exception(span, exc)
+            raise
+        set_span_attribute(span, "plan.status", _plan_outcome(result))
+        mark_span_ok(span)
+        return result
+
+
+def _execute_plan_impl(
     state: AgentState,
     plan: WorkflowPlan,
     *,

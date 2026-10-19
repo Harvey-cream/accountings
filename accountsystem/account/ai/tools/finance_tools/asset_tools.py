@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from account.ai.observability.tools import instrument_tools
 from account.services import asset_service
 
 from .common import run_service
@@ -268,9 +269,9 @@ def delete_asset_account_tool(user) -> StructuredTool:
     )
 
 
-def build_asset_query_tools(user) -> list[StructuredTool]:
+def build_asset_query_tools(user, *, instrument: bool = False) -> list[StructuredTool]:
     """只读资产能力。供 Asset Workflow 与 CrewAI（只读）共用。"""
-    return [
+    tools = [
         query_asset_summary_tool(user),
         query_asset_accounts_tool(user),
         query_asset_account_tool(user),
@@ -278,13 +279,22 @@ def build_asset_query_tools(user) -> list[StructuredTool]:
         search_asset_accounts_tool(user),
         list_asset_types_tool(user),
     ]
+    if not instrument:
+        return tools
+    return instrument_tools(tools, domain="asset", service_name="asset_service")
 
 
 def build_asset_tools(user) -> list[StructuredTool]:
     return [
-        *build_asset_query_tools(user),
-        create_asset_account_tool(user),
-        update_asset_account_tool(user),
-        adjust_asset_balance_tool(user),
-        delete_asset_account_tool(user),
+        *build_asset_query_tools(user, instrument=True),
+        *instrument_tools(
+            [
+                create_asset_account_tool(user),
+                update_asset_account_tool(user),
+                adjust_asset_balance_tool(user),
+                delete_asset_account_tool(user),
+            ],
+            domain="asset",
+            service_name="asset_service",
+        ),
     ]

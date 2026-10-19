@@ -33,6 +33,7 @@ READ_TOOLS: dict[str, tuple[str, ...]] = {
         "get_invoice_header",
         "get_default_invoice",
     ),
+    "knowledge": ("search_finance_knowledge",),
 }
 
 # 各域 action → 该动作允许的写工具（budget 的 set_budget 内部再分新建/更新）
@@ -83,6 +84,19 @@ def allowed_tool_names(
 def select_tools(tools_by_name: dict, names: tuple[str, ...]) -> list:
     """按名字取回工具对象（保持 names 顺序）；名字缺失直接跳过。"""
     return [tools_by_name[n] for n in names if n in tools_by_name]
+
+
+def tool_is_read_only(name: str) -> bool:
+    """Read-only metadata derived from the existing grant policy definitions."""
+    write_names = {
+        tool_name
+        for actions in WRITE_TOOLS.values()
+        for names in actions.values()
+        for tool_name in names
+    }
+    if name in write_names:
+        return False
+    return any(name in names for names in READ_TOOLS.values())
 
 
 def blocked_write_calls(reply, allowed_names: tuple[str, ...]) -> list[str]:

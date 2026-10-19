@@ -10,10 +10,40 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from account.ai.observability import (
+    add_span_event,
+    mark_span_ok,
+    record_exception,
+    set_span_attribute,
+    set_span_attributes,
+    start_span,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _token_usage(result: Any) -> dict[str, int]:
+    """Read provider-reported usage only; never estimate tokens from content."""
+    usage = getattr(result, "usage_metadata", None)
+    if not isinstance(usage, Mapping):
+        metadata = getattr(result, "response_metadata", None)
+        usage = metadata.get("token_usage") if isinstance(metadata, Mapping) else None
+    if not isinstance(usage, Mapping):
+        return {}
+
+    values = {
+        "llm.prompt_tokens": usage.get("input_tokens", usage.get("prompt_tokens")),
+        "llm.completion_tokens": usage.get("output_tokens", usage.get("completion_tokens")),
+        "llm.total_tokens": usage.get("total_tokens"),
+    }
+    return {
+        key: int(value)
+        for key, value in values.items()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    }
 
 
 def _try_in_order(
@@ -31,31 +61,70 @@ def _try_in_order(
     if not attempts:
         raise ValueError("no LLM models configured")
 
-    last_exc: BaseException | None = None
-    for idx, (name, call) in enumerate(attempts):
-        has_next = idx + 1 < len(attempts)
-        try:
-            result = call()
-        except Exception as exc:
-            last_exc = exc
-            if has_next:
-                logger.warning(
-                    "LLM fallback: model=%s failed (%s: %s), trying next",
-                    name,
-                    type(exc).__name__,
-                    exc,
+    with start_span(
+        "llm.invoke",
+        {
+            "llm.provider": "openai_compatible",
+            "llm.model": attempts[0][0],
+        },
+    ) as span:
+        last_exc: BaseException | None = None
+        for idx, (name, call) in enumerate(attempts):
+            has_next = idx + 1 < len(attempts)
+            try:
+                result = call()
+            except Exception as exc:
+                last_exc = exc
+                add_span_event(
+                    span,
+                    "llm.provider_failed",
+                    {
+                        "provider": "openai_compatible",
+                        "llm.model": name,
+                        "exception.type": type(exc).__name__,
+                    },
                 )
-            continue
-        if treat_none_as_failure and result is None:
-            last_exc = ValueError(f"model={name} returned no structured output")
-            if has_next:
-                logger.warning(
-                    "LLM fallback: model=%s returned no structured output, trying next",
-                    name,
+                if has_next:
+                    logger.warning(
+                        "LLM fallback: model=%s failed (%s: %s), trying next",
+                        name,
+                        type(exc).__name__,
+                        exc,
+                    )
+                continue
+            if treat_none_as_failure and result is None:
+                last_exc = ValueError(f"model={name} returned no structured output")
+                add_span_event(
+                    span,
+                    "llm.provider_failed",
+                    {
+                        "provider": "openai_compatible",
+                        "llm.model": name,
+                        "exception.type": "ValueError",
+                    },
                 )
-            continue
-        return result
-    raise last_exc  # type: ignore[misc]
+                if has_next:
+                    logger.warning(
+                        "LLM fallback: model=%s returned no structured output, trying next",
+                        name,
+                    )
+                continue
+            set_span_attributes(
+                span,
+                {
+                    "llm.model": name,
+                    "llm.failover_count": idx,
+                    "llm.status": "completed",
+                    **_token_usage(result),
+                },
+            )
+            mark_span_ok(span)
+            return result
+
+        set_span_attribute(span, "llm.failover_count", max(0, len(attempts) - 1))
+        set_span_attribute(span, "llm.status", "failed")
+        record_exception(span, last_exc or RuntimeError("LLM invocation failed"))
+        raise last_exc  # type: ignore[misc]
 
 
 def _invoke_thunk(runnable: Any, input: Any, config: Any, kwargs: dict) -> Callable[[], Any]:

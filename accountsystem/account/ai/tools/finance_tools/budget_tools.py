@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from account.ai.observability.tools import instrument_tools
 from account.services import budget_service
 
 from .common import run_service
@@ -153,9 +154,13 @@ def budget_advice_tool(user) -> StructuredTool:
 
 
 def build_budget_tools(user) -> list[StructuredTool]:
-    return [
-        create_budget_tool(user),
-        update_budget_tool(user),
-        query_budget_tool(user),
-        budget_advice_tool(user),
-    ]
+    return instrument_tools(
+        [
+            create_budget_tool(user),
+            update_budget_tool(user),
+            query_budget_tool(user),
+            budget_advice_tool(user),
+        ],
+        domain="budget",
+        service_name="budget_service",
+    )

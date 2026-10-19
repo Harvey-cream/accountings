@@ -9,6 +9,7 @@ from datetime import date, datetime
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from account.ai.observability.tools import instrument_tools
 from account.services import expense_service
 
 from .common import run_service
@@ -312,11 +313,15 @@ def delete_bill_tool(user) -> StructuredTool:
 
 
 def build_bill_tools(user) -> list[StructuredTool]:
-    return [
-        create_bill_tool(user),
-        batch_create_bills_tool(user),
-        update_bill_tool(user),
-        query_bills_tool(user),
-        search_bills_tool(user),
-        delete_bill_tool(user),
-    ]
+    return instrument_tools(
+        [
+            create_bill_tool(user),
+            batch_create_bills_tool(user),
+            update_bill_tool(user),
+            query_bills_tool(user),
+            search_bills_tool(user),
+            delete_bill_tool(user),
+        ],
+        domain="bill",
+        service_name="expense_service",
+    )

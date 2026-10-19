@@ -23,7 +23,7 @@ from .budget_state import BudgetAgentState
 
 def build_budget_graph(user):
     # 预算域工具 + 只读的内部知识库工具（预算规则查询）
-    tools = [*build_budget_tools(user), *build_knowledge_tools()]
+    tools = [*build_budget_tools(user), *build_knowledge_tools(domain="budget")]
     tools_by_name = {t.name: t for t in tools}
 
     graph = StateGraph(BudgetAgentState)

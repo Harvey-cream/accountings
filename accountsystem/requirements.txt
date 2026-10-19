@@ -25,3 +25,6 @@ llama-index-core>=0.12,<0.15
 llama-index-vector-stores-chroma>=0.4,<0.6
 pypdf>=4.0.0
 crewai>=0.80,<1.0
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp==1.44.0

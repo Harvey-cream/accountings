@@ -108,6 +108,7 @@ def run_orchestrator(
     trace_id: str | None = None,
     event_emitter: EventEmitter | None = None,
     plan_id: str | None = None,
+    run_id: str | None = None,
 ) -> dict:
     text = user_input or ""
     trace_id = trace_id or str(uuid4())
@@ -119,7 +120,7 @@ def run_orchestrator(
         if confirm.get("confirm") is False:
             return {"output": _CANCEL_REPLY, "intermediate_steps": []}
         if confirm.get("confirm") is True:
-            state = new_state(text, user=user, conversation_id=conversation_id)
+            state = new_state(text, user=user, conversation_id=conversation_id, run_id=run_id)
             memory_messages, memory_text = load_chat_memory(user, text)
             state["memory_messages"] = memory_messages
             state["memory_text"] = memory_text
@@ -162,7 +163,7 @@ def run_orchestrator(
     if greeting is not None:
         return {"output": greeting, "intermediate_steps": []}
 
-    state = new_state(text, user=user, conversation_id=conversation_id)
+    state = new_state(text, user=user, conversation_id=conversation_id, run_id=run_id)
     memory_messages, memory_text = load_chat_memory(user, text)
     state["memory_messages"] = memory_messages
     state["memory_text"] = memory_text

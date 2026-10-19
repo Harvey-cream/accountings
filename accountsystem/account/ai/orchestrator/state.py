@@ -13,6 +13,7 @@ class AgentState(TypedDict, total=False):
     # --- 会话身份 ---
     user_id: Any
     conversation_id: Any
+    run_id: str
     # 运行期携带的 Django User（Tool 构建需要），Agent 层不得据此访问 ORM
     user: Any
 
@@ -40,10 +41,16 @@ class AgentState(TypedDict, total=False):
     final_response: dict    # {"output": str, "intermediate_steps": list}
 
 
-def new_state(user_input: str, user: Any = None, conversation_id: Any = None) -> AgentState:
+def new_state(
+    user_input: str,
+    user: Any = None,
+    conversation_id: Any = None,
+    run_id: str | None = None,
+) -> AgentState:
     return AgentState(
         user_id=getattr(user, "id", None),
         conversation_id=conversation_id,
+        run_id=run_id or "",
         user=user,
         user_input=user_input or "",
         messages=[],

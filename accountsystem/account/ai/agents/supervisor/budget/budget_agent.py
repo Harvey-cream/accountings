@@ -7,6 +7,18 @@ from langchain_core.runnables import RunnableLambda
 
 from account.ai.llm.llm import AGENT_MAX_ITERATIONS
 from account.ai.llm.llm_utils import extract_content
+from account.ai.observability import (
+    mark_span_ok,
+    record_exception,
+    set_span_attribute,
+    start_span,
+)
+from account.ai.observability.context import (
+    WorkflowContext,
+    confirmation_granted,
+    use_workflow_context,
+    workflow_status,
+)
 
 from .budget_graph import build_budget_graph
 
@@ -86,17 +98,38 @@ def run(
     task_action=None,
     task_input=None,
     task_confirmed=False,
+    task_id=None,
 ) -> dict:
-    chain = _build_chain(user)
-    return chain.invoke(
-        {
-            "input": user_input or "",
-            "history": history or [],
-            "user": user,
-            "confirm": confirm,
-            "task_action": task_action,
-            "task_input": task_input or {},
-            "task_confirmed": task_confirmed,
-        },
-        config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
-    )
+    confirmed = confirmation_granted(task_confirmed, confirm)
+    context = WorkflowContext("budget", str(task_action or "unspecified"), str(task_id or ""), confirmed)
+    with use_workflow_context(context):
+        with start_span(
+            "workflow.run",
+            {
+                "agent.domain": "budget",
+                "agent.action": context.action,
+                "agent.task_id": task_id,
+                "workflow.name": "budget",
+            },
+        ) as span:
+            try:
+                chain = _build_chain(user)
+                result = chain.invoke(
+                    {
+                        "input": user_input or "",
+                        "history": history or [],
+                        "user": user,
+                        "confirm": confirm,
+                        "task_action": task_action,
+                        "task_input": task_input or {},
+                        "task_confirmed": task_confirmed,
+                    },
+                    config={"recursion_limit": max(AGENT_MAX_ITERATIONS * 2 + 10, 16)},
+                )
+            except Exception as exc:
+                set_span_attribute(span, "workflow.status", "failed")
+                record_exception(span, exc)
+                raise
+            set_span_attribute(span, "workflow.status", workflow_status(result))
+            mark_span_ok(span)
+            return result

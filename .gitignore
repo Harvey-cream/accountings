@@ -14,6 +14,9 @@ __pycache__/
 *.iml
 .vscode/
 
+# Claude 本机权限配置
+/.claude/settings.local.json
+
 # Node 前端依赖（如果有）
 node_modules/
 package-lock.json

@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from account.ai.observability.tools import instrument_tools
 from account.services import invoice_service
 
 from .common import run_service
@@ -243,13 +244,17 @@ def delete_invoice_tool(user) -> StructuredTool:
 
 
 def build_invoice_tools(user) -> list[StructuredTool]:
-    return [
-        list_invoices_tool(user),
-        search_invoice_tool(user),
-        get_invoice_detail_tool(user),
-        get_invoice_header_tool(user),
-        get_default_invoice_tool(user),
-        create_invoice_tool(user),
-        update_invoice_tool(user),
-        delete_invoice_tool(user),
-    ]
+    return instrument_tools(
+        [
+            list_invoices_tool(user),
+            search_invoice_tool(user),
+            get_invoice_detail_tool(user),
+            get_invoice_header_tool(user),
+            get_default_invoice_tool(user),
+            create_invoice_tool(user),
+            update_invoice_tool(user),
+            delete_invoice_tool(user),
+        ],
+        domain="invoice",
+        service_name="invoice_service",
+    )

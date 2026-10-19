@@ -21,7 +21,7 @@ from .chat_state import ChatState
 
 def build_chat_graph(user=None):
     """聊天工作流：不绑定用户业务工具，只挂知识检索工具。"""
-    tools = build_knowledge_tools()
+    tools = build_knowledge_tools(domain="chat")
 
     graph = StateGraph(ChatState)
     graph.add_node("context_prepare", context_prepare_node)
